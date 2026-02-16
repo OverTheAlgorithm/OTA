@@ -3,7 +3,11 @@
     "allow": [
       "Bash(go build:*)",
       "Bash(go vet:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(git ls-tree:*)",
+      "Bash(git show-ref:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs"
     ]
   }
 }
