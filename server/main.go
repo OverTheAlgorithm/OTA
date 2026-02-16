@@ -10,6 +10,7 @@ import (
 	"ota/config"
 	"ota/domain/collector"
 	"ota/platform/kakao"
+	"ota/platform/gemini"
 	"ota/platform/openai"
 	"ota/storage"
 )
@@ -35,11 +36,17 @@ func main() {
 	log.Println("database connected")
 
 	// Data collection
-	aiClient := openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAIModel)
+	var aiClient collector.AIClient
+	switch cfg.AIProvider {
+	case "gemini":
+		aiClient = gemini.NewClient(cfg.GeminiAPIKey, cfg.GeminiModel)
+	case "openai":
+		aiClient = openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAIModel)
+	}
 	collectorRepo := storage.NewCollectorRepository(pool)
 	collectorService := collector.NewService(aiClient, collectorRepo)
 	_ = collectorService // TODO: wire to scheduler and/or HTTP handler
-	log.Println("collector service initialized")
+	log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
 
 	userRepo := storage.NewUserRepository(pool)
 	kakaoClient := kakao.NewClient(cfg.KakaoClientID, cfg.KakaoClientSecret, cfg.KakaoRedirectURI)
