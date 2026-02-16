@@ -87,7 +87,7 @@
    - HTTP handler, cron scheduler, CLI, test 어디서든 호출 가능.
    - config, database 패키지는 협업 개발자가 구현 (유저 기능과 공유).
 
-#### Implemented Files
+#### Implemented Files (Data Collection)
 
 ```
 server/
@@ -99,7 +99,7 @@ server/
 │   │   ├── client.go                       # ai.Client 인터페이스 + OpenAIClient (HTTP 직접 호출)
 │   │   └── client_test.go                  # httptest 서버로 모킹, good/bad 케이스
 │   └── collector/
-│       ├── model.go                        # CollectionRun, ContextItem, CollectionResult
+│       ├── model.go                        # CollectionRun, ContextItem, CollectionResult, RunStatus 타입
 │       ├── repository.go                   # Repository 인터페이스만 (DB 구현 없음)
 │       ├── prompt.go                       # 한국어 프롬프트 템플릿
 │       ├── service.go                      # Collect(ctx) 핵심 함수
@@ -107,13 +107,53 @@ server/
 ```
 
 - 테스트: 11개 전체 통과, ai 88.9%, collector 84.4% 커버리지
-- 의존성: `github.com/google/uuid` 만 추가 (OpenAI SDK 미사용, 직접 HTTP)
+- 의존성: `github.com/google/uuid` (OpenAI SDK 미사용, 직접 HTTP)
+- 코딩 규칙: 리터럴 문자열 대신 전용 타입 + 상수 사용 (예: `RunStatus`, `RunStatusFailed`)
+
+### User Features & Infrastructure (협업 개발자 구현, merged)
+
+#### 구현된 인프라
+
+- **config**: `config.Load()` — .env 기반, `godotenv` 사용. `DatabaseURL()` 메서드 제공.
+- **database**: `database.NewPool(ctx, url)` — pgx/v5 connection pool. `RunMigrations(url, path)` — golang-migrate/v4, pgx5 드라이버.
+- **server**: `server.New(...)` — Gin 라우터 설정. CORS + JWT Auth 미들웨어.
+- **docker-compose.yml**: PostgreSQL 16-alpine, port 5432, user `ota`, db `ota`.
+
+#### 구현된 유저 기능
+
+```
+server/
+├── internal/
+│   ├── config/config.go          # Config 구조체, Load(), DatabaseURL()
+│   ├── database/postgres.go      # NewPool(), RunMigrations()
+│   ├── server/
+│   │   ├── server.go             # Gin 라우터 (API v1 그룹)
+│   │   └── middleware.go         # CORS, JWT Auth 미들웨어
+│   ├── auth/
+│   │   ├── handler.go            # Kakao OAuth 핸들러
+│   │   ├── jwt.go                # JWT 토큰 발급/검증
+│   │   ├── kakao.go              # Kakao OAuth 클라이언트
+│   │   └── state_store.go        # CSRF state 관리
+│   └── user/
+│       ├── model.go              # User 구조체
+│       └── repository.go         # Repository 인터페이스 + PostgresRepository (pgx)
+├── migrations/
+│   ├── 000001_create_users_table.up.sql
+│   └── 000001_create_users_table.down.sql
+├── main.go                       # DI 와이어링, 서버 시작
+└── .env.example                  # 환경변수 템플릿
+```
+
+- 패턴: Repository 인터페이스 + pgx 구현체, DI via 생성자
+- 인증: Kakao OAuth2 → JWT (httpOnly 쿠키)
+- DB: pgx/v5 raw SQL, golang-migrate/v4
 
 #### Next Steps
 
-1. **Repository 구현체**: `collector.Repository` 인터페이스의 PostgreSQL 구현 (pgx). DB 연결, config 패키지와 함께 구현 필요.
-2. **실제 테스트**: OpenAI API 키로 `Collect(ctx)` 실행하여 한국 트렌딩 토픽 품질 확인.
-3. **프롬프트 튜닝**: 실제 결과물 기반으로 프롬프트 개선. 특정 웹사이트 참조 추가, 키워드 추출 분리 등 실험.
-4. **스케줄러 통합**: cron 또는 scheduler에서 `Collect(ctx)` 호출하도록 연결.
-5. **HTTP handler**: 수동 트리거용 admin endpoint 추가.
-6. **품질 부족 시 대안**: Naver 실시간 검색어 키워드 스크래핑 -> OpenAI web_search로 상세 맥락 수집 (hybrid-lite).
+1. **collector.Repository 구현체**: PostgresRepository (pgx). `user.PostgresRepository` 패턴 따름.
+2. **config에 OpenAI 설정 추가**: `OPENAI_API_KEY`, `OPENAI_MODEL` 환경변수.
+3. **main.go에 collector 와이어링**: ai.Client → Repository → Service 초기화.
+4. **실제 테스트**: OpenAI API 키로 `Collect(ctx)` 실행하여 한국 트렌딩 토픽 품질 확인.
+5. **프롬프트 튜닝**: 실제 결과물 기반으로 프롬프트 개선.
+6. **스케줄러 통합**: cron 또는 scheduler에서 `Collect(ctx)` 호출.
+7. **HTTP handler**: 수동 트리거용 admin endpoint 추가.

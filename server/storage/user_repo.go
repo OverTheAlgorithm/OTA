@@ -1,4 +1,4 @@
-package user
+package storage
 
 import (
 	"context"
@@ -6,22 +6,19 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"ota/domain/user"
 )
 
-type Repository interface {
-	UpsertByKakaoID(ctx context.Context, kakaoID int64, email, nickname, profileImage string) (User, error)
-	FindByID(ctx context.Context, id string) (User, error)
-}
-
-type PostgresRepository struct {
+type UserRepository struct {
 	pool *pgxpool.Pool
 }
 
-func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
+func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
+	return &UserRepository{pool: pool}
 }
 
-func (r *PostgresRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64, email, nickname, profileImage string) (User, error) {
+func (r *UserRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64, email, nickname, profileImage string) (user.User, error) {
 	query := `
 		INSERT INTO users (kakao_id, email, nickname, profile_image)
 		VALUES ($1, $2, $3, $4)
@@ -32,28 +29,28 @@ func (r *PostgresRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64,
 			updated_at = NOW()
 		RETURNING id, kakao_id, email, nickname, profile_image, created_at, updated_at`
 
-	var u User
+	var u user.User
 	err := r.pool.QueryRow(ctx, query, kakaoID, email, nickname, profileImage).Scan(
 		&u.ID, &u.KakaoID, &u.Email, &u.Nickname, &u.ProfileImage, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
-		return User{}, fmt.Errorf("upsert user: %w", err)
+		return user.User{}, fmt.Errorf("upsert user: %w", err)
 	}
 	return u, nil
 }
 
-func (r *PostgresRepository) FindByID(ctx context.Context, id string) (User, error) {
+func (r *UserRepository) FindByID(ctx context.Context, id string) (user.User, error) {
 	query := `SELECT id, kakao_id, email, nickname, profile_image, created_at, updated_at FROM users WHERE id = $1`
 
-	var u User
+	var u user.User
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&u.ID, &u.KakaoID, &u.Email, &u.Nickname, &u.ProfileImage, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return User{}, fmt.Errorf("user not found")
+			return user.User{}, fmt.Errorf("user not found")
 		}
-		return User{}, fmt.Errorf("find user: %w", err)
+		return user.User{}, fmt.Errorf("find user: %w", err)
 	}
 	return u, nil
 }

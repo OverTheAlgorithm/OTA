@@ -1,4 +1,4 @@
-package ai
+package openai
 
 import (
 	"context"
@@ -21,12 +21,9 @@ func TestSearchAndAnalyze_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewOpenAIClient("test-key", "gpt-4o")
+	client := NewClient("test-key", "gpt-4o")
 	client.httpClient = server.Client()
-
-	// Override the URL by replacing the transport
-	original := client.httpClient.Transport
-	client.httpClient.Transport = rewriteTransport{base: original, url: server.URL}
+	client.httpClient.Transport = rewriteTransport{base: client.httpClient.Transport, url: server.URL}
 
 	resp, err := client.SearchAndAnalyze(context.Background(), "test prompt")
 	if err != nil {
@@ -50,7 +47,7 @@ func TestSearchAndAnalyze_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewOpenAIClient("test-key", "gpt-4o")
+	client := NewClient("test-key", "gpt-4o")
 	client.httpClient = server.Client()
 	client.httpClient.Transport = rewriteTransport{base: client.httpClient.Transport, url: server.URL}
 
@@ -88,7 +85,6 @@ func TestParseResponse_MalformedJSON(t *testing.T) {
 	}
 }
 
-// rewriteTransport redirects all requests to the test server.
 type rewriteTransport struct {
 	base http.RoundTripper
 	url  string

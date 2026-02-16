@@ -7,16 +7,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"ota/internal/ai"
 )
 
 type Service struct {
-	ai   ai.Client
+	ai   AIClient
 	repo Repository
 }
 
-func NewService(aiClient ai.Client, repo Repository) *Service {
+func NewService(aiClient AIClient, repo Repository) *Service {
 	return &Service{
 		ai:   aiClient,
 		repo: repo,

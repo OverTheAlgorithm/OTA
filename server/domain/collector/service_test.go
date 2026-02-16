@@ -6,29 +6,27 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-
-	"ota/internal/ai"
 )
 
 // --- mocks ---
 
 type mockAIClient struct {
-	resp ai.Response
+	resp AIResponse
 	err  error
 }
 
-func (m *mockAIClient) SearchAndAnalyze(_ context.Context, _ string) (ai.Response, error) {
+func (m *mockAIClient) SearchAndAnalyze(_ context.Context, _ string) (AIResponse, error) {
 	return m.resp, m.err
 }
 
 type mockRepo struct {
-	createRunErr      error
-	completeRunErr    error
-	saveItemsErr      error
-	completedStatus   RunStatus
-	completedErrMsg   *string
-	completedRawResp  *string
-	savedItems        []ContextItem
+	createRunErr     error
+	completeRunErr   error
+	saveItemsErr     error
+	completedStatus  RunStatus
+	completedErrMsg  *string
+	completedRawResp *string
+	savedItems       []ContextItem
 }
 
 func (m *mockRepo) CreateRun(_ context.Context, _ CollectionRun) error {
@@ -52,7 +50,7 @@ func (m *mockRepo) SaveContextItems(_ context.Context, items []ContextItem) erro
 func TestCollect_Success(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
-		resp: ai.Response{
+		resp: AIResponse{
 			OutputText: validCollectionJSON,
 			RawJSON:    `{"raw":"data"}`,
 		},
@@ -101,7 +99,7 @@ func TestCollect_AIFailure(t *testing.T) {
 func TestCollect_MalformedAIResponse(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
-		resp: ai.Response{OutputText: "not json at all", RawJSON: `{"raw":"bad"}`},
+		resp: AIResponse{OutputText: "not json at all", RawJSON: `{"raw":"bad"}`},
 	}
 
 	svc := NewService(aiClient, repo)
@@ -131,7 +129,7 @@ func TestCollect_CreateRunFailure(t *testing.T) {
 func TestCollect_SkipsInvalidItems(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
-		resp: ai.Response{
+		resp: AIResponse{
 			OutputText: `{"items":[
 				{"category":"top","rank":1,"topic":"유효","summary":"유효한 항목","sources":[]},
 				{"category":"","rank":2,"topic":"빈 카테고리","summary":"필터됨","sources":[]},
@@ -154,7 +152,7 @@ func TestCollect_SkipsInvalidItems(t *testing.T) {
 func TestCollect_AllItemsInvalid(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
-		resp: ai.Response{
+		resp: AIResponse{
 			OutputText: `{"items":[{"category":"","rank":1,"topic":"","summary":"","sources":[]}]}`,
 			RawJSON:    "{}",
 		},
