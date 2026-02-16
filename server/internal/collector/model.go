@@ -6,11 +6,19 @@ import (
 	"github.com/google/uuid"
 )
 
+type RunStatus string
+
+const (
+	RunStatusRunning RunStatus = "running"
+	RunStatusSuccess RunStatus = "success"
+	RunStatusFailed  RunStatus = "failed"
+)
+
 type CollectionRun struct {
 	ID           uuid.UUID
 	StartedAt    time.Time
 	CompletedAt  *time.Time
-	Status       string
+	Status       RunStatus
 	ErrorMessage *string
 	RawResponse  *string
 }

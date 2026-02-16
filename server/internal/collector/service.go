@@ -27,7 +27,7 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 	run := CollectionRun{
 		ID:        uuid.New(),
 		StartedAt: time.Now().UTC(),
-		Status:    "running",
+		Status:    RunStatusRunning,
 	}
 
 	if err := s.repo.CreateRun(ctx, run); err != nil {
@@ -39,7 +39,7 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 	resp, err := s.ai.SearchAndAnalyze(ctx, prompt)
 	if err != nil {
 		errMsg := err.Error()
-		_ = s.repo.CompleteRun(ctx, run.ID, "failed", &errMsg, nil)
+		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, nil)
 		return CollectionResult{}, fmt.Errorf("collecting: %w", err)
 	}
 
@@ -47,24 +47,24 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 	if err != nil {
 		errMsg := err.Error()
 		rawResp := resp.RawJSON
-		_ = s.repo.CompleteRun(ctx, run.ID, "failed", &errMsg, &rawResp)
+		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, &rawResp)
 		return CollectionResult{}, fmt.Errorf("parsing ai response: %w", err)
 	}
 
 	if err := s.repo.SaveContextItems(ctx, items); err != nil {
 		errMsg := err.Error()
 		rawResp := resp.RawJSON
-		_ = s.repo.CompleteRun(ctx, run.ID, "failed", &errMsg, &rawResp)
+		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, &rawResp)
 		return CollectionResult{}, fmt.Errorf("saving context items: %w", err)
 	}
 
 	now := time.Now().UTC()
 	rawResp := resp.RawJSON
 	run.CompletedAt = &now
-	run.Status = "success"
+	run.Status = RunStatusSuccess
 	run.RawResponse = &rawResp
 
-	if err := s.repo.CompleteRun(ctx, run.ID, "success", nil, &rawResp); err != nil {
+	if err := s.repo.CompleteRun(ctx, run.ID, RunStatusSuccess, nil, &rawResp); err != nil {
 		return CollectionResult{}, fmt.Errorf("completing run: %w", err)
 	}
 
@@ -114,8 +114,4 @@ func parseContextItems(outputText string, runID uuid.UUID) ([]ContextItem, error
 	}
 
 	return items, nil
-}
-
-func strPtr(s string) *string {
-	return &s
 }

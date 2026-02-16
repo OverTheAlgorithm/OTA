@@ -25,7 +25,7 @@ type mockRepo struct {
 	createRunErr      error
 	completeRunErr    error
 	saveItemsErr      error
-	completedStatus   string
+	completedStatus   RunStatus
 	completedErrMsg   *string
 	completedRawResp  *string
 	savedItems        []ContextItem
@@ -35,7 +35,7 @@ func (m *mockRepo) CreateRun(_ context.Context, _ CollectionRun) error {
 	return m.createRunErr
 }
 
-func (m *mockRepo) CompleteRun(_ context.Context, _ uuid.UUID, status string, errMsg *string, rawResp *string) error {
+func (m *mockRepo) CompleteRun(_ context.Context, _ uuid.UUID, status RunStatus, errMsg *string, rawResp *string) error {
 	m.completedStatus = status
 	m.completedErrMsg = errMsg
 	m.completedRawResp = rawResp
@@ -64,7 +64,7 @@ func TestCollect_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.Run.Status != "success" {
+	if result.Run.Status != RunStatusSuccess {
 		t.Errorf("expected status success, got %s", result.Run.Status)
 	}
 	if len(result.Items) != 2 {
@@ -76,7 +76,7 @@ func TestCollect_Success(t *testing.T) {
 	if result.Items[1].Category != "entertainment" {
 		t.Errorf("expected category entertainment, got %s", result.Items[1].Category)
 	}
-	if repo.completedStatus != "success" {
+	if repo.completedStatus != RunStatusSuccess {
 		t.Errorf("expected repo completed with success, got %s", repo.completedStatus)
 	}
 	if len(repo.savedItems) != 2 {
@@ -93,7 +93,7 @@ func TestCollect_AIFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when AI fails")
 	}
-	if repo.completedStatus != "failed" {
+	if repo.completedStatus != RunStatusFailed {
 		t.Errorf("expected repo completed with failed, got %s", repo.completedStatus)
 	}
 }
@@ -109,7 +109,7 @@ func TestCollect_MalformedAIResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for malformed AI response")
 	}
-	if repo.completedStatus != "failed" {
+	if repo.completedStatus != RunStatusFailed {
 		t.Errorf("expected repo completed with failed, got %s", repo.completedStatus)
 	}
 	if repo.completedRawResp == nil {
