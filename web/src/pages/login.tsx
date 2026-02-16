@@ -11,7 +11,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate("/", { replace: true });
+      navigate("/home", { replace: true });
     }
   }, [user, loading, navigate]);
 
