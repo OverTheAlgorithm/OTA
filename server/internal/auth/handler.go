@@ -89,7 +89,7 @@ func (h *Handler) KakaoCallback(c *gin.Context) {
 	}
 
 	c.SetCookie(cookieName, jwtToken, 7*24*3600, "/", "", false, true)
-	c.Redirect(http.StatusFound, h.frontendURL)
+	c.Redirect(http.StatusFound, h.frontendURL+"/home")
 }
 
 func (h *Handler) Me(c *gin.Context) {
