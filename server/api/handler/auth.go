@@ -1,25 +1,28 @@
-package auth
+package handler
 
 import (
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"ota/internal/user"
+
+	"ota/auth"
+	"ota/domain/user"
+	"ota/platform/kakao"
 )
 
 const cookieName = "ota_token"
 
-type Handler struct {
-	kakao      *KakaoClient
-	jwt        *JWTManager
-	states     *StateStore
-	userRepo   user.Repository
+type AuthHandler struct {
+	kakao       *kakao.Client
+	jwt         *auth.JWTManager
+	states      *auth.StateStore
+	userRepo    user.Repository
 	frontendURL string
 }
 
-func NewHandler(kakao *KakaoClient, jwt *JWTManager, states *StateStore, userRepo user.Repository, frontendURL string) *Handler {
-	return &Handler{
+func NewAuthHandler(kakao *kakao.Client, jwt *auth.JWTManager, states *auth.StateStore, userRepo user.Repository, frontendURL string) *AuthHandler {
+	return &AuthHandler{
 		kakao:       kakao,
 		jwt:         jwt,
 		states:      states,
@@ -28,7 +31,7 @@ func NewHandler(kakao *KakaoClient, jwt *JWTManager, states *StateStore, userRep
 	}
 }
 
-func (h *Handler) KakaoLogin(c *gin.Context) {
+func (h *AuthHandler) KakaoLogin(c *gin.Context) {
 	state, err := h.states.Generate()
 	if err != nil {
 		log.Printf("failed to generate state: %v", err)
@@ -40,7 +43,7 @@ func (h *Handler) KakaoLogin(c *gin.Context) {
 	c.Redirect(http.StatusFound, authURL)
 }
 
-func (h *Handler) KakaoCallback(c *gin.Context) {
+func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
 
@@ -92,7 +95,7 @@ func (h *Handler) KakaoCallback(c *gin.Context) {
 	c.Redirect(http.StatusFound, h.frontendURL)
 }
 
-func (h *Handler) Me(c *gin.Context) {
+func (h *AuthHandler) Me(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -109,7 +112,7 @@ func (h *Handler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": u})
 }
 
-func (h *Handler) Logout(c *gin.Context) {
+func (h *AuthHandler) Logout(c *gin.Context) {
 	c.SetCookie(cookieName, "", -1, "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }

@@ -1,11 +1,13 @@
-package server
+package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"ota/internal/auth"
+
+	"ota/api/handler"
+	"ota/auth"
 )
 
-func New(authHandler *auth.Handler, jwtManager *auth.JWTManager, frontendURL string) *gin.Engine {
+func NewRouter(authHandler *handler.AuthHandler, jwtManager *auth.JWTManager, frontendURL string) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(CORSMiddleware(frontendURL))

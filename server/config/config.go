@@ -21,6 +21,9 @@ type Config struct {
 
 	JWTSecret string
 
+	OpenAIAPIKey string
+	OpenAIModel  string
+
 	ServerPort  string
 	FrontendURL string
 }
@@ -49,6 +52,9 @@ func Load() (Config, error) {
 
 		JWTSecret: getEnv("JWT_SECRET", ""),
 
+		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
+		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-4o"),
+
 		ServerPort:  getEnv("SERVER_PORT", "8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),
 	}
@@ -58,6 +64,9 @@ func Load() (Config, error) {
 	}
 	if cfg.JWTSecret == "" {
 		return cfg, fmt.Errorf("JWT_SECRET is required")
+	}
+	if cfg.OpenAIAPIKey == "" {
+		return cfg, fmt.Errorf("OPENAI_API_KEY is required")
 	}
 
 	return cfg, nil

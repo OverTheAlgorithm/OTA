@@ -1,4 +1,4 @@
-package ai
+package openai
 
 import (
 	"bytes"
@@ -8,31 +8,18 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"ota/domain/collector"
 )
 
-type Response struct {
-	OutputText  string
-	Annotations []Annotation
-	RawJSON     string
-}
-
-type Annotation struct {
-	URL   string
-	Title string
-}
-
-type Client interface {
-	SearchAndAnalyze(ctx context.Context, prompt string) (Response, error)
-}
-
-type OpenAIClient struct {
+type Client struct {
 	apiKey     string
 	model      string
 	httpClient *http.Client
 }
 
-func NewOpenAIClient(apiKey string, model string) *OpenAIClient {
-	return &OpenAIClient{
+func NewClient(apiKey string, model string) *Client {
+	return &Client{
 		apiKey: apiKey,
 		model:  model,
 		httpClient: &http.Client{
@@ -41,7 +28,7 @@ func NewOpenAIClient(apiKey string, model string) *OpenAIClient {
 	}
 }
 
-func (c *OpenAIClient) SearchAndAnalyze(ctx context.Context, prompt string) (Response, error) {
+func (c *Client) SearchAndAnalyze(ctx context.Context, prompt string) (collector.AIResponse, error) {
 	body := requestBody{
 		Model: c.model,
 		Tools: []tool{{Type: "web_search"}},
@@ -50,12 +37,12 @@ func (c *OpenAIClient) SearchAndAnalyze(ctx context.Context, prompt string) (Res
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
-		return Response{}, fmt.Errorf("marshaling request: %w", err)
+		return collector.AIResponse{}, fmt.Errorf("marshaling request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(jsonBody))
 	if err != nil {
-		return Response{}, fmt.Errorf("creating request: %w", err)
+		return collector.AIResponse{}, fmt.Errorf("creating request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -63,29 +50,29 @@ func (c *OpenAIClient) SearchAndAnalyze(ctx context.Context, prompt string) (Res
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return Response{}, fmt.Errorf("sending request: %w", err)
+		return collector.AIResponse{}, fmt.Errorf("sending request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	rawBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return Response{}, fmt.Errorf("reading response: %w", err)
+		return collector.AIResponse{}, fmt.Errorf("reading response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return Response{}, fmt.Errorf("openai api error (status %d): %s", resp.StatusCode, string(rawBytes))
+		return collector.AIResponse{}, fmt.Errorf("openai api error (status %d): %s", resp.StatusCode, string(rawBytes))
 	}
 
 	return parseResponse(rawBytes)
 }
 
-func parseResponse(raw []byte) (Response, error) {
+func parseResponse(raw []byte) (collector.AIResponse, error) {
 	var apiResp apiResponse
 	if err := json.Unmarshal(raw, &apiResp); err != nil {
-		return Response{}, fmt.Errorf("unmarshaling response: %w", err)
+		return collector.AIResponse{}, fmt.Errorf("unmarshaling response: %w", err)
 	}
 
-	result := Response{
+	result := collector.AIResponse{
 		RawJSON: string(raw),
 	}
 
@@ -98,7 +85,7 @@ func parseResponse(raw []byte) (Response, error) {
 				result.OutputText = content.Text
 				for _, ann := range content.Annotations {
 					if ann.URLCitation != nil {
-						result.Annotations = append(result.Annotations, Annotation{
+						result.Annotations = append(result.Annotations, collector.AIAnnotation{
 							URL:   ann.URLCitation.URL,
 							Title: ann.URLCitation.Title,
 						})
@@ -109,7 +96,7 @@ func parseResponse(raw []byte) (Response, error) {
 	}
 
 	if result.OutputText == "" {
-		return Response{}, fmt.Errorf("no output text in response: %s", string(raw))
+		return collector.AIResponse{}, fmt.Errorf("no output text in response: %s", string(raw))
 	}
 
 	return result, nil
