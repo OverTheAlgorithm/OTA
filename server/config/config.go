@@ -21,6 +21,11 @@ type Config struct {
 
 	JWTSecret string
 
+	AIProvider string // "gemini" or "openai"
+
+	GeminiAPIKey string
+	GeminiModel  string
+
 	OpenAIAPIKey string
 	OpenAIModel  string
 
@@ -52,6 +57,11 @@ func Load() (Config, error) {
 
 		JWTSecret: getEnv("JWT_SECRET", ""),
 
+		AIProvider: getEnv("AI_PROVIDER", "gemini"),
+
+		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
+		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
+
 		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
 		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-4o"),
 
@@ -65,8 +75,17 @@ func Load() (Config, error) {
 	if cfg.JWTSecret == "" {
 		return cfg, fmt.Errorf("JWT_SECRET is required")
 	}
-	if cfg.OpenAIAPIKey == "" {
-		return cfg, fmt.Errorf("OPENAI_API_KEY is required")
+	switch cfg.AIProvider {
+	case "gemini":
+		if cfg.GeminiAPIKey == "" {
+			return cfg, fmt.Errorf("GEMINI_API_KEY is required when AI_PROVIDER=gemini")
+		}
+	case "openai":
+		if cfg.OpenAIAPIKey == "" {
+			return cfg, fmt.Errorf("OPENAI_API_KEY is required when AI_PROVIDER=openai")
+		}
+	default:
+		return cfg, fmt.Errorf("unsupported AI_PROVIDER: %s (must be \"gemini\" or \"openai\")", cfg.AIProvider)
 	}
 
 	return cfg, nil
