@@ -19,8 +19,8 @@ import (
 
 // TestMain runs before all tests and loads .env file
 func TestMain(m *testing.M) {
-	// Load .env file from project root (../../.env from integration/)
-	if err := godotenv.Load("../../.env"); err != nil {
+	// Load .env file from server directory (../.env from integration/)
+	if err := godotenv.Load("../.env"); err != nil {
 		log.Printf("Warning: Could not load .env file: %v", err)
 		log.Println("Environment variables must be set manually or tests requiring API keys will be skipped")
 	}
