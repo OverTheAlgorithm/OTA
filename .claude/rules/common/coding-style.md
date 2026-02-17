@@ -36,6 +36,16 @@ ALWAYS validate at system boundaries:
 - Fail fast with clear error messages
 - Never trust external data (API responses, user input, file content)
 
+## General Best Practices
+- Prefer constants over magic numbers/strings
+- Use descriptive variable and function names
+- Write comment if the code's intent isn't clear - for example, third-party API quirks, non-obvious algorithms, or important assumptions
+- Prefer to write small, focused functions that do one thing well
+- Prefer pure functions
+- Avoid deep nesting - use early returns or helper functions to flatten code
+- Avoid IO module directly in business logic - use dependency injection to separate concerns. For example, do not use DB client directly in service functions - instead, inject a repository interface that abstracts the data access layer.
+
+
 ## Code Quality Checklist
 
 Before marking work complete:
