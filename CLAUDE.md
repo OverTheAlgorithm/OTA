@@ -148,12 +148,76 @@ server/
 - 인증: Kakao OAuth2 → JWT (httpOnly 쿠키)
 - DB: pgx/v5 raw SQL, golang-migrate/v4
 
-#### Next Steps
+#### Next Steps (Data Collection - COMPLETED)
 
-1. **collector.Repository 구현체**: PostgresRepository (pgx). `user.PostgresRepository` 패턴 따름.
-2. **config에 OpenAI 설정 추가**: `OPENAI_API_KEY`, `OPENAI_MODEL` 환경변수.
-3. **main.go에 collector 와이어링**: ai.Client → Repository → Service 초기화.
-4. **실제 테스트**: OpenAI API 키로 `Collect(ctx)` 실행하여 한국 트렌딩 토픽 품질 확인.
-5. **프롬프트 튜닝**: 실제 결과물 기반으로 프롬프트 개선.
-6. **스케줄러 통합**: cron 또는 scheduler에서 `Collect(ctx)` 호출.
-7. **HTTP handler**: 수동 트리거용 admin endpoint 추가.
+1. ✅ **collector.Repository 구현체**: PostgresRepository (pgx). `user.PostgresRepository` 패턴 따름.
+2. ✅ **config에 AI 프로바이더 설정 추가**: `AI_PROVIDER`, `GEMINI_API_KEY`, `OPENAI_API_KEY` 환경변수.
+3. ✅ **main.go에 collector 와이어링**: ai.Client → Repository → Service 초기화.
+4. ✅ **실제 테스트**: OpenAI/Gemini API 키로 `Collect(ctx)` 실행하여 한국 트렌딩 토픽 수집 검증.
+5. ✅ **Retry logic**: 3회 재시도 + 지수 백오프 (1s → 2s → 4s), 에러 분류 (Network/Infrastructure/Format).
+6. ✅ **스케줄러 통합**: cron 또는 scheduler에서 `Collect(ctx)` 호출.
+7. ✅ **HTTP handler**: 수동 트리거용 admin endpoint 추가.
+
+### Message Delivery System (2025-02-17 - IN PROGRESS)
+
+#### Phase 1: Database Schema ✅ COMPLETED
+
+**Implemented Files:**
+```
+server/
+├── migrations/
+│   ├── 000003_create_delivery_tables.up.sql    # user_preferences, user_subscriptions, delivery_logs
+│   └── 000003_create_delivery_tables.down.sql  # rollback
+└── integration/
+    └── delivery_migration_test.go              # Migration 검증 테스트 (2 tests passing)
+```
+
+**Tables Created:**
+1. **`user_preferences`** - Tracks who receives messages (delivery_enabled toggle)
+   - Primary Key: user_id (FK to users)
+   - delivery_enabled BOOLEAN (default true)
+   - created_at, updated_at timestamps
+
+2. **`user_subscriptions`** - Tracks topic subscriptions per user
+   - user_id + category UNIQUE constraint (no duplicate subscriptions)
+   - Index on user_id for fast lookups
+   - Categories: "entertainment", "economy", "sports", etc.
+
+3. **`delivery_logs`** - Idempotency and audit trail
+   - (run_id, user_id, channel) UNIQUE constraint - prevents duplicate sends
+   - Tracks: channel ('email'/'kakao'), status ('sent'/'failed'/'skipped'), error_message
+   - Indexes on run_id, user_id, created_at for efficient queries
+
+**Tests:** All migration tests passing (table creation + constraint verification)
+
+#### Phase 2: Message Formatter (NEXT)
+
+**Goal:** Build pure function that converts context_items → formatted messages
+
+```go
+// Channel-agnostic message formatter
+func FormatMessage(items []ContextItem, subscriptions []string) FormattedMessage {
+    // Always include "top" category
+    // Append subscribed categories
+    // Return {Subject, TextBody, HTMLBody}
+}
+```
+
+**Key Requirements:**
+- Pure function (no side effects)
+- Generates both text and HTML versions
+- Personalizes based on user subscriptions
+- One-sentence summary per topic (max 2 sentences if necessary)
+- Korean language output
+
+#### Remaining Phases
+
+**Phase 3:** Platform Integrations (Email sender, Kakao sender interfaces)
+**Phase 4:** Delivery Service Core (Orchestration: fetch users → format → send → log)
+**Phase 5:** Repository Implementation (Preferences, Subscriptions, Delivery Logs CRUD)
+**Phase 6:** API Endpoints + Scheduler Integration
+**Phase 7:** Testing + Documentation
+
+**Release Strategy:**
+- **Release A:** Email-only delivery (ship first, lower risk)
+- **Release B:** Kakao Talk delivery (requires OAuth token storage)
