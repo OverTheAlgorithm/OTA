@@ -13,6 +13,8 @@ import (
 	"ota/auth"
 	"ota/config"
 	"ota/domain/collector"
+	"ota/domain/delivery"
+	"ota/platform/email"
 	"ota/platform/gemini"
 	"ota/platform/kakao"
 	"ota/platform/openai"
@@ -83,6 +85,37 @@ func main() {
 	scheduler.Start()
 	log.Println("scheduler started (daily at 7 AM KST / 10 PM UTC + hourly retry)")
 
+	// Message delivery system
+	emailSender := email.NewSMTPSender(email.SMTPConfig{
+		Host:     cfg.SMTPHost,
+		Port:     cfg.SMTPPort,
+		Username: cfg.SMTPUsername,
+		Password: cfg.SMTPPassword,
+		From:     cfg.SMTPFrom,
+	})
+	deliveryRepo := storage.NewDeliveryRepository(pool)
+	collectorAdapter := storage.NewCollectorServiceAdapter(pool)
+	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter)
+	log.Println("delivery service initialized")
+
+	// Schedule delivery 15 minutes after collection (7:15 AM KST / 10:15 PM UTC)
+	deliverFunc := func() {
+		log.Println("starting message delivery")
+		result, err := deliveryService.DeliverAll(context.Background())
+		if err != nil {
+			log.Printf("delivery failed: %v", err)
+			return
+		}
+		log.Printf("delivery completed: total=%d, success=%d, failed=%d, skipped=%d",
+			result.TotalUsers, result.SuccessCount, result.FailureCount, result.SkippedCount)
+	}
+
+	_, err = scheduler.AddFunc("15 22 * * *", deliverFunc)
+	if err != nil {
+		log.Fatalf("failed to schedule delivery: %v", err)
+	}
+	log.Println("delivery scheduler added (daily at 7:15 AM KST / 10:15 PM UTC)")
+
 	// Handlers
 	userRepo := storage.NewUserRepository(pool)
 	kakaoClient := kakao.NewClient(cfg.KakaoClientID, cfg.KakaoClientSecret, cfg.KakaoRedirectURI)
@@ -90,6 +123,7 @@ func main() {
 	stateStore := auth.NewStateStore()
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, cfg.FrontendURL)
 	adminHandler := handler.NewAdminHandler(collectorService)
+	deliveryHandler := api.NewDeliveryHandler(deliveryService)
 
 	// Router
 	r := api.NewRouter("api", "v1", cfg.FrontendURL, []api.RouteModule{
@@ -101,6 +135,11 @@ func main() {
 		{
 			GroupName:   "admin",
 			Handler:     adminHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "delivery",
+			Handler:     deliveryHandler,
 			Middlewares: []gin.HandlerFunc{},
 		},
 	})
