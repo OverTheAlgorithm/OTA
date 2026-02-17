@@ -116,3 +116,41 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.SetCookie(cookieName, "", -1, "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
+
+func (h *AuthHandler) RegisterRoutes(group *gin.RouterGroup) {
+	group.GET("/kakao/login", h.KakaoLogin)
+	group.GET("/kakao/callback", h.KakaoCallback)
+	group.POST("/logout", h.Logout)
+
+	protected := group.Group("")
+	protected.Use(h.authMiddleware())
+	{
+		protected.GET("/me", h.Me)
+	}
+}
+
+func (h *AuthHandler) authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenStr, err := c.Cookie(cookieName)
+		if err != nil || tokenStr == "" {
+			header := c.GetHeader("Authorization")
+			if len(header) > 7 && header[:7] == "Bearer " {
+				tokenStr = header[7:]
+			}
+		}
+
+		if tokenStr == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		userID, err := h.jwt.Validate(tokenStr)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+
+		c.Set("userID", userID)
+		c.Next()
+	}
+}

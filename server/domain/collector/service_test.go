@@ -27,6 +27,8 @@ type mockRepo struct {
 	completedErrMsg  *string
 	completedRawResp *string
 	savedItems       []ContextItem
+	canRunToday      bool
+	canRunTodayErr   error
 }
 
 func (m *mockRepo) CreateRun(_ context.Context, _ CollectionRun) error {
@@ -43,6 +45,10 @@ func (m *mockRepo) CompleteRun(_ context.Context, _ uuid.UUID, status RunStatus,
 func (m *mockRepo) SaveContextItems(_ context.Context, items []ContextItem) error {
 	m.savedItems = items
 	return m.saveItemsErr
+}
+
+func (m *mockRepo) CanRunToday(_ context.Context) (bool, error) {
+	return m.canRunToday, m.canRunTodayErr
 }
 
 // --- tests ---
@@ -162,6 +168,42 @@ func TestCollect_AllItemsInvalid(t *testing.T) {
 	_, err := svc.Collect(context.Background())
 	if err == nil {
 		t.Fatal("expected error when all items are invalid")
+	}
+}
+
+func TestCollectIfNeeded_AlreadyRun(t *testing.T) {
+	repo := &mockRepo{canRunToday: false}
+	aiClient := &mockAIClient{}
+
+	svc := NewService(aiClient, repo)
+	result, err := svc.CollectIfNeeded(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != nil {
+		t.Error("expected nil result when collection already run")
+	}
+}
+
+func TestCollectIfNeeded_CanRun(t *testing.T) {
+	repo := &mockRepo{canRunToday: true}
+	aiClient := &mockAIClient{
+		resp: AIResponse{
+			OutputText: validCollectionJSON,
+			RawJSON:    `{"raw":"data"}`,
+		},
+	}
+
+	svc := NewService(aiClient, repo)
+	result, err := svc.CollectIfNeeded(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result when collection can run")
+	}
+	if len(result.Items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(result.Items))
 	}
 }
 

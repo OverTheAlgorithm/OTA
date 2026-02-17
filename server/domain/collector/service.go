@@ -21,6 +21,24 @@ func NewService(aiClient AIClient, repo Repository) *Service {
 	}
 }
 
+func (s *Service) CollectIfNeeded(ctx context.Context) (*CollectionResult, error) {
+	canRun, err := s.repo.CanRunToday(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("checking run status: %w", err)
+	}
+
+	if !canRun {
+		return nil, nil
+	}
+
+	result, err := s.Collect(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
 func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 	run := CollectionRun{
 		ID:        uuid.New(),
