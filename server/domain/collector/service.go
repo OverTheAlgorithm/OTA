@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,7 +53,7 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 
 	prompt := BuildCollectionPrompt()
 
-	resp, err := s.ai.SearchAndAnalyze(ctx, prompt)
+	resp, err := s.callAIWithRetry(ctx, prompt)
 	if err != nil {
 		errMsg := err.Error()
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, nil)
@@ -85,6 +86,54 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 	}
 
 	return CollectionResult{Run: run, Items: items}, nil
+}
+
+const (
+	maxRetries     = 3
+	initialBackoff = 1 * time.Second
+)
+
+// callAIWithRetry calls the AI client with exponential backoff retry logic.
+// Retries on network and infrastructure errors, but not on format errors.
+func (s *Service) callAIWithRetry(ctx context.Context, prompt string) (AIResponse, error) {
+	var lastErr error
+	backoff := initialBackoff
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		resp, err := s.ai.SearchAndAnalyze(ctx, prompt)
+		if err == nil {
+			return resp, nil
+		}
+
+		// Classify the error
+		aiErr := ClassifyError(err)
+		lastErr = aiErr
+
+		// Don't retry format errors - they won't be fixed by retrying
+		if !aiErr.IsRetryable() {
+			log.Printf("AI client error (non-retryable, attempt %d/%d): %v", attempt, maxRetries, aiErr)
+			return AIResponse{}, aiErr
+		}
+
+		// Last attempt - don't wait
+		if attempt == maxRetries {
+			log.Printf("AI client error (final attempt %d/%d): %v", attempt, maxRetries, aiErr)
+			break
+		}
+
+		// Log and wait before retry
+		log.Printf("AI client error (attempt %d/%d, retrying in %v): %v", attempt, maxRetries, backoff, aiErr)
+
+		select {
+		case <-ctx.Done():
+			return AIResponse{}, fmt.Errorf("context cancelled during retry: %w", ctx.Err())
+		case <-time.After(backoff):
+			// Exponential backoff: double the wait time
+			backoff *= 2
+		}
+	}
+
+	return AIResponse{}, fmt.Errorf("AI client failed after %d attempts: %w", maxRetries, lastErr)
 }
 
 type aiResponsePayload struct {

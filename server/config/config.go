@@ -60,7 +60,7 @@ func Load() (Config, error) {
 		AIProvider: getEnv("AI_PROVIDER", "gemini"),
 
 		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
-		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
+		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-2.5-flash-lite"),
 
 		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
 		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-4o"),
