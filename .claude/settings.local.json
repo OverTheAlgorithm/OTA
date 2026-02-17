@@ -11,7 +11,10 @@
       "Bash(go test:*)",
       "Bash(git add:*)",
       "Bash(git rm:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(timeout 3 go run:*)"
     ]
   }
 }
