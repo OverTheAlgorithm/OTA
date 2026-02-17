@@ -3,14 +3,18 @@ package main
 import (
 	"context"
 	"log"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 
 	"ota/api"
 	"ota/api/handler"
 	"ota/auth"
 	"ota/config"
 	"ota/domain/collector"
-	"ota/platform/kakao"
 	"ota/platform/gemini"
+	"ota/platform/kakao"
 	"ota/platform/openai"
 	"ota/storage"
 )
@@ -45,16 +49,61 @@ func main() {
 	}
 	collectorRepo := storage.NewCollectorRepository(pool)
 	collectorService := collector.NewService(aiClient, collectorRepo)
-	_ = collectorService // TODO: wire to scheduler and/or HTTP handler
 	log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
 
+	// Schedule collection with distributed coordination
+	scheduler := cron.New(cron.WithLocation(time.UTC))
+
+	collectFunc := func() {
+		log.Println("checking if collection is needed")
+		result, err := collectorService.CollectIfNeeded(context.Background())
+		if err != nil {
+			log.Printf("collection failed: %v", err)
+			return
+		}
+		if result == nil {
+			log.Println("collection already completed today or in progress, skipping")
+			return
+		}
+		log.Printf("collection completed: run_id=%s, items=%d", result.Run.ID, len(result.Items))
+	}
+
+	// Daily at 7 AM KST (10 PM UTC previous day)
+	_, err = scheduler.AddFunc("0 22 * * *", collectFunc)
+	if err != nil {
+		log.Fatalf("failed to schedule daily collection: %v", err)
+	}
+
+	// Hourly check (retry if failed)
+	_, err = scheduler.AddFunc("0 * * * *", collectFunc)
+	if err != nil {
+		log.Fatalf("failed to schedule hourly check: %v", err)
+	}
+
+	scheduler.Start()
+	log.Println("scheduler started (daily at 7 AM KST / 10 PM UTC + hourly retry)")
+
+	// Handlers
 	userRepo := storage.NewUserRepository(pool)
 	kakaoClient := kakao.NewClient(cfg.KakaoClientID, cfg.KakaoClientSecret, cfg.KakaoRedirectURI)
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
 	stateStore := auth.NewStateStore()
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, cfg.FrontendURL)
+	adminHandler := handler.NewAdminHandler(collectorService)
 
-	r := api.NewRouter(authHandler, jwtManager, cfg.FrontendURL)
+	// Router
+	r := api.NewRouter("api", "v1", cfg.FrontendURL, []api.RouteModule{
+		{
+			GroupName:   "auth",
+			Handler:     authHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "admin",
+			Handler:     adminHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+	})
 
 	log.Printf("server starting on :%s", cfg.ServerPort)
 	if err := r.Run(":" + cfg.ServerPort); err != nil {

@@ -2,30 +2,30 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-
-	"ota/api/handler"
-	"ota/auth"
 )
 
-func NewRouter(authHandler *handler.AuthHandler, jwtManager *auth.JWTManager, frontendURL string) *gin.Engine {
-	r := gin.Default()
+type RouteModule struct {
+	GroupName   string
+	Handler     RouteRegistrar
+	Middlewares []gin.HandlerFunc
+}
 
+type RouteRegistrar interface {
+	RegisterRoutes(group *gin.RouterGroup)
+}
+
+func NewRouter(apiPrefix, version string, frontendURL string, modules []RouteModule) *gin.Engine {
+	r := gin.Default()
 	r.Use(CORSMiddleware(frontendURL))
 
-	api := r.Group("/api/v1")
-	{
-		authGroup := api.Group("/auth")
-		{
-			authGroup.GET("/kakao/login", authHandler.KakaoLogin)
-			authGroup.GET("/kakao/callback", authHandler.KakaoCallback)
-			authGroup.POST("/logout", authHandler.Logout)
+	api := r.Group(apiPrefix + "/" + version)
 
-			protected := authGroup.Group("")
-			protected.Use(AuthMiddleware(jwtManager))
-			{
-				protected.GET("/me", authHandler.Me)
-			}
+	for _, module := range modules {
+		group := api.Group("/" + module.GroupName)
+		for _, mw := range module.Middlewares {
+			group.Use(mw)
 		}
+		module.Handler.RegisterRoutes(group)
 	}
 
 	return r

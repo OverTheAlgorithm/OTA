@@ -56,3 +56,20 @@ func (r *CollectorRepository) SaveContextItems(ctx context.Context, items []coll
 
 	return nil
 }
+
+func (r *CollectorRepository) CanRunToday(ctx context.Context) (bool, error) {
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM collection_runs
+			WHERE DATE(started_at AT TIME ZONE 'UTC') = CURRENT_DATE
+			AND (status = 'running' OR status = 'success')
+		)`
+
+	var exists bool
+	err := r.pool.QueryRow(ctx, query).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("checking today's run status: %w", err)
+	}
+
+	return !exists, nil
+}
