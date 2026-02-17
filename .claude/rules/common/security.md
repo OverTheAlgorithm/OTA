@@ -18,6 +18,7 @@ Before ANY commit:
 - ALWAYS use environment variables or a secret manager
 - Validate that required secrets are present at startup
 - Rotate any secrets that may have been exposed
+- If agent need additional secrets, request to user to provide them securely (e.g. via environment variable)
 
 ## Security Response Protocol
 
