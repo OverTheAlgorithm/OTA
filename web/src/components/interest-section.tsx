@@ -15,28 +15,37 @@ interface Props {
 export function InterestSection({ selected, onChange }: Props) {
   const [customInput, setCustomInput] = useState("");
   const [adding, setAdding] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleAdd = async (category: string) => {
     const trimmed = category.trim();
     if (!trimmed || selected.includes(trimmed)) return;
     setAdding(true);
+    setErrorMsg(null);
+    const prev = selected;
     onChange([...selected, trimmed]);
     try {
       await addSubscription(trimmed);
-    } catch {
-      onChange(selected);
+      setCustomInput("");
+    } catch (err) {
+      console.error("관심사 추가 실패:", err);
+      onChange(prev);
+      setErrorMsg("저장에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setAdding(false);
-      setCustomInput("");
     }
   };
 
   const handleRemove = async (category: string) => {
+    setErrorMsg(null);
+    const prev = selected;
     onChange(selected.filter((s) => s !== category));
     try {
       await deleteSubscription(category);
-    } catch {
-      onChange([...selected, category]);
+    } catch (err) {
+      console.error("관심사 삭제 실패:", err);
+      onChange(prev);
+      setErrorMsg("저장에 실패했습니다. 다시 시도해주세요.");
     }
   };
 
@@ -119,6 +128,10 @@ export function InterestSection({ selected, onChange }: Props) {
           추가
         </button>
       </div>
+
+      {errorMsg && (
+        <p className="mt-3 text-xs text-[#e84d3d]">{errorMsg}</p>
+      )}
     </section>
   );
 }
