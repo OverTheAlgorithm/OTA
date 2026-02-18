@@ -54,3 +54,15 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (user.User, er
 	}
 	return u, nil
 }
+
+func (r *UserRepository) UpdateEmail(ctx context.Context, userID string, email string) error {
+	query := `UPDATE users SET email = $1, updated_at = NOW() WHERE id = $2`
+	tag, err := r.pool.Exec(ctx, query, email, userID)
+	if err != nil {
+		return fmt.Errorf("update email: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user not found: %s", userID)
+	}
+	return nil
+}
