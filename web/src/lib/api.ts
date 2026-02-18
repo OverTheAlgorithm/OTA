@@ -83,3 +83,59 @@ export async function getContextHistory(): Promise<HistoryEntry[]> {
   const body: ApiResponse<HistoryEntry[]> = await res.json();
   return body.data;
 }
+
+// ── 전달 채널 ─────────────────────────────────────────
+export interface ChannelPreference {
+  channel: string;
+  enabled: boolean;
+}
+
+export async function getDeliveryChannels(): Promise<ChannelPreference[]> {
+  const res = await fetch("/api/v1/user/delivery-channels", {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to fetch delivery channels");
+  const body: { channels: ChannelPreference[] } = await res.json();
+  return body.channels;
+}
+
+export async function updateDeliveryChannels(
+  channels: ChannelPreference[]
+): Promise<void> {
+  const res = await fetch("/api/v1/user/delivery-channels", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channels }),
+  });
+  if (!res.ok) throw new Error("Failed to update delivery channels");
+}
+
+// ── 이메일 인증 ───────────────────────────────────────
+export async function sendVerificationCode(email: string): Promise<void> {
+  const res = await fetch("/api/v1/email-verification/send-code", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "인증 코드 전송에 실패했습니다");
+  }
+}
+
+export async function verifyEmailCode(code: string): Promise<void> {
+  const res = await fetch("/api/v1/email-verification/verify-code", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "인증 코드 확인에 실패했습니다");
+  }
+}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { InterestSection } from "@/components/interest-section";
+import { ChannelPreferencesSection } from "@/components/channel-preferences-section";
 import { HistorySection } from "@/components/history-section";
 import { getSubscriptions, getContextHistory, type HistoryEntry } from "@/lib/api";
 
@@ -96,6 +97,7 @@ export function HomePage() {
         </div>
 
         <InterestSection selected={subscriptions} onChange={setSubscriptions} />
+        <ChannelPreferencesSection />
         <HistorySection entries={history} subscriptions={subscriptions} loading={historyLoading} />
       </main>
 
