@@ -50,6 +50,77 @@ function FadeIn({
   );
 }
 
+const rotatingTexts = [
+  "개인화에 갇혀버린",
+  "추천에 길들여진",
+  "피드에 묶여버린",
+  "취향에 갇혀버린",
+  "버블 속에 숨겨진",
+];
+
+function RotatingText() {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 2500);
+    return () => clearInterval(interval);
+  }, []);
+
+  const n = rotatingTexts.length;
+  const cur = tick % n;
+  const pre = (tick - 1 + n) % n;
+  const longestText = rotatingTexts.reduce((a, b) => (a.length >= b.length ? a : b));
+
+  return (
+    <>
+      <style>{`
+        @keyframes ota-enter { from { transform: translateY(-110%); } to { transform: translateY(0); } }
+        @keyframes ota-exit  { from { transform: translateY(0); }    to { transform: translateY(110%); } }
+      `}</style>
+      <span
+        style={{
+          position: "relative",
+          display: "inline-block",
+          overflow: "hidden",
+          verticalAlign: "bottom",
+          whiteSpace: "nowrap",
+          textAlign: "right",
+        }}
+      >
+        {/* 가장 긴 텍스트로 너비/높이 확보 */}
+        <span style={{ visibility: "hidden" }} aria-hidden>{longestText}</span>
+
+        {/* 나가는 카드 */}
+        {tick > 0 && (
+          <span
+            key={`x${tick}`}
+            aria-hidden
+            style={{
+              position: "absolute",
+              top: 0, left: 0, right: 0, bottom: 0, textAlign: "right",
+              animation: "ota-exit 0.2s cubic-bezier(0.4,0,1,1) both",
+            }}
+          >
+            {rotatingTexts[pre]}
+          </span>
+        )}
+
+        {/* 들어오는 카드 */}
+        <span
+          key={`e${tick}`}
+          style={{
+            position: "absolute",
+            top: 0, left: 0, right: 0, bottom: 0,
+            animation: tick === 0 ? "none" : "ota-enter 0.45s cubic-bezier(0,0,0.2,1) both",
+          }}
+        >
+          {rotatingTexts[cur]}
+        </span>
+      </span>
+    </>
+  );
+}
+
 const features = [
   {
     title: "매일 아침, 핵심 맥락 배달",
@@ -240,8 +311,9 @@ export function LandingPage() {
 
           <FadeIn delay={100} className="mt-8">
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold leading-tight">
-              알고리즘 너머,{" "}
-              <span className="font-brush text-5xl md:text-7xl lg:text-8xl bg-gradient-to-r from-[#e84d3d] via-[#f5d547] to-[#5ba4d9] bg-clip-text text-transparent">
+              <RotatingText />{" "}알고리즘 너머,
+              <br />
+              <span className="font-brush text-4xl md:text-6xl lg:text-7xl bg-gradient-to-r from-[#e84d3d] via-[#f5d547] to-[#5ba4d9] bg-clip-text text-transparent">
                 세상의 맥락
               </span>
               을 읽다
