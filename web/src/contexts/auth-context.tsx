@@ -12,12 +12,14 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
   user: null,
   loading: true,
   logout: async () => {},
+  refreshUser: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -36,8 +38,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const updatedUser = await fetchMe();
+      setUser(updatedUser);
+    } catch {
+      // Silently fail - user might be logged out
+    }
+  }, []);
+
   return (
-    <AuthContext value={{ user, loading, logout }}>
+    <AuthContext value={{ user, loading, logout, refreshUser }}>
       {children}
     </AuthContext>
   );
