@@ -76,20 +76,23 @@ func main() {
 		log.Printf("collection completed: run_id=%s, items=%d", result.Run.ID, len(result.Items))
 	}
 
-	// Daily at 7 AM KST (10 PM UTC previous day)
-	_, err = scheduler.AddFunc("0 22 * * *", collectFunc)
+	// Collection schedule: 4 AM, 5 AM, 6 AM KST (19:00, 20:00, 21:00 UTC)
+	// Multiple attempts to ensure data is ready by 6 AM
+	_, err = scheduler.AddFunc("0 19 * * *", collectFunc) // 4 AM KST
 	if err != nil {
-		log.Fatalf("failed to schedule daily collection: %v", err)
+		log.Fatalf("failed to schedule 4 AM collection: %v", err)
 	}
-
-	// Hourly check (retry if failed)
-	_, err = scheduler.AddFunc("0 * * * *", collectFunc)
+	_, err = scheduler.AddFunc("0 20 * * *", collectFunc) // 5 AM KST
 	if err != nil {
-		log.Fatalf("failed to schedule hourly check: %v", err)
+		log.Fatalf("failed to schedule 5 AM collection: %v", err)
+	}
+	_, err = scheduler.AddFunc("0 21 * * *", collectFunc) // 6 AM KST (final attempt)
+	if err != nil {
+		log.Fatalf("failed to schedule 6 AM collection: %v", err)
 	}
 
 	scheduler.Start()
-	log.Println("scheduler started (daily at 7 AM KST / 10 PM UTC + hourly retry)")
+	log.Println("scheduler started (collection at 4 AM, 5 AM, 6 AM KST)")
 
 	// Message delivery system
 	emailSender := email.NewSMTPSender(email.SMTPConfig{
@@ -104,7 +107,7 @@ func main() {
 	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter)
 	log.Println("delivery service initialized")
 
-	// Schedule delivery 15 minutes after collection (7:15 AM KST / 10:15 PM UTC)
+	// Delivery schedule
 	deliverFunc := func() {
 		log.Println("starting message delivery")
 		result, err := deliveryService.DeliverAll(context.Background())
@@ -116,11 +119,18 @@ func main() {
 			result.TotalUsers, result.SuccessCount, result.FailureCount, result.SkippedCount)
 	}
 
+	// Primary delivery at 7:00 AM KST (22:00 UTC)
+	_, err = scheduler.AddFunc("0 22 * * *", deliverFunc)
+	if err != nil {
+		log.Fatalf("failed to schedule primary delivery: %v", err)
+	}
+
+	// Fallback delivery at 7:15 AM KST (22:15 UTC) if collection was late
 	_, err = scheduler.AddFunc("15 22 * * *", deliverFunc)
 	if err != nil {
-		log.Fatalf("failed to schedule delivery: %v", err)
+		log.Fatalf("failed to schedule fallback delivery: %v", err)
 	}
-	log.Println("delivery scheduler added (daily at 7:15 AM KST / 10:15 PM UTC)")
+	log.Println("delivery scheduler added (7:00 AM + 7:15 AM KST fallback)")
 
 	// Handlers
 	userRepo := storage.NewUserRepository(pool)
