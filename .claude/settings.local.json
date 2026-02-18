@@ -49,7 +49,15 @@
       "WebFetch(domain:developers.solapi.dev)",
       "WebFetch(domain:www.popcorn.space)",
       "mcp__context7__resolve-library-id",
-      "mcp__context7__query-docs"
+      "mcp__context7__query-docs",
+      "Bash(tee:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_snapshot"
     ]
   }
 }
