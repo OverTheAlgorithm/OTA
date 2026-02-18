@@ -14,6 +14,7 @@ import (
 	"ota/config"
 	"ota/domain/collector"
 	"ota/domain/delivery"
+	"ota/domain/user"
 	"ota/platform/email"
 	"ota/platform/gemini"
 	"ota/platform/kakao"
@@ -123,12 +124,20 @@ func main() {
 
 	// Handlers
 	userRepo := storage.NewUserRepository(pool)
+	subscriptionRepo := storage.NewSubscriptionRepository(pool)
 	kakaoClient := kakao.NewClient(cfg.KakaoClientID, cfg.KakaoClientSecret, cfg.KakaoRedirectURI)
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
 	stateStore := auth.NewStateStore()
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, cfg.FrontendURL)
 	adminHandler := handler.NewAdminHandler(collectorService)
 	deliveryHandler := api.NewDeliveryHandler(deliveryService)
+	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo)
+	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionRepo, api.AuthMiddleware(jwtManager))
+
+	// Email verification
+	emailVerificationRepo := storage.NewEmailVerificationRepository(pool)
+	emailVerificationService := user.NewEmailVerificationService(emailVerificationRepo, userRepo)
+	emailVerificationHandler := handler.NewEmailVerificationHandler(emailVerificationService, emailSender)
 
 	// Router
 	r := api.NewRouter("api", "v1", cfg.FrontendURL, []api.RouteModule{
@@ -146,6 +155,21 @@ func main() {
 			GroupName:   "delivery",
 			Handler:     deliveryHandler,
 			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "user",
+			Handler:     userDeliveryChannelsHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager)},
+		},
+		{
+			GroupName:   "subscriptions",
+			Handler:     subscriptionHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "email-verification",
+			Handler:     emailVerificationHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager)},
 		},
 	})
 
