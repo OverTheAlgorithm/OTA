@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { KakaoLoginButton } from "@/components/kakao-login-button";
+import { useAuth } from "@/contexts/auth-context";
 
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -47,6 +49,86 @@ function FadeIn({
     >
       {children}
     </div>
+  );
+}
+
+const rotatingTexts = [
+  "개인화에 갇혀버린",
+  "추천에 길들여진",
+  "피드에 묶여버린",
+  "취향에 갇혀버린",
+];
+
+function RotatingText() {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 2500);
+    return () => clearInterval(interval);
+  }, []);
+
+  const n = rotatingTexts.length;
+  const cur = tick % n;
+  const pre = (tick - 1 + n) % n;
+  const longestText = rotatingTexts.reduce((a, b) =>
+    a.length >= b.length ? a : b,
+  );
+
+  return (
+    <>
+      <span
+        style={{
+          position: "relative",
+          display: "inline-block",
+          overflow: "hidden",
+          verticalAlign: "bottom",
+          whiteSpace: "nowrap",
+          textAlign: "right",
+        }}
+      >
+        {/* 가장 긴 텍스트로 너비/높이 확보 */}
+        <span style={{ visibility: "hidden" }} aria-hidden>
+          {longestText}
+        </span>
+
+        {/* 나가는 카드 */}
+        {tick > 0 && (
+          <span
+            key={`x${tick}`}
+            aria-hidden
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              textAlign: "right",
+              animation: "ota-exit 0.2s cubic-bezier(0.4,0,1,1) both",
+            }}
+          >
+            {rotatingTexts[pre]}
+          </span>
+        )}
+
+        {/* 들어오는 카드 */}
+        <span
+          key={`e${tick}`}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            animation:
+              tick === 0
+                ? "none"
+                : "ota-enter 0.45s cubic-bezier(0,0,0.2,1) both",
+          }}
+        >
+          {rotatingTexts[cur]}
+        </span>
+      </span>
+    </>
   );
 }
 
@@ -116,30 +198,65 @@ const features = [
 const scenarios = [
   {
     emoji: "😶",
-    situation: "\"어제 그 연예인 뉴스 봤어?\"",
+    situation: '"어제 그 연예인 뉴스 봤어?"',
     feeling: "무슨 얘긴지 몰라서 어색하게 웃기만 했던 순간",
   },
   {
     emoji: "📱",
-    situation: "\"요즘 다 이거 보던데\"",
+    situation: '"요즘 다 이거 보던데"',
     feeling: "내 피드엔 안 뜨는데, 모두가 아는 그 이야기",
   },
   {
     emoji: "🤷",
-    situation: "\"너 이것도 몰라?\"",
+    situation: '"너 이것도 몰라?"',
     feeling: "관심 없는 분야인데, 모르면 뒤처지는 느낌",
   },
 ];
 
 export function LandingPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const loginError = searchParams.get("error");
+
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (loginError) setLoginOpen(true);
+  }, [loginError]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLoginOpen(false);
+        if (loginError) navigate("/", { replace: true });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [loginError, navigate]);
+
+  const handleCloseLogin = () => {
+    setLoginOpen(false);
+    // 에러 파라미터가 URL에 남아 새로고침 시 모달이 재오픈되는 문제 방지
+    if (loginError) navigate("/", { replace: true });
+  };
+
+  const handleStart = () => {
+    if (user) {
+      navigate("/home");
+    } else {
+      setLoginOpen(true);
+    }
+  };
 
   return (
     <div className="bg-[#0f0a19] text-[#f5f0ff] min-h-screen">
@@ -169,12 +286,12 @@ export function LandingPage() {
             >
               왜 필요한가
             </a>
-            <Link
-              to="/login"
+            <button
+              onClick={handleStart}
               className="px-5 py-2 rounded-full text-sm font-medium bg-[#e84d3d] text-white hover:bg-[#d4382a] transition-colors"
             >
               시작하기
-            </Link>
+            </button>
           </div>
 
           <button
@@ -214,13 +331,15 @@ export function LandingPage() {
             >
               왜 필요한가
             </a>
-            <Link
-              to="/login"
+            <button
               className="px-5 py-2 rounded-full text-sm font-medium text-center bg-[#e84d3d] text-white hover:bg-[#d4382a] transition-colors"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setMenuOpen(false);
+                handleStart();
+              }}
             >
               시작하기
-            </Link>
+            </button>
           </div>
         )}
       </nav>
@@ -240,8 +359,9 @@ export function LandingPage() {
 
           <FadeIn delay={100} className="mt-8">
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold leading-tight">
-              알고리즘 너머,{" "}
-              <span className="font-brush text-5xl md:text-7xl lg:text-8xl bg-gradient-to-r from-[#e84d3d] via-[#f5d547] to-[#5ba4d9] bg-clip-text text-transparent">
+              <RotatingText /> 알고리즘 너머
+              <br />
+              <span className="font-brush text-4xl md:text-6xl lg:text-7xl bg-gradient-to-r from-[#e84d3d] via-[#f5d547] to-[#5ba4d9] bg-clip-text text-transparent">
                 세상의 맥락
               </span>
               을 읽다
@@ -257,23 +377,19 @@ export function LandingPage() {
           </FadeIn>
 
           <FadeIn delay={300} className="mt-10">
-            <Link
-              to="/login"
+            <button
+              onClick={handleStart}
               className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg font-medium bg-[#e84d3d] text-white hover:bg-[#d4382a] transition-colors"
             >
               무료로 시작하기
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                 <path
                   fillRule="evenodd"
                   d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
                   clipRule="evenodd"
                 />
               </svg>
-            </Link>
+            </button>
           </FadeIn>
         </div>
       </section>
@@ -371,8 +487,8 @@ export function LandingPage() {
               <p className="font-dongle text-2xl md:text-3xl text-[#9b8bb4] mb-8 max-w-md mx-auto">
                 지금 가입하고 내일 아침부터 받아보세요.
               </p>
-              <Link
-                to="/login"
+              <button
+                onClick={handleStart}
                 className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg font-medium bg-[#e84d3d] text-white hover:bg-[#d4382a] transition-colors"
               >
                 지금 시작하기
@@ -387,7 +503,7 @@ export function LandingPage() {
                     clipRule="evenodd"
                   />
                 </svg>
-              </Link>
+              </button>
             </div>
           </div>
         </FadeIn>
@@ -402,6 +518,53 @@ export function LandingPage() {
           </p>
         </div>
       </footer>
+
+      {/* Login Modal */}
+      {loginOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={handleCloseLogin}
+        >
+          <div
+            className="relative w-full max-w-sm bg-[#1a1229] border border-[#2d1f42] rounded-2xl p-8 flex flex-col items-center gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 닫기 */}
+            <button
+              onClick={handleCloseLogin}
+              className="absolute top-4 right-4 text-[#9b8bb4] hover:text-[#f5f0ff] transition-colors"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+
+            <img src="/OTA_logo.png" alt="OTA" className="h-10" />
+
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-[#f5f0ff]">시작하기</h2>
+              <p className="mt-1 text-sm text-[#9b8bb4]">
+                알고리즘을 넘어, 지금 가장 뜨거운 맥락을 만나보세요
+              </p>
+            </div>
+
+            {loginError && (
+              <p className="text-sm text-[#e84d3d] text-center">
+                로그인에 실패했습니다. 다시 시도해주세요.
+              </p>
+            )}
+
+            <KakaoLoginButton />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

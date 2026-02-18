@@ -23,6 +23,27 @@
   --radius-xl: 0.75rem;
 }
 
+/* ── 랜딩 페이지 로고 플로팅 애니메이션 ── */
+@keyframes ota-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+.animate-float {
+  animation: ota-float 3s ease-in-out infinite;
+}
+
+/* ── 랜딩 페이지 텍스트 슬롯머신 애니메이션 ── */
+@keyframes ota-enter {
+  from { transform: translateY(-110%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes ota-exit {
+  from { transform: translateY(0); }
+  to   { transform: translateY(110%); }
+}
+
 body {
   margin: 0;
   font-family:

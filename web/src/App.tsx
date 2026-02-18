@@ -1,8 +1,13 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/auth-context";
 import { LandingPage } from "@/pages/landing";
-import { LoginPage } from "@/pages/login";
 import { HomePage } from "@/pages/home";
+
+function LoginRedirect() {
+  const [searchParams] = useSearchParams();
+  const error = searchParams.get("error");
+  return <Navigate to={error ? `/?error=${error}` : "/"} replace />;
+}
 
 function App() {
   return (
@@ -10,7 +15,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={<LoginRedirect />} />
           <Route path="/home" element={<HomePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

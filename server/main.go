@@ -27,6 +27,11 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
+	// 프로덕션 환경에서는 Gin 릴리즈 모드로 실행 (디버그 로그 및 라우트 목록 출력 억제)
+	if cfg.AppEnv == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	ctx := context.Background()
 
 	if err := storage.RunMigrations(cfg.DatabaseURL(), "migrations"); err != nil {
