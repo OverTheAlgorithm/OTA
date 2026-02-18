@@ -43,6 +43,22 @@ func (m *mockRepository) HasDeliveryLog(ctx context.Context, runID string, userI
 	return m.hasLogResults[key], nil
 }
 
+func (m *mockRepository) GetUserDeliveryChannels(ctx context.Context, userID string) ([]UserDeliveryChannel, error) {
+	if m.shouldFail {
+		return nil, fmt.Errorf("mock get channels error")
+	}
+	// Return empty for tests (not used in delivery service tests)
+	return []UserDeliveryChannel{}, nil
+}
+
+func (m *mockRepository) UpsertUserDeliveryChannel(ctx context.Context, channel UserDeliveryChannel) error {
+	if m.shouldFail {
+		return fmt.Errorf("mock upsert channel error")
+	}
+	// No-op for tests (not used in delivery service tests)
+	return nil
+}
+
 type mockCollectorService struct {
 	run   *collector.CollectionRun
 	items []collector.ContextItem
@@ -65,14 +81,16 @@ func TestDeliverAll_Success(t *testing.T) {
 	mockRepo := &mockRepository{
 		users: []EligibleUser{
 			{
-				UserID:        "user1",
-				Email:         "user1@example.com",
-				Subscriptions: []string{},
+				UserID:          "user1",
+				Email:           "user1@example.com",
+				Subscriptions:   []string{},
+				EnabledChannels: []DeliveryChannel{ChannelEmail},
 			},
 			{
-				UserID:        "user2",
-				Email:         "user2@example.com",
-				Subscriptions: []string{"entertainment"},
+				UserID:          "user2",
+				Email:           "user2@example.com",
+				Subscriptions:   []string{"entertainment"},
+				EnabledChannels: []DeliveryChannel{ChannelEmail},
 			},
 		},
 		hasLogResults: make(map[string]bool),
@@ -176,7 +194,11 @@ func TestDeliverAll_Idempotency(t *testing.T) {
 	runID := uuid.New()
 	mockRepo := &mockRepository{
 		users: []EligibleUser{
-			{UserID: "user1", Email: "user1@example.com"},
+			{
+				UserID:          "user1",
+				Email:           "user1@example.com",
+				EnabledChannels: []DeliveryChannel{ChannelEmail},
+			},
 		},
 		hasLogResults: map[string]bool{
 			fmt.Sprintf("%s:user1:email", runID.String()): true, // Already sent
@@ -212,8 +234,16 @@ func TestDeliverAll_Idempotency(t *testing.T) {
 func TestDeliverAll_PartialFailure(t *testing.T) {
 	mockRepo := &mockRepository{
 		users: []EligibleUser{
-			{UserID: "user1", Email: "user1@example.com"},
-			{UserID: "user2", Email: "user2@example.com"},
+			{
+				UserID:          "user1",
+				Email:           "user1@example.com",
+				EnabledChannels: []DeliveryChannel{ChannelEmail},
+			},
+			{
+				UserID:          "user2",
+				Email:           "user2@example.com",
+				EnabledChannels: []DeliveryChannel{ChannelEmail},
+			},
 		},
 		hasLogResults: make(map[string]bool),
 	}
@@ -247,7 +277,11 @@ func TestDeliverAll_PartialFailure(t *testing.T) {
 	// Now make sender fail and try again with new users
 	mockEmailSender.ShouldFail = true
 	mockRepo.users = []EligibleUser{
-		{UserID: "user3", Email: "user3@example.com"},
+		{
+			UserID:          "user3",
+			Email:           "user3@example.com",
+			EnabledChannels: []DeliveryChannel{ChannelEmail},
+		},
 	}
 
 	result2, err := service.DeliverAll(context.Background())

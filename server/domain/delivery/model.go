@@ -2,12 +2,14 @@ package delivery
 
 import "time"
 
-// UserPreference represents a user's message delivery settings
-type UserPreference struct {
-	UserID          string
-	DeliveryEnabled bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+// UserDeliveryChannel represents a user's delivery channel preference
+type UserDeliveryChannel struct {
+	ID        string
+	UserID    string
+	Channel   DeliveryChannel
+	Enabled   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // UserSubscription represents a user's subscription to a specific topic category
@@ -33,8 +35,11 @@ type DeliveryLog struct {
 type DeliveryChannel string
 
 const (
-	ChannelEmail DeliveryChannel = "email"
-	ChannelKakao DeliveryChannel = "kakao"
+	ChannelEmail    DeliveryChannel = "email"
+	ChannelKakao    DeliveryChannel = "kakao"
+	ChannelTelegram DeliveryChannel = "telegram"
+	ChannelSMS      DeliveryChannel = "sms"
+	ChannelPush     DeliveryChannel = "push"
 )
 
 // DeliveryStatus represents the delivery result
@@ -55,7 +60,8 @@ type FormattedMessage struct {
 
 // EligibleUser represents a user who should receive a message
 type EligibleUser struct {
-	UserID        string
-	Email         string
-	Subscriptions []string
+	UserID          string
+	Email           string
+	Subscriptions   []string
+	EnabledChannels []DeliveryChannel // Channels user has enabled (email, kakao, etc.)
 }

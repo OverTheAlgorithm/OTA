@@ -20,23 +20,28 @@ func NewDeliveryRepository(pool *pgxpool.Pool) *DeliveryRepository {
 }
 
 // GetEligibleUsers returns all users who should receive messages
-// Joins users, user_preferences, and user_subscriptions tables
+// Joins users, user_delivery_channels, and user_subscriptions tables
 func (r *DeliveryRepository) GetEligibleUsers(ctx context.Context) ([]delivery.EligibleUser, error) {
 	query := `
 		SELECT
 			u.id,
 			u.email,
 			COALESCE(
-				ARRAY_AGG(us.category) FILTER (WHERE us.category IS NOT NULL),
+				ARRAY_AGG(DISTINCT us.category) FILTER (WHERE us.category IS NOT NULL),
 				ARRAY[]::VARCHAR[]
-			) AS subscriptions
+			) AS subscriptions,
+			COALESCE(
+				ARRAY_AGG(DISTINCT udc.channel) FILTER (WHERE udc.channel IS NOT NULL AND udc.enabled = true),
+				ARRAY[]::VARCHAR[]
+			) AS enabled_channels
 		FROM users u
-		INNER JOIN user_preferences up ON u.id = up.user_id
+		INNER JOIN user_delivery_channels udc ON u.id = udc.user_id
 		LEFT JOIN user_subscriptions us ON u.id = us.user_id
-		WHERE up.delivery_enabled = true
+		WHERE udc.enabled = true
 		  AND u.email IS NOT NULL
 		  AND u.email != ''
 		GROUP BY u.id, u.email
+		HAVING COUNT(DISTINCT udc.channel) FILTER (WHERE udc.enabled = true) > 0
 		ORDER BY u.created_at
 	`
 
@@ -50,13 +55,21 @@ func (r *DeliveryRepository) GetEligibleUsers(ctx context.Context) ([]delivery.E
 	for rows.Next() {
 		var user delivery.EligibleUser
 		var subs []string
+		var channels []string
 
-		err := rows.Scan(&user.UserID, &user.Email, &subs)
+		err := rows.Scan(&user.UserID, &user.Email, &subs, &channels)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user row: %w", err)
 		}
 
 		user.Subscriptions = subs
+
+		// Convert string channels to DeliveryChannel type
+		user.EnabledChannels = make([]delivery.DeliveryChannel, 0, len(channels))
+		for _, ch := range channels {
+			user.EnabledChannels = append(user.EnabledChannels, delivery.DeliveryChannel(ch))
+		}
+
 		users = append(users, user)
 	}
 
@@ -107,4 +120,65 @@ func (r *DeliveryRepository) HasDeliveryLog(ctx context.Context, runID string, u
 	}
 
 	return exists, nil
+}
+
+// GetUserDeliveryChannels returns all delivery channels for a user
+func (r *DeliveryRepository) GetUserDeliveryChannels(ctx context.Context, userID string) ([]delivery.UserDeliveryChannel, error) {
+	query := `
+		SELECT id, user_id, channel, enabled, created_at, updated_at
+		FROM user_delivery_channels
+		WHERE user_id = $1
+		ORDER BY channel
+	`
+
+	rows, err := r.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user delivery channels: %w", err)
+	}
+	defer rows.Close()
+
+	var channels []delivery.UserDeliveryChannel
+	for rows.Next() {
+		var ch delivery.UserDeliveryChannel
+		var channelStr string
+
+		err := rows.Scan(&ch.ID, &ch.UserID, &channelStr, &ch.Enabled, &ch.CreatedAt, &ch.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan channel row: %w", err)
+		}
+
+		ch.Channel = delivery.DeliveryChannel(channelStr)
+		channels = append(channels, ch)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating channel rows: %w", err)
+	}
+
+	return channels, nil
+}
+
+// UpsertUserDeliveryChannel creates or updates a user's channel preference
+func (r *DeliveryRepository) UpsertUserDeliveryChannel(ctx context.Context, channel delivery.UserDeliveryChannel) error {
+	query := `
+		INSERT INTO user_delivery_channels (id, user_id, channel, enabled, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, NOW(), NOW())
+		ON CONFLICT (user_id, channel)
+		DO UPDATE SET
+			enabled = EXCLUDED.enabled,
+			updated_at = NOW()
+	`
+
+	_, err := r.pool.Exec(ctx, query,
+		channel.ID,
+		channel.UserID,
+		string(channel.Channel),
+		channel.Enabled,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert delivery channel: %w", err)
+	}
+
+	return nil
 }
