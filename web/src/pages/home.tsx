@@ -57,7 +57,7 @@ export function HomePage() {
     <div className="min-h-screen bg-[#0f0a19] text-[#f5f0ff]">
       <header className="sticky top-0 z-10 border-b border-[#2d1f42] bg-[#0f0a19]/90 backdrop-blur-lg">
         <div className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
-          <img src="/OTA_logo.png" alt="OTA" className="h-7" />
+          <img src="/OTA_logo.png" alt="OTA" className="w-[63px] h-[42px]" />
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               {user.profile_image ? (
@@ -98,6 +98,15 @@ export function HomePage() {
         <InterestSection selected={subscriptions} onChange={setSubscriptions} />
         <HistorySection entries={history} subscriptions={subscriptions} loading={historyLoading} />
       </main>
+
+      <footer className="border-t border-[#2d1f42] py-6 px-6 mt-4">
+        <div className="max-w-2xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+          <img src="/OTA_logo.png" alt="OTA" className="h-5 opacity-50" />
+          <p className="text-xs text-[#9b8bb4]">
+            &copy; 2026 Over the Algorithm. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
