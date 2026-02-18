@@ -56,7 +56,7 @@ export async function addSubscription(category: string): Promise<void> {
 }
 
 export async function deleteSubscription(category: string): Promise<void> {
-  const res = await fetch(`/api/v1/subscriptions/${encodeURIComponent(category)}`, {
+  const res = await fetch(`/api/v1/subscriptions?category=${encodeURIComponent(category)}`, {
     method: "DELETE",
     credentials: "include",
   });

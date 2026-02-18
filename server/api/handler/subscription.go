@@ -47,7 +47,7 @@ func (h *SubscriptionHandler) Add(c *gin.Context) {
 
 func (h *SubscriptionHandler) Delete(c *gin.Context) {
 	userID := c.GetString("userID")
-	category := c.Param("category")
+	category := c.Query("category")
 	if category == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "category is required"})
 		return
@@ -64,5 +64,5 @@ func (h *SubscriptionHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.Use(h.authMW)
 	group.GET("", h.List)
 	group.POST("", h.Add)
-	group.DELETE("/:category", h.Delete)
+	group.DELETE("", h.Delete)
 }
