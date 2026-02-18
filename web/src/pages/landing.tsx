@@ -57,7 +57,6 @@ const rotatingTexts = [
   "추천에 길들여진",
   "피드에 묶여버린",
   "취향에 갇혀버린",
-  "버블 속에 숨겨진",
 ];
 
 function RotatingText() {
@@ -77,10 +76,6 @@ function RotatingText() {
 
   return (
     <>
-      <style>{`
-        @keyframes ota-enter { from { transform: translateY(-110%); } to { transform: translateY(0); } }
-        @keyframes ota-exit  { from { transform: translateY(0); }    to { transform: translateY(110%); } }
-      `}</style>
       <span
         style={{
           position: "relative",
@@ -240,11 +235,20 @@ export function LandingPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLoginOpen(false);
+      if (e.key === "Escape") {
+        setLoginOpen(false);
+        if (loginError) navigate("/", { replace: true });
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [loginError, navigate]);
+
+  const handleCloseLogin = () => {
+    setLoginOpen(false);
+    // 에러 파라미터가 URL에 남아 새로고침 시 모달이 재오픈되는 문제 방지
+    if (loginError) navigate("/", { replace: true });
+  };
 
   const handleStart = () => {
     if (user) {
@@ -329,7 +333,10 @@ export function LandingPage() {
             </a>
             <button
               className="px-5 py-2 rounded-full text-sm font-medium text-center bg-[#e84d3d] text-white hover:bg-[#d4382a] transition-colors"
-              onClick={() => { setMenuOpen(false); handleStart(); }}
+              onClick={() => {
+                setMenuOpen(false);
+                handleStart();
+              }}
             >
               시작하기
             </button>
@@ -516,7 +523,7 @@ export function LandingPage() {
       {loginOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
-          onClick={() => setLoginOpen(false)}
+          onClick={handleCloseLogin}
         >
           <div
             className="relative w-full max-w-sm bg-[#1a1229] border border-[#2d1f42] rounded-2xl p-8 flex flex-col items-center gap-6"
@@ -524,10 +531,17 @@ export function LandingPage() {
           >
             {/* 닫기 */}
             <button
-              onClick={() => setLoginOpen(false)}
+              onClick={handleCloseLogin}
               className="absolute top-4 right-4 text-[#9b8bb4] hover:text-[#f5f0ff] transition-colors"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>

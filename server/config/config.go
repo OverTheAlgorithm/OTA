@@ -38,6 +38,7 @@ type Config struct {
 
 	ServerPort  string
 	FrontendURL string
+	AppEnv      string // "development" | "production"
 }
 
 func (c Config) DatabaseURL() string {
@@ -80,6 +81,7 @@ func Load() (Config, error) {
 
 		ServerPort:  getEnv("SERVER_PORT", "8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),
+		AppEnv:      getEnv("APP_ENV", "development"),
 	}
 
 	if cfg.KakaoClientID == "" {
