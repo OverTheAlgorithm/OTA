@@ -1,4 +1,4 @@
-package server
+package api
 
 import (
 	"net/http"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"ota/internal/auth"
+	"ota/auth"
 )
 
 func CORSMiddleware(frontendURL string) gin.HandlerFunc {
@@ -22,7 +22,6 @@ func AuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr, err := c.Cookie("ota_token")
 		if err != nil || tokenStr == "" {
-			// Fallback to Authorization header
 			header := c.GetHeader("Authorization")
 			if strings.HasPrefix(header, "Bearer ") {
 				tokenStr = strings.TrimPrefix(header, "Bearer ")
