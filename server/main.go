@@ -125,6 +125,15 @@ func main() {
 	adminHandler := handler.NewAdminHandler(collectorService)
 	deliveryHandler := api.NewDeliveryHandler(deliveryService)
 
+	// Home page handlers
+	subRepo := storage.NewSubscriptionRepository(pool)
+	prefRepo := storage.NewPreferenceRepository(pool)
+	histRepo := storage.NewHistoryRepository(pool)
+	authMW := api.AuthMiddleware(jwtManager)
+	subscriptionHandler := handler.NewSubscriptionHandler(subRepo, authMW)
+	preferenceHandler := handler.NewPreferenceHandler(prefRepo, authMW)
+	contextHistHandler := handler.NewContextHistoryHandler(histRepo, authMW)
+
 	// Router
 	r := api.NewRouter("api", "v1", cfg.FrontendURL, []api.RouteModule{
 		{
@@ -140,6 +149,21 @@ func main() {
 		{
 			GroupName:   "delivery",
 			Handler:     deliveryHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "subscriptions",
+			Handler:     subscriptionHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "preferences",
+			Handler:     preferenceHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "context",
+			Handler:     contextHistHandler,
 			Middlewares: []gin.HandlerFunc{},
 		},
 	})
