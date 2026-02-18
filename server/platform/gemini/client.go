@@ -13,12 +13,13 @@ import (
 	"ota/domain/collector"
 )
 
-const baseURL = "https://generativelanguage.googleapis.com/v1/models/"
+const baseURL = "https://generativelanguage.googleapis.com/v1beta/models/"
 
 // Available model names (as of Feb 2026):
 // - gemini-2.0-flash (deprecated, shuts down March 31, 2026)
 // - gemini-2.5-flash-lite (current lightweight model)
 // Note: All Gemini 1.x models are retired and return 404
+// Note: Using v1beta endpoint for Google Search grounding support
 
 type Client struct {
 	apiKey     string

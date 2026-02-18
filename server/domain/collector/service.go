@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -148,9 +149,41 @@ type aiContextItem struct {
 	Sources  []string `json:"sources"`
 }
 
+// stripMarkdownCodeFence removes markdown code fence markers from text
+// Handles formats like: ```json\n{...}\n``` or ```\n{...}\n```
+func stripMarkdownCodeFence(text string) string {
+	text = strings.TrimSpace(text)
+
+	// Check if starts with ```
+	if !strings.HasPrefix(text, "```") {
+		return text // No code fence, return as-is
+	}
+
+	// Find the first newline (end of opening fence line)
+	firstNewline := strings.Index(text, "\n")
+	if firstNewline == -1 {
+		// No newline, just ``` - return empty
+		return ""
+	}
+
+	// Skip the opening fence line (```json or ```)
+	text = text[firstNewline+1:]
+
+	// Find and remove the closing ``` (anywhere in the remaining text)
+	closingIndex := strings.LastIndex(text, "```")
+	if closingIndex >= 0 {
+		text = text[:closingIndex]
+	}
+
+	return strings.TrimSpace(text)
+}
+
 func parseContextItems(outputText string, runID uuid.UUID) ([]ContextItem, error) {
+	// Strip markdown code fences if present (e.g., ```json ... ```)
+	cleanJSON := stripMarkdownCodeFence(outputText)
+
 	var payload aiResponsePayload
-	if err := json.Unmarshal([]byte(outputText), &payload); err != nil {
+	if err := json.Unmarshal([]byte(cleanJSON), &payload); err != nil {
 		return nil, fmt.Errorf("invalid json from ai: %w", err)
 	}
 
