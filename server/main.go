@@ -139,6 +139,10 @@ func main() {
 	emailVerificationService := user.NewEmailVerificationService(emailVerificationRepo, userRepo)
 	emailVerificationHandler := handler.NewEmailVerificationHandler(emailVerificationService, emailSender)
 
+	// Context history
+	historyRepo := storage.NewHistoryRepository(pool)
+	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
+
 	// Router
 	r := api.NewRouter("api", "v1", cfg.FrontendURL, []api.RouteModule{
 		{
@@ -170,6 +174,11 @@ func main() {
 			GroupName:   "email-verification",
 			Handler:     emailVerificationHandler,
 			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager)},
+		},
+		{
+			GroupName:   "context",
+			Handler:     contextHistoryHandler,
+			Middlewares: []gin.HandlerFunc{},
 		},
 	})
 
