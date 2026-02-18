@@ -54,7 +54,7 @@ export function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f0a19] text-[#f5f0ff]">
+    <div className="min-h-screen bg-[#0f0a19] text-[#f5f0ff] flex flex-col">
       <header className="sticky top-0 z-10 border-b border-[#2d1f42] bg-[#0f0a19]/90 backdrop-blur-lg">
         <div className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
           <img src="/OTA_logo.png" alt="OTA" className="w-[63px] h-[42px]" />
@@ -83,7 +83,7 @@ export function HomePage() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+      <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 space-y-6">
         <div className="rounded-2xl bg-gradient-to-br from-[#1a1229] to-[#1e1530] border border-[#2d1f42] px-6 py-5 flex items-center justify-between">
           <div>
             <p className="text-sm text-[#9b8bb4]">안녕하세요</p>
