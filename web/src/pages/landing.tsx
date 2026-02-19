@@ -270,7 +270,7 @@ export function LandingPage() {
       >
         <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
           <a href="#top" className="flex items-center gap-3">
-            <img src="/OTA_logo.png" alt="OTA" className="h-8" />
+            <img src="/OTA_logo.png" alt="OTA" className="w-[63px] h-[42px]" />
           </a>
 
           <div className="hidden md:flex items-center gap-8">
