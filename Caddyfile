@@ -1,4 +1,10 @@
 server.mindhacker.club {
-	# Gin handles CORS headers — Caddy just proxies
+	# Block requests from unknown origins (Gin handles CORS headers)
+	@has_wrong_origin {
+		header Origin *
+		not header Origin https://overthealgorithm.mindhacker.club
+	}
+	respond @has_wrong_origin "Forbidden" 403
+
 	reverse_proxy server:8080
 }
