@@ -1,3 +1,28 @@
 server.mindhacker.club {
-	reverse_proxy server:8080
+	@cors_preflight method OPTIONS
+	@cors_origin header Origin https://overthealgorithm.mindhacker.club
+
+	# Handle CORS preflight requests
+	handle @cors_preflight {
+		header Access-Control-Allow-Origin "https://overthealgorithm.mindhacker.club"
+		header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "Content-Type, Authorization"
+		header Access-Control-Allow-Credentials "true"
+		header Access-Control-Max-Age "3600"
+		respond 204
+	}
+
+	# Add CORS headers to all responses from allowed origin
+	handle @cors_origin {
+		header Access-Control-Allow-Origin "https://overthealgorithm.mindhacker.club"
+		header Access-Control-Allow-Credentials "true"
+		reverse_proxy server:8080
+	}
+
+	# Block requests from other origins (no Origin header = direct/server-to-server, still allowed)
+	handle {
+		@has_wrong_origin `header_regexp('Origin', '.+')`
+		respond @has_wrong_origin "Forbidden" 403
+		reverse_proxy server:8080
+	}
 }
