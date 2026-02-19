@@ -1,17 +1,3 @@
-overthealgorithm.mindhacker.club {
-	# API 요청은 Go 백엔드로 프록시
-	handle /api/* {
-		reverse_proxy server:8080
-	}
-
-	# 나머지는 React 정적 파일 서빙 (SPA 라우팅 지원)
-	handle {
-		root * /srv/web
-		try_files {path} /index.html
-		file_server
-	}
-}
-
 server.mindhacker.club {
 	reverse_proxy server:8080
 }
