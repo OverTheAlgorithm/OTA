@@ -16,8 +16,8 @@ services:
     image: iron2ron/ota-server
     container_name: ota-server
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     env_file:
       - ./server/.env
     environment:
@@ -25,5 +25,21 @@ services:
     depends_on:
       - postgres
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: ota-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
