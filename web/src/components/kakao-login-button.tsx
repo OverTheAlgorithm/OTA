@@ -1,6 +1,8 @@
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 export function KakaoLoginButton() {
   const handleClick = () => {
-    window.location.href = "/api/v1/auth/kakao/login";
+    window.location.href = `${API_BASE}/api/v1/auth/kakao/login`;
   };
 
   return (

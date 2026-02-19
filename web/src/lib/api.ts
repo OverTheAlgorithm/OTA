@@ -1,3 +1,5 @@
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 export interface User {
   id: string;
   kakao_id: number;
@@ -17,7 +19,7 @@ interface ApiError {
 }
 
 export async function fetchMe(): Promise<User> {
-  const res = await fetch("/api/v1/auth/me", {
+  const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
     credentials: "include",
   });
 
@@ -31,7 +33,7 @@ export async function fetchMe(): Promise<User> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch("/api/v1/auth/logout", {
+  await fetch(`${API_BASE}/api/v1/auth/logout`, {
     method: "POST",
     credentials: "include",
   });
@@ -39,14 +41,14 @@ export async function logout(): Promise<void> {
 
 // ── 관심사(구독) ──────────────────────────────────────
 export async function getSubscriptions(): Promise<string[]> {
-  const res = await fetch("/api/v1/subscriptions", { credentials: "include" });
+  const res = await fetch(`${API_BASE}/api/v1/subscriptions`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch subscriptions");
   const body: ApiResponse<string[]> = await res.json();
   return body.data;
 }
 
 export async function addSubscription(category: string): Promise<void> {
-  const res = await fetch("/api/v1/subscriptions", {
+  const res = await fetch(`${API_BASE}/api/v1/subscriptions`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -56,7 +58,7 @@ export async function addSubscription(category: string): Promise<void> {
 }
 
 export async function deleteSubscription(category: string): Promise<void> {
-  const res = await fetch(`/api/v1/subscriptions?category=${encodeURIComponent(category)}`, {
+  const res = await fetch(`${API_BASE}/api/v1/subscriptions?category=${encodeURIComponent(category)}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -78,7 +80,7 @@ export interface HistoryEntry {
 }
 
 export async function getContextHistory(): Promise<HistoryEntry[]> {
-  const res = await fetch("/api/v1/context/history", { credentials: "include" });
+  const res = await fetch(`${API_BASE}/api/v1/context/history`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch context history");
   const body: ApiResponse<HistoryEntry[]> = await res.json();
   return body.data;
@@ -91,7 +93,7 @@ export interface ChannelPreference {
 }
 
 export async function getDeliveryChannels(): Promise<ChannelPreference[]> {
-  const res = await fetch("/api/v1/user/delivery-channels", {
+  const res = await fetch(`${API_BASE}/api/v1/user/delivery-channels`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to fetch delivery channels");
@@ -102,7 +104,7 @@ export async function getDeliveryChannels(): Promise<ChannelPreference[]> {
 export async function updateDeliveryChannels(
   channels: ChannelPreference[]
 ): Promise<void> {
-  const res = await fetch("/api/v1/user/delivery-channels", {
+  const res = await fetch(`${API_BASE}/api/v1/user/delivery-channels`, {
     method: "PUT",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -121,7 +123,7 @@ export interface ChannelDeliveryStatus {
 }
 
 export async function getDeliveryStatus(): Promise<ChannelDeliveryStatus[]> {
-  const res = await fetch("/api/v1/user/delivery-status", {
+  const res = await fetch(`${API_BASE}/api/v1/user/delivery-status`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to fetch delivery status");
@@ -131,7 +133,7 @@ export async function getDeliveryStatus(): Promise<ChannelDeliveryStatus[]> {
 
 // ── 이메일 인증 ───────────────────────────────────────
 export async function sendVerificationCode(email: string): Promise<void> {
-  const res = await fetch("/api/v1/email-verification/send-code", {
+  const res = await fetch(`${API_BASE}/api/v1/email-verification/send-code`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -145,7 +147,7 @@ export async function sendVerificationCode(email: string): Promise<void> {
 }
 
 export async function verifyEmailCode(code: string): Promise<void> {
-  const res = await fetch("/api/v1/email-verification/verify-code", {
+  const res = await fetch(`${API_BASE}/api/v1/email-verification/verify-code`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },

@@ -12,9 +12,10 @@ import (
 func CORSMiddleware(frontendURL string) gin.HandlerFunc {
 	return cors.New(cors.Config{
 		AllowOrigins:     []string{frontendURL},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
+		MaxAge:           3600,
 	})
 }
 
