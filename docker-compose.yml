@@ -12,5 +12,18 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  server:
+    image: iron2ron/ota-server
+    container_name: ota-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./server/.env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      - postgres
+
 volumes:
   pgdata:

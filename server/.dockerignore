@@ -1,0 +1,5 @@
+.env
+*.test
+*_test.go
+integration/
+.git
