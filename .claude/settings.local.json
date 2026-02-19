@@ -61,7 +61,10 @@
       "Bash(netstat:*)",
       "Read(//c/Users/BJS/Desktop/projects/OTA/**)",
       "Bash(git push:*)",
-      "mcp__playwright__browser_console_messages"
+      "mcp__playwright__browser_console_messages",
+      "Bash(python3:*)",
+      "Bash(git push:*)",
+      "Bash(curl:*)"
     ]
   }
 }

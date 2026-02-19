@@ -95,7 +95,7 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie(cookieName, jwtToken, 7*24*3600, "/", "", false, true)
+	c.SetCookie(cookieName, jwtToken, 7*24*3600, "/", "", true, true)
 
 	// Send welcome delivery to newly registered users
 	isNewUser := u.CreatedAt.Equal(u.UpdatedAt)
@@ -130,7 +130,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	c.SetCookie(cookieName, "", -1, "/", "", false, true)
+	c.SetCookie(cookieName, "", -1, "/", "", true, true)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
 
