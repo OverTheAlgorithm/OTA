@@ -1,3 +1,3 @@
-instance-20260219-1757.subnet02191758.vcn02191758.oraclevcn.com {
+:80 {
 	reverse_proxy server:8080
 }
