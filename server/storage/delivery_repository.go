@@ -83,8 +83,8 @@ func (r *DeliveryRepository) GetEligibleUsers(ctx context.Context) ([]delivery.E
 // LogDelivery records a delivery attempt
 func (r *DeliveryRepository) LogDelivery(ctx context.Context, log delivery.DeliveryLog) error {
 	query := `
-		INSERT INTO delivery_logs (id, run_id, user_id, channel, status, error_message, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO delivery_logs (id, run_id, user_id, channel, status, error_message, retry_count, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err := r.pool.Exec(ctx, query,
@@ -94,6 +94,7 @@ func (r *DeliveryRepository) LogDelivery(ctx context.Context, log delivery.Deliv
 		log.Channel,
 		log.Status,
 		log.ErrorMessage,
+		log.RetryCount,
 		log.CreatedAt,
 	)
 
@@ -104,12 +105,13 @@ func (r *DeliveryRepository) LogDelivery(ctx context.Context, log delivery.Deliv
 	return nil
 }
 
-// HasDeliveryLog checks if a delivery was already attempted
+// HasDeliveryLog checks if a successful delivery already exists for this run+user+channel.
+// Only status='sent' counts as delivered — failed entries are retryable.
 func (r *DeliveryRepository) HasDeliveryLog(ctx context.Context, runID string, userID string, channel delivery.DeliveryChannel) (bool, error) {
 	query := `
 		SELECT EXISTS(
 			SELECT 1 FROM delivery_logs
-			WHERE run_id = $1 AND user_id = $2 AND channel = $3
+			WHERE run_id = $1 AND user_id = $2 AND channel = $3 AND status = 'sent'
 		)
 	`
 
@@ -181,4 +183,94 @@ func (r *DeliveryRepository) UpsertUserDeliveryChannel(ctx context.Context, chan
 	}
 
 	return nil
+}
+
+// GetFailedDeliveries returns delivery attempts that failed for a given run,
+// eligible for retry (retry_count < maxRetries, no subsequent sent log).
+func (r *DeliveryRepository) GetFailedDeliveries(ctx context.Context, runID string, maxRetries int) ([]delivery.FailedDelivery, error) {
+	query := `
+		SELECT
+			dl.run_id,
+			dl.user_id,
+			u.email,
+			dl.channel,
+			dl.retry_count,
+			COALESCE(
+				ARRAY_AGG(DISTINCT us.category) FILTER (WHERE us.category IS NOT NULL),
+				ARRAY[]::VARCHAR[]
+			) AS subscriptions,
+			dl.created_at
+		FROM delivery_logs dl
+		JOIN users u ON u.id = dl.user_id
+		LEFT JOIN user_subscriptions us ON us.user_id = dl.user_id
+		WHERE dl.run_id = $1
+		  AND dl.status = 'failed'
+		  AND dl.retry_count < $2
+		  AND NOT EXISTS (
+		      SELECT 1 FROM delivery_logs dl2
+		      WHERE dl2.run_id = dl.run_id
+		        AND dl2.user_id = dl.user_id
+		        AND dl2.channel = dl.channel
+		        AND (dl2.status = 'sent' OR dl2.retry_count > dl.retry_count)
+		  )
+		GROUP BY dl.run_id, dl.user_id, u.email, dl.channel, dl.retry_count, dl.created_at
+		ORDER BY dl.created_at
+	`
+
+	rows, err := r.pool.Query(ctx, query, runID, maxRetries)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query failed deliveries: %w", err)
+	}
+	defer rows.Close()
+
+	var results []delivery.FailedDelivery
+	for rows.Next() {
+		var f delivery.FailedDelivery
+		var subs []string
+		err := rows.Scan(&f.RunID, &f.UserID, &f.Email, &f.Channel, &f.RetryCount, &subs, &f.FailedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan failed delivery: %w", err)
+		}
+		f.Subscriptions = subs
+		results = append(results, f)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating failed deliveries: %w", err)
+	}
+
+	return results, nil
+}
+
+// GetLatestDeliveryStatus returns the most recent delivery log per channel for a user
+func (r *DeliveryRepository) GetLatestDeliveryStatus(ctx context.Context, userID string) ([]delivery.DeliveryLog, error) {
+	query := `
+		SELECT DISTINCT ON (dl.channel)
+			dl.id, dl.run_id, dl.user_id, dl.channel, dl.status, dl.error_message, dl.retry_count, dl.created_at
+		FROM delivery_logs dl
+		WHERE dl.user_id = $1
+		ORDER BY dl.channel, dl.created_at DESC
+	`
+
+	rows, err := r.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query delivery status: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []delivery.DeliveryLog
+	for rows.Next() {
+		var log delivery.DeliveryLog
+		err := rows.Scan(&log.ID, &log.RunID, &log.UserID, &log.Channel, &log.Status, &log.ErrorMessage, &log.RetryCount, &log.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan delivery log: %w", err)
+		}
+		logs = append(logs, log)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating delivery logs: %w", err)
+	}
+
+	return logs, nil
 }

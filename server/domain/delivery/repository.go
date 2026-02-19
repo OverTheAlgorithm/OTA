@@ -21,4 +21,12 @@ type Repository interface {
 
 	// UpsertUserDeliveryChannel creates or updates a user's channel preference
 	UpsertUserDeliveryChannel(ctx context.Context, channel UserDeliveryChannel) error
+
+	// GetFailedDeliveries returns delivery attempts that failed for a given run
+	// Only returns the latest failed attempt per user+channel where retry_count < maxRetries
+	// and no subsequent successful delivery exists
+	GetFailedDeliveries(ctx context.Context, runID string, maxRetries int) ([]FailedDelivery, error)
+
+	// GetLatestDeliveryStatus returns the most recent delivery log per channel for a user
+	GetLatestDeliveryStatus(ctx context.Context, userID string) ([]DeliveryLog, error)
 }

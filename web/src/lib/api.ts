@@ -111,6 +111,24 @@ export async function updateDeliveryChannels(
   if (!res.ok) throw new Error("Failed to update delivery channels");
 }
 
+// ── 전달 상태 ───────────────────────────────────────
+export interface ChannelDeliveryStatus {
+  channel: string;
+  status: "sent" | "failed" | "skipped";
+  error_message?: string;
+  retry_count: number;
+  last_attempt: string;
+}
+
+export async function getDeliveryStatus(): Promise<ChannelDeliveryStatus[]> {
+  const res = await fetch("/api/v1/user/delivery-status", {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to fetch delivery status");
+  const body: ApiResponse<ChannelDeliveryStatus[]> = await res.json();
+  return body.data;
+}
+
 // ── 이메일 인증 ───────────────────────────────────────
 export async function sendVerificationCode(email: string): Promise<void> {
   const res = await fetch("/api/v1/email-verification/send-code", {

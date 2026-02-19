@@ -1,6 +1,10 @@
 package delivery
 
-import "time"
+import (
+	"time"
+
+	"ota/domain/collector"
+)
 
 // UserDeliveryChannel represents a user's delivery channel preference
 type UserDeliveryChannel struct {
@@ -28,7 +32,26 @@ type DeliveryLog struct {
 	Channel      DeliveryChannel
 	Status       DeliveryStatus
 	ErrorMessage string
+	RetryCount   int
 	CreatedAt    time.Time
+}
+
+// DeliveryTarget represents a specific user+channel pair to deliver to
+type DeliveryTarget struct {
+	User       EligibleUser
+	Channel    DeliveryChannel
+	RetryCount int
+}
+
+// FailedDelivery represents a delivery that failed and may be retryable
+type FailedDelivery struct {
+	RunID         string
+	UserID        string
+	Email         string
+	Channel       DeliveryChannel
+	RetryCount    int
+	Subscriptions []string
+	FailedAt      time.Time
 }
 
 // DeliveryChannel represents the delivery method
@@ -56,6 +79,16 @@ type FormattedMessage struct {
 	Subject  string
 	TextBody string
 	HTMLBody string
+}
+
+// MaxRetries is the maximum number of retry attempts for failed deliveries
+const MaxRetries = 3
+
+// DeliveryPlan holds everything needed to execute deliveries
+type DeliveryPlan struct {
+	RunID   string
+	Items   []collector.ContextItem
+	Targets []DeliveryTarget
 }
 
 // EligibleUser represents a user who should receive a message

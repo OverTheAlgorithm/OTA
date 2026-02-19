@@ -3,10 +3,8 @@ package main
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/robfig/cron/v3"
 
 	"ota/api"
 	"ota/api/handler"
@@ -19,6 +17,7 @@ import (
 	"ota/platform/gemini"
 	"ota/platform/kakao"
 	"ota/platform/openai"
+	"ota/scheduler"
 	"ota/storage"
 )
 
@@ -28,7 +27,6 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	// 프로덕션 환경에서는 Gin 릴리즈 모드로 실행 (디버그 로그 및 라우트 목록 출력 억제)
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -59,42 +57,7 @@ func main() {
 	collectorService := collector.NewService(aiClient, collectorRepo)
 	log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
 
-	// Schedule collection with distributed coordination
-	scheduler := cron.New(cron.WithLocation(time.UTC))
-
-	collectFunc := func() {
-		log.Println("checking if collection is needed")
-		result, err := collectorService.CollectIfNeeded(context.Background())
-		if err != nil {
-			log.Printf("collection failed: %v", err)
-			return
-		}
-		if result == nil {
-			log.Println("collection already completed today or in progress, skipping")
-			return
-		}
-		log.Printf("collection completed: run_id=%s, items=%d", result.Run.ID, len(result.Items))
-	}
-
-	// Collection schedule: 4 AM, 5 AM, 6 AM KST (19:00, 20:00, 21:00 UTC)
-	// Multiple attempts to ensure data is ready by 6 AM
-	_, err = scheduler.AddFunc("0 19 * * *", collectFunc) // 4 AM KST
-	if err != nil {
-		log.Fatalf("failed to schedule 4 AM collection: %v", err)
-	}
-	_, err = scheduler.AddFunc("0 20 * * *", collectFunc) // 5 AM KST
-	if err != nil {
-		log.Fatalf("failed to schedule 5 AM collection: %v", err)
-	}
-	_, err = scheduler.AddFunc("0 21 * * *", collectFunc) // 6 AM KST (final attempt)
-	if err != nil {
-		log.Fatalf("failed to schedule 6 AM collection: %v", err)
-	}
-
-	scheduler.Start()
-	log.Println("scheduler started (collection at 4 AM, 5 AM, 6 AM KST)")
-
-	// Message delivery system
+	// Message delivery
 	emailSender := email.NewSMTPSender(email.SMTPConfig{
 		Host:     cfg.SMTPHost,
 		Port:     cfg.SMTPPort,
@@ -107,30 +70,13 @@ func main() {
 	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter)
 	log.Println("delivery service initialized")
 
-	// Delivery schedule
-	deliverFunc := func() {
-		log.Println("starting message delivery")
-		result, err := deliveryService.DeliverAll(context.Background())
-		if err != nil {
-			log.Printf("delivery failed: %v", err)
-			return
-		}
-		log.Printf("delivery completed: total=%d, success=%d, failed=%d, skipped=%d",
-			result.TotalUsers, result.SuccessCount, result.FailureCount, result.SkippedCount)
+	// Scheduler
+	sched := scheduler.New(collectorService, deliveryService)
+	if err := sched.Start(); err != nil {
+		log.Fatalf("failed to start scheduler: %v", err)
 	}
-
-	// Primary delivery at 7:00 AM KST (22:00 UTC)
-	_, err = scheduler.AddFunc("0 22 * * *", deliverFunc)
-	if err != nil {
-		log.Fatalf("failed to schedule primary delivery: %v", err)
-	}
-
-	// Fallback delivery at 7:15 AM KST (22:15 UTC) if collection was late
-	_, err = scheduler.AddFunc("15 22 * * *", deliverFunc)
-	if err != nil {
-		log.Fatalf("failed to schedule fallback delivery: %v", err)
-	}
-	log.Println("delivery scheduler added (7:00 AM + 7:15 AM KST fallback)")
+	defer sched.Stop()
+	log.Println("scheduler started (collection 4-6 AM, delivery 7:00-7:15 AM, retry 7:30-8:30 AM KST)")
 
 	// Handlers
 	userRepo := storage.NewUserRepository(pool)
@@ -141,7 +87,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, cfg.FrontendURL)
 	adminHandler := handler.NewAdminHandler(collectorService)
 	deliveryHandler := api.NewDeliveryHandler(deliveryService)
-	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo)
+	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo, deliveryService)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionRepo, api.AuthMiddleware(jwtManager))
 
 	// Email verification

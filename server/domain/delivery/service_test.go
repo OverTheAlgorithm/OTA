@@ -55,8 +55,21 @@ func (m *mockRepository) UpsertUserDeliveryChannel(ctx context.Context, channel 
 	if m.shouldFail {
 		return fmt.Errorf("mock upsert channel error")
 	}
-	// No-op for tests (not used in delivery service tests)
 	return nil
+}
+
+func (m *mockRepository) GetFailedDeliveries(ctx context.Context, runID string, maxRetries int) ([]FailedDelivery, error) {
+	if m.shouldFail {
+		return nil, fmt.Errorf("mock get failed deliveries error")
+	}
+	return nil, nil
+}
+
+func (m *mockRepository) GetLatestDeliveryStatus(ctx context.Context, userID string) ([]DeliveryLog, error) {
+	if m.shouldFail {
+		return nil, fmt.Errorf("mock get latest delivery status error")
+	}
+	return nil, nil
 }
 
 type mockCollectorService struct {

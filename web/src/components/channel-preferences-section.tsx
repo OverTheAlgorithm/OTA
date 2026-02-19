@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
-import { getDeliveryChannels, updateDeliveryChannels, type ChannelPreference } from "@/lib/api";
+import {
+  getDeliveryChannels,
+  updateDeliveryChannels,
+  getDeliveryStatus,
+  type ChannelPreference,
+  type ChannelDeliveryStatus,
+} from "@/lib/api";
 
 const CHANNEL_INFO = {
   email: { label: "이메일", icon: "📧", description: "이메일로 맥락을 받아요" },
@@ -12,10 +18,12 @@ const CHANNEL_INFO = {
 };
 
 const CHANNEL_ORDER = ["email", "kakao", "telegram", "sms", "push"];
+const MAX_RETRIES = 3;
 
 export function ChannelPreferencesSection() {
   const { user } = useAuth();
   const [channels, setChannels] = useState<ChannelPreference[]>([]);
+  const [deliveryStatuses, setDeliveryStatuses] = useState<ChannelDeliveryStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -23,7 +31,6 @@ export function ChannelPreferencesSection() {
   useEffect(() => {
     getDeliveryChannels()
       .then((data) => {
-        // Ensure all channels exist, defaulting to disabled if not present
         const channelMap = new Map(data.map((ch) => [ch.channel, ch.enabled]));
         const allChannels = CHANNEL_ORDER.map((channel) => ({
           channel,
@@ -33,10 +40,13 @@ export function ChannelPreferencesSection() {
       })
       .catch((err) => {
         console.error("채널 정보 조회 실패:", err);
-        // Initialize with all channels disabled
         setChannels(CHANNEL_ORDER.map((channel) => ({ channel, enabled: false })));
       })
       .finally(() => setLoading(false));
+
+    getDeliveryStatus()
+      .then(setDeliveryStatuses)
+      .catch(() => {});
   }, []);
 
   const handleToggle = async (targetChannel: string) => {
@@ -45,7 +55,6 @@ export function ChannelPreferencesSection() {
     setErrorMsg(null);
     const previous = channels;
 
-    // Optimistic update
     const updated = channels.map((ch) =>
       ch.channel === targetChannel ? { ...ch, enabled: !ch.enabled } : ch
     );
@@ -56,11 +65,15 @@ export function ChannelPreferencesSection() {
       await updateDeliveryChannels(updated);
     } catch (err) {
       console.error("채널 설정 저장 실패:", err);
-      setChannels(previous); // Rollback
+      setChannels(previous);
       setErrorMsg("저장에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const getChannelFailure = (channel: string): ChannelDeliveryStatus | undefined => {
+    return deliveryStatuses.find((s) => s.channel === channel && s.status === "failed");
   };
 
   const enabledCount = channels.filter((ch) => ch.enabled).length;
@@ -96,6 +109,7 @@ export function ChannelPreferencesSection() {
           const isEmailChannel = ch.channel === "email";
           const hasEmail = user?.email;
           const showEmailWarning = isEmailChannel && (!hasEmail || ch.enabled);
+          const failure = getChannelFailure(ch.channel);
 
           return (
             <div key={ch.channel}>
@@ -124,6 +138,17 @@ export function ChannelPreferencesSection() {
                   />
                 </button>
               </div>
+
+              {/* Per-channel delivery failure warning */}
+              {failure && ch.enabled && (
+                <div className="mt-2 ml-4 text-xs text-[#e84d3d] bg-[#e84d3d]/10 rounded-lg px-3 py-2 border border-[#e84d3d]/20">
+                  {failure.retry_count >= MAX_RETRIES ? (
+                    <p>이 채널로의 전달이 실패했습니다. 채널 설정을 확인해주세요.</p>
+                  ) : (
+                    <p>전달이 실패하여 자동 재시도 중입니다. ({failure.retry_count}/{MAX_RETRIES}회 시도)</p>
+                  )}
+                </div>
+              )}
 
               {/* Email warning/link */}
               {showEmailWarning && (

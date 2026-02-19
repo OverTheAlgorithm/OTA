@@ -10,20 +10,60 @@ import (
 	"ota/domain/delivery"
 )
 
-// UserDeliveryChannelsHandler handles user delivery channel preferences
+// UserDeliveryChannelsHandler handles user delivery channel preferences and status
 type UserDeliveryChannelsHandler struct {
-	repo delivery.Repository
+	repo            delivery.Repository
+	deliveryService *delivery.Service
 }
 
 // NewUserDeliveryChannelsHandler creates a new handler
-func NewUserDeliveryChannelsHandler(repo delivery.Repository) *UserDeliveryChannelsHandler {
-	return &UserDeliveryChannelsHandler{repo: repo}
+func NewUserDeliveryChannelsHandler(repo delivery.Repository, deliveryService *delivery.Service) *UserDeliveryChannelsHandler {
+	return &UserDeliveryChannelsHandler{repo: repo, deliveryService: deliveryService}
+}
+
+// ChannelDeliveryStatusResponse represents per-channel delivery status
+type ChannelDeliveryStatusResponse struct {
+	Channel      string    `json:"channel"`
+	Status       string    `json:"status"`
+	ErrorMessage string    `json:"error_message,omitempty"`
+	RetryCount   int       `json:"retry_count"`
+	LastAttempt  time.Time `json:"last_attempt"`
 }
 
 // RegisterRoutes registers the routes for this handler
 func (h *UserDeliveryChannelsHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/delivery-channels", h.GetChannelPreferences)
 	group.PUT("/delivery-channels", h.UpdateChannelPreferences)
+	group.GET("/delivery-status", h.GetDeliveryStatus)
+}
+
+// GetDeliveryStatus returns the user's latest delivery status per channel
+// GET /api/v1/user/delivery-status
+func (h *UserDeliveryChannelsHandler) GetDeliveryStatus(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	logs, err := h.deliveryService.GetUserDeliveryStatus(c.Request.Context(), userID.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get delivery status"})
+		return
+	}
+
+	statuses := make([]ChannelDeliveryStatusResponse, 0, len(logs))
+	for _, log := range logs {
+		statuses = append(statuses, ChannelDeliveryStatusResponse{
+			Channel:      string(log.Channel),
+			Status:       string(log.Status),
+			ErrorMessage: log.ErrorMessage,
+			RetryCount:   log.RetryCount,
+			LastAttempt:  log.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": statuses})
 }
 
 // ChannelPreferenceResponse represents a channel preference in the API
