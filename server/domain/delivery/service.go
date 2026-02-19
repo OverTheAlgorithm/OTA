@@ -21,7 +21,13 @@ type Service struct {
 // CollectorService defines the interface for fetching context items
 type CollectorService interface {
 	GetLatestRun(ctx context.Context) (*collector.CollectionRun, error)
+	GetLastDeliveredRun(ctx context.Context) (*collector.CollectionRun, error)
 	GetContextItems(ctx context.Context, runID uuid.UUID) ([]collector.ContextItem, error)
+}
+
+// WelcomeDeliverer sends the most recent briefing to newly registered users
+type WelcomeDeliverer interface {
+	DeliverToNewUser(ctx context.Context, userID string, email string) error
 }
 
 // NewService creates a new delivery service
@@ -115,6 +121,49 @@ func (s *Service) DeliverAll(ctx context.Context) (*DeliveryResult, error) {
 	}
 
 	return result, nil
+}
+
+// DeliverToNewUser sends the most recent already-delivered briefing to a newly registered user
+func (s *Service) DeliverToNewUser(ctx context.Context, userID string, email string) error {
+	if email == "" {
+		return nil
+	}
+
+	// Find the last run that was already delivered to other users
+	run, err := s.collectorSvc.GetLastDeliveredRun(ctx)
+	if err != nil {
+		return nil // No delivered runs yet — skip silently
+	}
+
+	// Idempotency: skip if already sent to this user
+	alreadySent, err := s.repo.HasDeliveryLog(ctx, run.ID.String(), userID, ChannelEmail)
+	if err != nil {
+		return fmt.Errorf("failed to check delivery log: %w", err)
+	}
+	if alreadySent {
+		return nil
+	}
+
+	// Get context items
+	items, err := s.collectorSvc.GetContextItems(ctx, run.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get context items: %w", err)
+	}
+	if len(items) == 0 {
+		return nil
+	}
+
+	// Format message with empty subscriptions (new user has none yet)
+	message := FormatMessage(items, []string{})
+
+	// Send via email directly
+	if err := s.emailSender.Send(email, message.Subject, message.TextBody, message.HTMLBody); err != nil {
+		s.logDelivery(ctx, run.ID.String(), userID, ChannelEmail, StatusFailed, err.Error())
+		return fmt.Errorf("failed to send welcome email: %w", err)
+	}
+
+	s.logDelivery(ctx, run.ID.String(), userID, ChannelEmail, StatusSent, "")
+	return nil
 }
 
 func (s *Service) logDelivery(ctx context.Context, runID string, userID string, channel DeliveryChannel, status DeliveryStatus, errorMsg string) {

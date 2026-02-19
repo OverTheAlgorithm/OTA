@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"context"
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	"ota/auth"
+	"ota/domain/delivery"
 	"ota/domain/user"
 	"ota/platform/kakao"
 )
@@ -14,20 +16,22 @@ import (
 const cookieName = "ota_token"
 
 type AuthHandler struct {
-	kakao       *kakao.Client
-	jwt         *auth.JWTManager
-	states      *auth.StateStore
-	userRepo    user.Repository
-	frontendURL string
+	kakao            *kakao.Client
+	jwt              *auth.JWTManager
+	states           *auth.StateStore
+	userRepo         user.Repository
+	welcomeDeliverer delivery.WelcomeDeliverer
+	frontendURL      string
 }
 
-func NewAuthHandler(kakao *kakao.Client, jwt *auth.JWTManager, states *auth.StateStore, userRepo user.Repository, frontendURL string) *AuthHandler {
+func NewAuthHandler(kakao *kakao.Client, jwt *auth.JWTManager, states *auth.StateStore, userRepo user.Repository, welcomeDeliverer delivery.WelcomeDeliverer, frontendURL string) *AuthHandler {
 	return &AuthHandler{
-		kakao:       kakao,
-		jwt:         jwt,
-		states:      states,
-		userRepo:    userRepo,
-		frontendURL: frontendURL,
+		kakao:            kakao,
+		jwt:              jwt,
+		states:           states,
+		userRepo:         userRepo,
+		welcomeDeliverer: welcomeDeliverer,
+		frontendURL:      frontendURL,
 	}
 }
 
@@ -92,6 +96,19 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 	}
 
 	c.SetCookie(cookieName, jwtToken, 7*24*3600, "/", "", false, true)
+
+	// Send welcome delivery to newly registered users
+	isNewUser := u.CreatedAt.Equal(u.UpdatedAt)
+	if isNewUser && u.Email != "" && h.welcomeDeliverer != nil {
+		go func() {
+			if err := h.welcomeDeliverer.DeliverToNewUser(context.Background(), u.ID, u.Email); err != nil {
+				log.Printf("welcome delivery failed for user %s: %v", u.ID, err)
+			} else {
+				log.Printf("welcome delivery sent to new user %s (%s)", u.ID, u.Email)
+			}
+		}()
+	}
+
 	c.Redirect(http.StatusFound, h.frontendURL+"/home")
 }
 

@@ -138,7 +138,7 @@ func main() {
 	kakaoClient := kakao.NewClient(cfg.KakaoClientID, cfg.KakaoClientSecret, cfg.KakaoRedirectURI)
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
 	stateStore := auth.NewStateStore()
-	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, cfg.FrontendURL)
+	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, cfg.FrontendURL)
 	adminHandler := handler.NewAdminHandler(collectorService)
 	deliveryHandler := api.NewDeliveryHandler(deliveryService)
 	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo)

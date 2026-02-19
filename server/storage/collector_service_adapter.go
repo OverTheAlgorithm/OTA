@@ -46,6 +46,36 @@ func (a *CollectorServiceAdapter) GetLatestRun(ctx context.Context) (*collector.
 	return &run, nil
 }
 
+// GetLastDeliveredRun retrieves the most recent collection run that was already delivered to users
+func (a *CollectorServiceAdapter) GetLastDeliveredRun(ctx context.Context) (*collector.CollectionRun, error) {
+	query := `
+		SELECT cr.id, cr.started_at, cr.completed_at, cr.status, cr.error_message, cr.raw_response
+		FROM collection_runs cr
+		WHERE EXISTS (
+			SELECT 1 FROM delivery_logs dl
+			WHERE dl.run_id = cr.id AND dl.status = 'sent'
+		)
+		ORDER BY cr.started_at DESC
+		LIMIT 1
+	`
+
+	var run collector.CollectionRun
+	err := a.pool.QueryRow(ctx, query).Scan(
+		&run.ID,
+		&run.StartedAt,
+		&run.CompletedAt,
+		&run.Status,
+		&run.ErrorMessage,
+		&run.RawResponse,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last delivered run: %w", err)
+	}
+
+	return &run, nil
+}
+
 // GetContextItems retrieves all context items for a given run
 func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uuid.UUID) ([]collector.ContextItem, error) {
 	query := `
