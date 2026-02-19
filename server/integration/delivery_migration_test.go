@@ -8,23 +8,23 @@ import (
 // TestDeliveryTables_Migration verifies the delivery tables migration applies correctly
 func TestDeliveryTables_Migration(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "delivery_logs", "user_subscriptions", "user_preferences")
+	defer db.Truncate(t, "delivery_logs", "user_subscriptions", "user_delivery_channels")
 
 	ctx := context.Background()
 
-	// Verify user_preferences table exists
-	var prefsExists bool
+	// Verify user_delivery_channels table exists
+	var channelsExists bool
 	err := db.Pool.QueryRow(ctx, `
 		SELECT EXISTS (
 			SELECT FROM information_schema.tables
-			WHERE table_name = 'user_preferences'
+			WHERE table_name = 'user_delivery_channels'
 		)
-	`).Scan(&prefsExists)
+	`).Scan(&channelsExists)
 	if err != nil {
-		t.Fatalf("failed to check user_preferences table: %v", err)
+		t.Fatalf("failed to check user_delivery_channels table: %v", err)
 	}
-	if !prefsExists {
-		t.Error("user_preferences table does not exist")
+	if !channelsExists {
+		t.Error("user_delivery_channels table does not exist")
 	}
 
 	// Verify user_subscriptions table exists
@@ -63,7 +63,7 @@ func TestDeliveryTables_Migration(t *testing.T) {
 // TestDeliveryTables_Constraints verifies foreign keys and unique constraints
 func TestDeliveryTables_Constraints(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "delivery_logs", "user_subscriptions", "user_preferences")
+	defer db.Truncate(t, "delivery_logs", "user_subscriptions", "user_delivery_channels")
 
 	ctx := context.Background()
 
@@ -78,13 +78,13 @@ func TestDeliveryTables_Constraints(t *testing.T) {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
-	// Test user_preferences
+	// Test user_delivery_channels
 	_, err = db.Pool.Exec(ctx, `
-		INSERT INTO user_preferences (user_id, delivery_enabled)
-		VALUES ($1, true)
+		INSERT INTO user_delivery_channels (id, user_id, channel, enabled)
+		VALUES (gen_random_uuid(), $1, 'email', true)
 	`, userID)
 	if err != nil {
-		t.Fatalf("failed to insert user_preferences: %v", err)
+		t.Fatalf("failed to insert user_delivery_channels: %v", err)
 	}
 
 	// Test user_subscriptions with unique constraint

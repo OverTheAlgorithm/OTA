@@ -15,7 +15,7 @@ import (
 // TestDeliveryFlow_EndToEnd tests the complete email delivery flow
 func TestDeliveryFlow_EndToEnd(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "delivery_logs", "context_items", "collection_runs", "user_subscriptions", "user_preferences", "users")
+	defer db.Truncate(t, "delivery_logs", "context_items", "collection_runs", "user_subscriptions", "user_delivery_channels", "users")
 
 	ctx := context.Background()
 
@@ -32,8 +32,8 @@ func TestDeliveryFlow_EndToEnd(t *testing.T) {
 
 	// 2. Enable delivery for user
 	_, err = db.Pool.Exec(ctx, `
-		INSERT INTO user_preferences (user_id, delivery_enabled)
-		VALUES ($1, true)
+		INSERT INTO user_delivery_channels (id, user_id, channel, enabled)
+		VALUES (gen_random_uuid(), $1, 'email', true)
 	`, userID)
 	if err != nil {
 		t.Fatalf("failed to create user preferences: %v", err)
@@ -159,7 +159,7 @@ func TestDeliveryFlow_EndToEnd(t *testing.T) {
 // TestDeliveryFlow_Idempotency verifies duplicate delivery is prevented
 func TestDeliveryFlow_Idempotency(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "delivery_logs", "context_items", "collection_runs", "user_subscriptions", "user_preferences", "users")
+	defer db.Truncate(t, "delivery_logs", "context_items", "collection_runs", "user_subscriptions", "user_delivery_channels", "users")
 
 	ctx := context.Background()
 
@@ -175,8 +175,8 @@ func TestDeliveryFlow_Idempotency(t *testing.T) {
 	}
 
 	_, err = db.Pool.Exec(ctx, `
-		INSERT INTO user_preferences (user_id, delivery_enabled)
-		VALUES ($1, true)
+		INSERT INTO user_delivery_channels (id, user_id, channel, enabled)
+		VALUES (gen_random_uuid(), $1, 'email', true)
 	`, userID)
 	if err != nil {
 		t.Fatalf("failed to create preferences: %v", err)

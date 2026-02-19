@@ -71,6 +71,13 @@ func (m *mockCollectorService) GetLatestRun(ctx context.Context) (*collector.Col
 	return m.run, nil
 }
 
+func (m *mockCollectorService) GetLastDeliveredRun(ctx context.Context) (*collector.CollectionRun, error) {
+	if m.run == nil {
+		return nil, fmt.Errorf("no delivered run available")
+	}
+	return m.run, nil
+}
+
 func (m *mockCollectorService) GetContextItems(ctx context.Context, runID uuid.UUID) ([]collector.ContextItem, error) {
 	return m.items, nil
 }

@@ -13,7 +13,7 @@ import (
 
 func TestDeliveryRepository_GetEligibleUsers_Empty(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "delivery_logs", "user_subscriptions", "user_preferences", "users")
+	defer db.Truncate(t, "delivery_logs", "user_subscriptions", "user_delivery_channels", "users")
 
 	repo := storage.NewDeliveryRepository(db.Pool)
 
@@ -29,7 +29,7 @@ func TestDeliveryRepository_GetEligibleUsers_Empty(t *testing.T) {
 
 func TestDeliveryRepository_GetEligibleUsers_WithPreferences(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "delivery_logs", "user_subscriptions", "user_preferences", "users")
+	defer db.Truncate(t, "delivery_logs", "user_subscriptions", "user_delivery_channels", "users")
 
 	ctx := context.Background()
 
@@ -63,13 +63,15 @@ func TestDeliveryRepository_GetEligibleUsers_WithPreferences(t *testing.T) {
 		t.Fatalf("failed to create user3: %v", err)
 	}
 
-	// Set preferences
+	// Set delivery channels (user1: email enabled, user2: email disabled, user3: email enabled)
 	_, err = db.Pool.Exec(ctx, `
-		INSERT INTO user_preferences (user_id, delivery_enabled)
-		VALUES ($1, true), ($2, false), ($3, true)
+		INSERT INTO user_delivery_channels (id, user_id, channel, enabled)
+		VALUES (gen_random_uuid(), $1, 'email', true),
+		       (gen_random_uuid(), $2, 'email', false),
+		       (gen_random_uuid(), $3, 'email', true)
 	`, user1ID, user2ID, user3ID)
 	if err != nil {
-		t.Fatalf("failed to set preferences: %v", err)
+		t.Fatalf("failed to set delivery channels: %v", err)
 	}
 
 	// Add subscriptions for user1
@@ -255,7 +257,7 @@ func TestDeliveryRepository_HasDeliveryLog(t *testing.T) {
 
 func TestDeliveryRepository_GetEligibleUsers_NoEmail(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "user_preferences", "users")
+	defer db.Truncate(t, "user_delivery_channels", "users")
 
 	ctx := context.Background()
 
@@ -272,8 +274,8 @@ func TestDeliveryRepository_GetEligibleUsers_NoEmail(t *testing.T) {
 
 	// Enable delivery
 	_, err = db.Pool.Exec(ctx, `
-		INSERT INTO user_preferences (user_id, delivery_enabled)
-		VALUES ($1, true)
+		INSERT INTO user_delivery_channels (id, user_id, channel, enabled)
+		VALUES (gen_random_uuid(), $1, 'email', true)
 	`, userID)
 	if err != nil {
 		t.Fatalf("failed to set preferences: %v", err)
