@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
-import { triggerCollection, type CollectionResult } from "@/lib/api";
+import { triggerCollection } from "@/lib/api";
 
 type CollectState =
   | { status: "idle" }
   | { status: "running" }
-  | { status: "success"; result: CollectionResult }
+  | { status: "requested" }
   | { status: "error"; message: string };
 
 export function AdminPage() {
@@ -31,12 +31,14 @@ export function AdminPage() {
   const handleCollect = async () => {
     setCollectState({ status: "running" });
     try {
-      const result = await triggerCollection();
-      setCollectState({ status: "success", result });
+      await triggerCollection();
+      setCollectState({ status: "requested" });
     } catch (e) {
       setCollectState({ status: "error", message: e instanceof Error ? e.message : "알 수 없는 오류" });
     }
   };
+
+  const isDisabled = collectState.status === "running" || collectState.status === "requested";
 
   return (
     <div className="min-h-screen bg-[#0f0a19] text-[#f5f0ff] p-8">
@@ -59,19 +61,17 @@ export function AdminPage() {
 
           <button
             onClick={handleCollect}
-            disabled={collectState.status === "running"}
+            disabled={isDisabled}
             className="w-full py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: "#2d1f42", color: "#f5f0ff" }}
           >
-            {collectState.status === "running" ? "수집 중..." : "수집 실행"}
+            {collectState.status === "running" && "수집 중..."}
+            {collectState.status === "requested" && "수집 요청 완료"}
+            {(collectState.status === "idle" || collectState.status === "error") && "수집 실행"}
           </button>
 
-          {collectState.status === "success" && (
-            <div className="rounded-xl border border-[#2d1f42] bg-[#0f0a19] p-4 space-y-1 text-sm">
-              <p className="text-green-400 font-semibold">수집 완료</p>
-              <p className="text-[#9b8bb4]">Run ID: <span className="text-[#f5f0ff] font-mono text-xs">{collectState.result.run_id}</span></p>
-              <p className="text-[#9b8bb4]">수집된 항목: <span className="text-[#f5f0ff] font-semibold">{collectState.result.item_count}개</span></p>
-            </div>
+          {collectState.status === "requested" && (
+            <p className="text-xs text-[#9b8bb4]">작업 완료시 슬랙으로 통지합니다.</p>
           )}
 
           {collectState.status === "error" && (

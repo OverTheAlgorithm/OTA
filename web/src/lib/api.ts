@@ -204,12 +204,7 @@ export async function verifyEmailCode(code: string): Promise<void> {
 }
 
 // ── 어드민 ─────────────────────────────────────────────
-export interface CollectionResult {
-  run_id: string;
-  item_count: number;
-}
-
-export async function triggerCollection(): Promise<CollectionResult> {
+export async function triggerCollection(): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/admin/collect`, {
     method: "POST",
     credentials: "include",
@@ -219,7 +214,5 @@ export async function triggerCollection(): Promise<CollectionResult> {
     const err: ApiError = await res.json();
     throw new Error(err.error || "수집 실행에 실패했습니다");
   }
-
-  const body: ApiResponse<CollectionResult> = await res.json();
-  return body.data;
+  // 202 Accepted: collection runs in background, result sent via Slack
 }
