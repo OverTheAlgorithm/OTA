@@ -37,6 +37,8 @@ type Config struct {
 	SMTPPassword string
 	SMTPFrom     string
 
+	SlackWebhookURL string // optional; used for async admin notifications
+
 	ServerPort  string
 	FrontendURL string
 	AppEnv      string // "development" | "production"
@@ -80,6 +82,8 @@ func Load() (Config, error) {
 		SMTPUsername: getEnv("SMTP_USERNAME", ""),
 		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
 		SMTPFrom:     getEnv("SMTP_FROM", ""),
+
+		SlackWebhookURL: getEnv("SLACK_WEBHOOK_URL", ""),
 
 		ServerPort:  getEnv("SERVER_PORT", "8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),
