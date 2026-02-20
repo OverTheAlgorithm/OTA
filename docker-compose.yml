@@ -11,6 +11,11 @@ services:
       POSTGRES_DB: ota
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ota -d ota"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   server:
     image: iron2ron/ota-server
@@ -23,7 +28,8 @@ services:
     environment:
       DB_HOST: postgres
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   caddy:
     image: caddy:2-alpine
