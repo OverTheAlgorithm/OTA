@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { InterestSection } from "@/components/interest-section";
 import { ChannelPreferencesSection } from "@/components/channel-preferences-section";
@@ -75,6 +75,14 @@ export function HomePage() {
               )}
               <span className="text-sm text-[#9b8bb4] hidden sm:block">{displayName}</span>
             </div>
+            {user.role === "admin" && (
+              <Link
+                to="/admin"
+                className="text-sm text-[#9b8bb4] hover:text-[#f5f0ff] transition-colors"
+              >
+                관리자 페이지
+              </Link>
+            )}
             <button
               onClick={handleLogout}
               className="text-sm text-[#9b8bb4] hover:text-[#f5f0ff] transition-colors"

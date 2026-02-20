@@ -4,6 +4,7 @@ import { LandingPage } from "@/pages/landing";
 import { HomePage } from "@/pages/home";
 import { EmailVerificationPage } from "@/pages/email-verification";
 import { TopicPage } from "@/pages/topic";
+import { AdminPage } from "@/pages/admin";
 
 function LoginRedirect() {
   const [searchParams] = useSearchParams();
@@ -21,6 +22,7 @@ function App() {
           <Route path="/home" element={<HomePage />} />
           <Route path="/email-verification" element={<EmailVerificationPage />} />
           <Route path="/topic/:id" element={<TopicPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

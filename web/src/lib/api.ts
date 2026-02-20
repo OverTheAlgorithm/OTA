@@ -6,6 +6,7 @@ export interface User {
   email?: string;
   nickname?: string;
   profile_image?: string;
+  role: string;
   created_at: string;
   updated_at: string;
 }
@@ -197,4 +198,25 @@ export async function verifyEmailCode(code: string): Promise<void> {
     const err: ApiError = await res.json();
     throw new Error(err.error || "인증 코드 확인에 실패했습니다");
   }
+}
+
+// ── 어드민 ─────────────────────────────────────────────
+export interface CollectionResult {
+  run_id: string;
+  item_count: number;
+}
+
+export async function triggerCollection(): Promise<CollectionResult> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/collect`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "수집 실행에 실패했습니다");
+  }
+
+  const body: ApiResponse<CollectionResult> = await res.json();
+  return body.data;
 }
