@@ -131,6 +131,45 @@ export async function getDeliveryStatus(): Promise<ChannelDeliveryStatus[]> {
   return body.data;
 }
 
+// ── 즉시 전송 ─────────────────────────────────────────
+export interface SendBriefingResult {
+  success_count: number;
+  failure_count: number;
+  skipped_count: number;
+  errors: Record<string, string>;
+}
+
+export async function sendBriefingNow(): Promise<SendBriefingResult> {
+  const res = await fetch(`${API_BASE}/api/v1/delivery/send`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "브리핑 전송에 실패했습니다");
+  }
+
+  const body: ApiResponse<SendBriefingResult> = await res.json();
+  return body.data;
+}
+
+// ── 주제 상세 ─────────────────────────────────────────
+export interface TopicDetail {
+  id: string;
+  topic: string;
+  detail: string;
+  created_at: string;
+}
+
+export async function fetchTopicDetail(id: string): Promise<TopicDetail> {
+  const res = await fetch(`${API_BASE}/api/v1/context/topic/${id}`);
+  if (res.status === 404) throw new Error("not_found");
+  if (!res.ok) throw new Error("server_error");
+  const body: ApiResponse<TopicDetail> = await res.json();
+  return body.data;
+}
+
 // ── 이메일 인증 ───────────────────────────────────────
 export async function sendVerificationCode(email: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/email-verification/send-code`, {
