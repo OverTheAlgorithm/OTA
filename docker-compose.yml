@@ -3,8 +3,8 @@ services:
     image: postgres:16-alpine
     container_name: ota-postgres
     restart: unless-stopped
-    ports:
-      - "5432:5432"
+    # No ports exposed: server connects via Docker internal network.
+    # Exposing 5432 to the host invites brute-force attacks on the internet.
     environment:
       POSTGRES_USER: ota
       POSTGRES_PASSWORD: ota_dev_password
