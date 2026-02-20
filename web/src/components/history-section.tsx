@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { HistoryEntry, HistoryItem } from "@/lib/api";
 
@@ -40,10 +41,13 @@ function TopicRow({ item, accent }: { item: HistoryItem; accent?: string }) {
 function HistoryCard({
   entry,
   subscriptions,
+  defaultOpen,
 }: {
   entry: HistoryEntry;
   subscriptions: string[];
+  defaultOpen: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   const topItems = entry.items.filter((i) => i.category === "top");
   const interestItems = entry.items.filter(
     (i) => i.category !== "top" && subscriptions.includes(i.category),
@@ -51,14 +55,28 @@ function HistoryCard({
 
   return (
     <div className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] overflow-hidden">
-      <div className="px-6 py-4 border-b border-[#2d1f42] flex items-center justify-between">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full px-6 py-4 flex items-center justify-between cursor-pointer"
+        style={{ borderBottom: open ? "1px solid #2d1f42" : "none" }}
+      >
         <span className="font-semibold text-[#f5f0ff]">{formatDate(entry.date)}</span>
-        <span className="text-xs text-[#9b8bb4] bg-[#0f0a19] px-2.5 py-1 rounded-full border border-[#2d1f42]">
-          {topItems.length + interestItems.length}개 토픽
-        </span>
-      </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[#9b8bb4] bg-[#0f0a19] px-2.5 py-1 rounded-full border border-[#2d1f42]">
+            {topItems.length + interestItems.length}개 토픽
+          </span>
+          <svg
+            className="w-4 h-4 text-[#9b8bb4] transition-transform duration-200"
+            style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </button>
 
-      <div className="p-6 space-y-5">
+      {open && <div className="p-6 space-y-5">
         {topItems.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-3">
@@ -122,7 +140,7 @@ function HistoryCard({
             </ul>
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -163,8 +181,8 @@ export function HistorySection({ entries, subscriptions, loading }: Props) {
         </div>
       ) : (
         <div className="space-y-4">
-          {entries.map((entry) => (
-            <HistoryCard key={entry.date} entry={entry} subscriptions={subscriptions} />
+          {entries.map((entry, i) => (
+            <HistoryCard key={entry.date} entry={entry} subscriptions={subscriptions} defaultOpen={i === 0} />
           ))}
         </div>
       )}
