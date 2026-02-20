@@ -109,7 +109,7 @@ func main() {
 	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
 
 	// Router
-	r := api.NewRouter("api", "v1", cfg.FrontendURL, []api.RouteModule{
+	r := api.NewRouter("api", "v1", cfg.FrontendURL, jwtManager, []api.RouteModule{
 		{
 			GroupName:   "auth",
 			Handler:     authHandler,

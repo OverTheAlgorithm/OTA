@@ -1,14 +1,49 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"ota/auth"
 	"ota/domain/user"
 )
+
+// LoggerMiddleware replaces gin.Default()'s logger. It adds user ID to every
+// log line by best-effort parsing the JWT from the request cookie/header.
+func LoggerMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+
+		// Best-effort: extract user ID from token without blocking the request.
+		userID := "-"
+		if tokenStr, err := c.Cookie("ota_token"); err == nil && tokenStr != "" {
+			if claims, err := jwtManager.Validate(tokenStr); err == nil {
+				userID = claims.UserID
+			}
+		} else if header := c.GetHeader("Authorization"); strings.HasPrefix(header, "Bearer ") {
+			tokenStr = strings.TrimPrefix(header, "Bearer ")
+			if claims, err := jwtManager.Validate(tokenStr); err == nil {
+				userID = claims.UserID
+			}
+		}
+
+		c.Next()
+
+		fmt.Fprintf(gin.DefaultWriter, "[GIN] %s | %3d | %12s | %s | %s | %-7s %s\n",
+			time.Now().Format("2006/01/02 - 15:04:05"),
+			c.Writer.Status(),
+			time.Since(start),
+			c.ClientIP(),
+			userID,
+			c.Request.Method,
+			c.Request.URL.Path,
+		)
+	}
+}
 
 func CORSMiddleware(frontendURL string) gin.HandlerFunc {
 	return cors.New(cors.Config{

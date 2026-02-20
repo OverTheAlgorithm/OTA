@@ -35,7 +35,8 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 
 	// Setup router
 	gin.SetMode(gin.TestMode)
-	router := api.NewRouter("api", "v1", "http://localhost:5173", []api.RouteModule{
+	testJWT := auth.NewJWTManager("test-secret")
+	router := api.NewRouter("api", "v1", "http://localhost:5173", testJWT, []api.RouteModule{
 		{
 			GroupName:   "admin",
 			Handler:     adminHandler,
@@ -103,7 +104,7 @@ func TestAPI_AuthFlow(t *testing.T) {
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, nil, "http://localhost:5173")
 
 	gin.SetMode(gin.TestMode)
-	router := api.NewRouter("api", "v1", "http://localhost:5173", []api.RouteModule{
+	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, []api.RouteModule{
 		{
 			GroupName:   "auth",
 			Handler:     authHandler,
@@ -156,7 +157,8 @@ func TestAPI_AuthFlow(t *testing.T) {
 
 func TestAPI_CORSMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	router := api.NewRouter("api", "v1", "http://localhost:5173", []api.RouteModule{})
+	testJWT := auth.NewJWTManager("test-secret")
+	router := api.NewRouter("api", "v1", "http://localhost:5173", testJWT, []api.RouteModule{})
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("OPTIONS", "/api/v1/test", nil)

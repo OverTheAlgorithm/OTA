@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
+	"ota/auth"
 )
 
 type RouteModule struct {
@@ -14,8 +15,10 @@ type RouteRegistrar interface {
 	RegisterRoutes(group *gin.RouterGroup)
 }
 
-func NewRouter(apiPrefix, version string, frontendURL string, modules []RouteModule) *gin.Engine {
-	r := gin.Default()
+func NewRouter(apiPrefix, version string, frontendURL string, jwtManager *auth.JWTManager, modules []RouteModule) *gin.Engine {
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(LoggerMiddleware(jwtManager))
 	r.Use(CORSMiddleware(frontendURL))
 
 	api := r.Group(apiPrefix + "/" + version)
