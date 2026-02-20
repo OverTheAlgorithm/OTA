@@ -29,4 +29,8 @@ type Repository interface {
 
 	// GetLatestDeliveryStatus returns the most recent delivery log per channel for a user
 	GetLatestDeliveryStatus(ctx context.Context, userID string) ([]DeliveryLog, error)
+
+	// GetEligibleUserByID returns delivery info for a single user.
+	// Returns nil, nil if the user has no email or no enabled channels.
+	GetEligibleUserByID(ctx context.Context, userID string) (*EligibleUser, error)
 }

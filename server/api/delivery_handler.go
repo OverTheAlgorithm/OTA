@@ -10,19 +10,22 @@ import (
 
 // DeliveryHandler handles delivery-related HTTP requests
 type DeliveryHandler struct {
-	service *delivery.Service
+	service        *delivery.Service
+	authMiddleware gin.HandlerFunc
 }
 
 // NewDeliveryHandler creates a new delivery handler
-func NewDeliveryHandler(service *delivery.Service) *DeliveryHandler {
+func NewDeliveryHandler(service *delivery.Service, authMiddleware gin.HandlerFunc) *DeliveryHandler {
 	return &DeliveryHandler{
-		service: service,
+		service:        service,
+		authMiddleware: authMiddleware,
 	}
 }
 
 // RegisterRoutes registers delivery-related routes
 func (h *DeliveryHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/trigger", h.TriggerDelivery)
+	group.POST("/send", h.authMiddleware, h.SendToCurrentUser)
 }
 
 // TriggerDelivery manually triggers message delivery to all eligible users
@@ -43,5 +46,30 @@ func (h *DeliveryHandler) TriggerDelivery(c *gin.Context) {
 		"skipped_count": result.SkippedCount,
 		"failed_users":  result.FailedUsers,
 		"errors":        result.DeliveryErrors,
+	})
+}
+
+// SendToCurrentUser delivers the latest briefing to the authenticated user on-demand
+// POST /api/v1/delivery/send
+func (h *DeliveryHandler) SendToCurrentUser(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	result, err := h.service.DeliverToUser(c.Request.Context(), userID.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"success_count": result.SuccessCount,
+			"failure_count": result.FailureCount,
+			"skipped_count": result.SkippedCount,
+			"errors":        result.DeliveryErrors,
+		},
 	})
 }

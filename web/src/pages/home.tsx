@@ -5,6 +5,7 @@ import { InterestSection } from "@/components/interest-section";
 import { ChannelPreferencesSection } from "@/components/channel-preferences-section";
 import { HistorySection } from "@/components/history-section";
 import { getSubscriptions, getContextHistory, type HistoryEntry } from "@/lib/api";
+import { SendBriefingButton } from "@/components/send-briefing-button";
 
 export function HomePage() {
   const { user, loading, logout } = useAuth();
@@ -98,6 +99,7 @@ export function HomePage() {
 
         <InterestSection selected={subscriptions} onChange={setSubscriptions} />
         <ChannelPreferencesSection />
+        <SendBriefingButton />
         <HistorySection entries={history} subscriptions={subscriptions} loading={historyLoading} />
       </main>
 

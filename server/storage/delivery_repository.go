@@ -2,8 +2,10 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"ota/domain/delivery"
@@ -240,6 +242,53 @@ func (r *DeliveryRepository) GetFailedDeliveries(ctx context.Context, runID stri
 	}
 
 	return results, nil
+}
+
+// GetEligibleUserByID returns delivery info for a single user.
+// Returns nil, nil if the user has no email or no enabled channels.
+func (r *DeliveryRepository) GetEligibleUserByID(ctx context.Context, userID string) (*delivery.EligibleUser, error) {
+	query := `
+		SELECT
+			u.id,
+			u.email,
+			COALESCE(
+				ARRAY_AGG(DISTINCT us.category) FILTER (WHERE us.category IS NOT NULL),
+				ARRAY[]::VARCHAR[]
+			) AS subscriptions,
+			COALESCE(
+				ARRAY_AGG(DISTINCT udc.channel) FILTER (WHERE udc.channel IS NOT NULL AND udc.enabled = true),
+				ARRAY[]::VARCHAR[]
+			) AS enabled_channels
+		FROM users u
+		INNER JOIN user_delivery_channels udc ON u.id = udc.user_id
+		LEFT JOIN user_subscriptions us ON u.id = us.user_id
+		WHERE u.id = $1
+		  AND udc.enabled = true
+		  AND u.email IS NOT NULL
+		  AND u.email != ''
+		GROUP BY u.id, u.email
+		HAVING COUNT(DISTINCT udc.channel) FILTER (WHERE udc.enabled = true) > 0
+	`
+
+	var user delivery.EligibleUser
+	var subs []string
+	var channels []string
+
+	err := r.pool.QueryRow(ctx, query, userID).Scan(&user.UserID, &user.Email, &subs, &channels)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query eligible user: %w", err)
+	}
+
+	user.Subscriptions = subs
+	user.EnabledChannels = make([]delivery.DeliveryChannel, 0, len(channels))
+	for _, ch := range channels {
+		user.EnabledChannels = append(user.EnabledChannels, delivery.DeliveryChannel(ch))
+	}
+
+	return &user, nil
 }
 
 // GetLatestDeliveryStatus returns the most recent delivery log per channel for a user
