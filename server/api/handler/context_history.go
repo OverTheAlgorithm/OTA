@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"ota/domain/collector"
 )
 
@@ -28,7 +29,34 @@ func (h *ContextHistoryHandler) GetHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": entries})
 }
 
+// GetTopicByID returns the full detail for a single context item.
+// Public endpoint — no auth required (linked from email).
+func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	topic, err := h.repo.GetContextItemByID(c.Request.Context(), id)
+	if err != nil {
+		log.Printf("get topic by id error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if topic == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "topic not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": topic})
+}
+
 func (h *ContextHistoryHandler) RegisterRoutes(group *gin.RouterGroup) {
-	group.Use(h.authMW)
-	group.GET("/history", h.GetHistory)
+	// Public: topic detail page linked from email
+	group.GET("/topic/:id", h.GetTopicByID)
+
+	// Auth-required: personal history
+	group.GET("/history", h.authMW, h.GetHistory)
 }

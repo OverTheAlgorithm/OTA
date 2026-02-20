@@ -72,6 +72,18 @@ func (m *mockRepository) GetLatestDeliveryStatus(ctx context.Context, userID str
 	return nil, nil
 }
 
+func (m *mockRepository) GetEligibleUserByID(ctx context.Context, userID string) (*EligibleUser, error) {
+	if m.shouldFail {
+		return nil, fmt.Errorf("mock get eligible user by id error")
+	}
+	for _, u := range m.users {
+		if u.UserID == userID {
+			return &u, nil
+		}
+	}
+	return nil, nil
+}
+
 type mockCollectorService struct {
 	run   *collector.CollectionRun
 	items []collector.ContextItem
@@ -133,7 +145,7 @@ func TestDeliverAll_Success(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector)
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
 
 	result, err := service.DeliverAll(context.Background())
 	if err != nil {
@@ -171,7 +183,7 @@ func TestDeliverAll_NoCompletedRun(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector)
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
 
 	_, err := service.DeliverAll(context.Background())
 	if err == nil {
@@ -194,7 +206,7 @@ func TestDeliverAll_NoItems(t *testing.T) {
 		items: []collector.ContextItem{},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector)
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
 
 	result, err := service.DeliverAll(context.Background())
 	if err != nil {
@@ -235,7 +247,7 @@ func TestDeliverAll_Idempotency(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector)
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
 
 	result, err := service.DeliverAll(context.Background())
 	if err != nil {
@@ -282,7 +294,7 @@ func TestDeliverAll_PartialFailure(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector)
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
 
 	// First delivery succeeds
 	result, err := service.DeliverAll(context.Background())
@@ -318,6 +330,124 @@ func TestDeliverAll_PartialFailure(t *testing.T) {
 	}
 }
 
+func TestDeliverToUser_Success(t *testing.T) {
+	mockRepo := &mockRepository{
+		users: []EligibleUser{
+			{
+				UserID:          "user1",
+				Email:           "user1@example.com",
+				Subscriptions:   []string{"entertainment"},
+				EnabledChannels: []DeliveryChannel{ChannelEmail},
+			},
+		},
+		hasLogResults: make(map[string]bool),
+	}
+	mockEmailSender := email.NewMockSender()
+	mockCollector := &mockCollectorService{
+		run: &collector.CollectionRun{
+			ID:     uuid.New(),
+			Status: collector.RunStatusSuccess,
+		},
+		items: []collector.ContextItem{
+			{Category: "top", Rank: 1, Topic: "주제", Summary: "요약"},
+		},
+	}
+
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	result, err := service.DeliverToUser(context.Background(), "user1")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.SuccessCount != 1 {
+		t.Errorf("expected 1 success, got %d", result.SuccessCount)
+	}
+	if mockEmailSender.GetSentCount() != 1 {
+		t.Errorf("expected 1 email sent, got %d", mockEmailSender.GetSentCount())
+	}
+}
+
+func TestDeliverToUser_NotEligible(t *testing.T) {
+	mockRepo := &mockRepository{
+		users:         []EligibleUser{}, // user1 not in list — not eligible
+		hasLogResults: make(map[string]bool),
+	}
+	mockEmailSender := email.NewMockSender()
+	mockCollector := &mockCollectorService{
+		run: &collector.CollectionRun{
+			ID:     uuid.New(),
+			Status: collector.RunStatusSuccess,
+		},
+		items: []collector.ContextItem{
+			{Category: "top", Rank: 1, Topic: "주제", Summary: "요약"},
+		},
+	}
+
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	_, err := service.DeliverToUser(context.Background(), "user1")
+
+	if err == nil {
+		t.Fatal("expected error for ineligible user, got nil")
+	}
+}
+
+func TestDeliverToUser_NoCompletedRun(t *testing.T) {
+	mockRepo := &mockRepository{hasLogResults: make(map[string]bool)}
+	mockEmailSender := email.NewMockSender()
+	mockCollector := &mockCollectorService{
+		run: &collector.CollectionRun{
+			ID:     uuid.New(),
+			Status: collector.RunStatusRunning,
+		},
+	}
+
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	_, err := service.DeliverToUser(context.Background(), "user1")
+
+	if err == nil {
+		t.Fatal("expected error for incomplete run, got nil")
+	}
+}
+
+func TestDeliverToUser_Idempotency(t *testing.T) {
+	runID := uuid.New()
+	mockRepo := &mockRepository{
+		users: []EligibleUser{
+			{
+				UserID:          "user1",
+				Email:           "user1@example.com",
+				EnabledChannels: []DeliveryChannel{ChannelEmail},
+			},
+		},
+		hasLogResults: map[string]bool{
+			fmt.Sprintf("%s:user1:email", runID.String()): true,
+		},
+	}
+	mockEmailSender := email.NewMockSender()
+	mockCollector := &mockCollectorService{
+		run: &collector.CollectionRun{
+			ID:     runID,
+			Status: collector.RunStatusSuccess,
+		},
+		items: []collector.ContextItem{
+			{Category: "top", Rank: 1, Topic: "주제", Summary: "요약"},
+		},
+	}
+
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	result, err := service.DeliverToUser(context.Background(), "user1")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.SkippedCount != 1 {
+		t.Errorf("expected 1 skipped, got %d", result.SkippedCount)
+	}
+	if mockEmailSender.GetSentCount() != 0 {
+		t.Error("expected no emails sent due to idempotency")
+	}
+}
+
 func TestDeliverAll_NoUsers(t *testing.T) {
 	mockRepo := &mockRepository{
 		users: []EligibleUser{},
@@ -333,7 +463,7 @@ func TestDeliverAll_NoUsers(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector)
+	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
 
 	result, err := service.DeliverAll(context.Background())
 	if err != nil {

@@ -16,6 +16,7 @@ type Service struct {
 	repo         Repository
 	emailSender  email.Sender
 	collectorSvc CollectorService
+	frontendURL  string
 }
 
 // CollectorService defines the interface for fetching context items
@@ -31,11 +32,12 @@ type WelcomeDeliverer interface {
 }
 
 // NewService creates a new delivery service
-func NewService(repo Repository, emailSender email.Sender, collectorSvc CollectorService) *Service {
+func NewService(repo Repository, emailSender email.Sender, collectorSvc CollectorService, frontendURL string) *Service {
 	return &Service{
 		repo:         repo,
 		emailSender:  emailSender,
 		collectorSvc: collectorSvc,
+		frontendURL:  frontendURL,
 	}
 }
 
@@ -120,7 +122,7 @@ func (s *Service) DeliverToTargets(ctx context.Context, runID string, items []co
 		}
 
 		// Format message per user (uses their subscriptions)
-		message := FormatMessage(items, target.User.Subscriptions)
+		message := FormatMessage(items, target.User.Subscriptions, s.frontendURL)
 
 		// Send via appropriate channel
 		err = s.sendViaChannel(ctx, target.Channel, target.User, message)
@@ -137,6 +139,45 @@ func (s *Service) DeliverToTargets(ctx context.Context, runID string, items []co
 	}
 
 	return result
+}
+
+// DeliverToUser sends the latest briefing to a single authenticated user on-demand.
+// Uses the same DeliverToTargets execution engine as the scheduled delivery — no logic duplicated.
+func (s *Service) DeliverToUser(ctx context.Context, userID string) (*DeliveryResult, error) {
+	run, err := s.collectorSvc.GetLatestRun(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest run: %w", err)
+	}
+	if run.Status != collector.RunStatusSuccess {
+		return nil, fmt.Errorf("latest run is not completed (status: %s)", run.Status)
+	}
+
+	items, err := s.collectorSvc.GetContextItems(ctx, run.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get context items: %w", err)
+	}
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no context items available")
+	}
+
+	user, err := s.repo.GetEligibleUserByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+	if user == nil {
+		return nil, fmt.Errorf("no enabled delivery channels — please set up a channel first")
+	}
+
+	targets := make([]DeliveryTarget, 0, len(user.EnabledChannels))
+	for _, channel := range user.EnabledChannels {
+		targets = append(targets, DeliveryTarget{
+			User:       *user,
+			Channel:    channel,
+			RetryCount: 0,
+		})
+	}
+
+	return s.DeliverToTargets(ctx, run.ID.String(), items, targets), nil
 }
 
 // DeliverAll sends messages to all eligible users.
@@ -226,7 +267,7 @@ func (s *Service) DeliverToNewUser(ctx context.Context, userID string, userEmail
 		return nil
 	}
 
-	message := FormatMessage(items, []string{})
+	message := FormatMessage(items, []string{}, s.frontendURL)
 
 	if err := s.emailSender.Send(userEmail, message.Subject, message.TextBody, message.HTMLBody); err != nil {
 		s.logDelivery(ctx, run.ID.String(), userID, ChannelEmail, 0, StatusFailed, err.Error())

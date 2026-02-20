@@ -15,7 +15,9 @@ import (
 // - Append items from subscribed categories
 // - One sentence per topic (max 2 if necessary)
 // - Output in Korean
-func FormatMessage(items []collector.ContextItem, subscriptions []string) FormattedMessage {
+// - frontendURL is used to generate "자세히 말해주세요" links per item.
+//   Pass empty string to omit links (e.g. in tests or when URL is unavailable).
+func FormatMessage(items []collector.ContextItem, subscriptions []string, frontendURL string) FormattedMessage {
 	if len(items) == 0 {
 		return FormattedMessage{
 			Subject:  "오늘의 맥락",
@@ -46,14 +48,9 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string) Format
 		}
 	}
 
-	// Generate subject
 	subject := generateSubject(selectedItems)
-
-	// Generate text body
-	textBody := generateTextBody(selectedItems)
-
-	// Generate HTML body
-	htmlBody := generateHTMLBody(selectedItems)
+	textBody := generateTextBody(selectedItems, frontendURL)
+	htmlBody := generateHTMLBody(selectedItems, frontendURL)
 
 	return FormattedMessage{
 		Subject:  subject,
@@ -63,7 +60,6 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string) Format
 }
 
 func generateSubject(items []collector.ContextItem) string {
-	// Count top items
 	topCount := 0
 	for _, item := range items {
 		if item.Category == "top" {
@@ -78,48 +74,42 @@ func generateSubject(items []collector.ContextItem) string {
 	return fmt.Sprintf("오늘의 맥락 %d가지 (구독 주제 포함)", len(items))
 }
 
-func generateTextBody(items []collector.ContextItem) string {
+func generateTextBody(items []collector.ContextItem, frontendURL string) string {
 	var sections []string
 
-	// Group by category
 	categoryGroups := groupByCategory(items)
 
-	// Top category first
 	if topItems, ok := categoryGroups["top"]; ok {
-		sections = append(sections, "🔥 주요 화제\n"+formatItemsAsText(topItems))
+		sections = append(sections, "🔥 주요 화제\n"+formatItemsAsText(topItems, frontendURL))
 	}
 
-	// Other categories in order
 	for category, catItems := range categoryGroups {
 		if category != "top" {
 			categoryTitle := getCategoryTitle(category)
-			sections = append(sections, fmt.Sprintf("\n📌 %s\n%s", categoryTitle, formatItemsAsText(catItems)))
+			sections = append(sections, fmt.Sprintf("\n📌 %s\n%s", categoryTitle, formatItemsAsText(catItems, frontendURL)))
 		}
 	}
 
 	return strings.Join(sections, "\n")
 }
 
-func generateHTMLBody(items []collector.ContextItem) string {
+func generateHTMLBody(items []collector.ContextItem, frontendURL string) string {
 	var sections []string
 
 	sections = append(sections, "<html><body style='font-family: sans-serif; line-height: 1.6;'>")
 
-	// Group by category
 	categoryGroups := groupByCategory(items)
 
-	// Top category first
 	if topItems, ok := categoryGroups["top"]; ok {
 		sections = append(sections, "<h2>🔥 주요 화제</h2>")
-		sections = append(sections, formatItemsAsHTML(topItems))
+		sections = append(sections, formatItemsAsHTML(topItems, frontendURL))
 	}
 
-	// Other categories
 	for category, catItems := range categoryGroups {
 		if category != "top" {
 			categoryTitle := getCategoryTitle(category)
 			sections = append(sections, fmt.Sprintf("<h2>📌 %s</h2>", categoryTitle))
-			sections = append(sections, formatItemsAsHTML(catItems))
+			sections = append(sections, formatItemsAsHTML(catItems, frontendURL))
 		}
 	}
 
@@ -136,19 +126,31 @@ func groupByCategory(items []collector.ContextItem) map[string][]collector.Conte
 	return groups
 }
 
-func formatItemsAsText(items []collector.ContextItem) string {
+func formatItemsAsText(items []collector.ContextItem, frontendURL string) string {
 	var lines []string
 	for i, item := range items {
-		lines = append(lines, fmt.Sprintf("%d. %s: %s", i+1, item.Topic, item.Summary))
+		line := fmt.Sprintf("%d. %s: %s", i+1, item.Topic, item.Summary)
+		if frontendURL != "" && item.Detail != "" {
+			line += fmt.Sprintf("\n   👉 자세히 보기: %s/topic/%s", frontendURL, item.ID)
+		}
+		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
 }
 
-func formatItemsAsHTML(items []collector.ContextItem) string {
+func formatItemsAsHTML(items []collector.ContextItem, frontendURL string) string {
 	var lines []string
 	lines = append(lines, "<ul>")
 	for _, item := range items {
-		lines = append(lines, fmt.Sprintf("  <li><strong>%s</strong>: %s</li>", item.Topic, item.Summary))
+		entry := fmt.Sprintf("  <li><strong>%s</strong>: %s", item.Topic, item.Summary)
+		if frontendURL != "" && item.Detail != "" {
+			entry += fmt.Sprintf(
+				`<br><a href="%s/topic/%s" style="font-size:0.85em;color:#5ba4d9;text-decoration:none;">자세히 말해주세요 →</a>`,
+				frontendURL, item.ID,
+			)
+		}
+		entry += "</li>"
+		lines = append(lines, entry)
 	}
 	lines = append(lines, "</ul>")
 	return strings.Join(lines, "\n")

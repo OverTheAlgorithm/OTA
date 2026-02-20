@@ -67,7 +67,7 @@ func main() {
 	})
 	deliveryRepo := storage.NewDeliveryRepository(pool)
 	collectorAdapter := storage.NewCollectorServiceAdapter(pool)
-	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter)
+	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter, cfg.FrontendURL)
 	log.Println("delivery service initialized")
 
 	// Scheduler
@@ -86,7 +86,7 @@ func main() {
 	stateStore := auth.NewStateStore()
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, cfg.FrontendURL)
 	adminHandler := handler.NewAdminHandler(collectorService)
-	deliveryHandler := api.NewDeliveryHandler(deliveryService)
+	deliveryHandler := api.NewDeliveryHandler(deliveryService, api.AuthMiddleware(jwtManager))
 	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo, deliveryService)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionRepo, api.AuthMiddleware(jwtManager))
 

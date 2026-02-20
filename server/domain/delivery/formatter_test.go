@@ -11,7 +11,7 @@ func TestFormatMessage_EmptyItems(t *testing.T) {
 	items := []collector.ContextItem{}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions)
+	result := FormatMessage(items, subscriptions, "")
 
 	if result.Subject != "오늘의 맥락" {
 		t.Errorf("expected subject '오늘의 맥락', got '%s'", result.Subject)
@@ -43,7 +43,7 @@ func TestFormatMessage_OnlyTopCategory(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions)
+	result := FormatMessage(items, subscriptions, "")
 
 	if !strings.Contains(result.Subject, "오늘의 맥락 2가지") {
 		t.Errorf("expected subject to contain '오늘의 맥락 2가지', got '%s'", result.Subject)
@@ -89,7 +89,7 @@ func TestFormatMessage_WithSubscriptions(t *testing.T) {
 	}
 	subscriptions := []string{"entertainment"}
 
-	result := FormatMessage(items, subscriptions)
+	result := FormatMessage(items, subscriptions, "")
 
 	// Should include top + entertainment, exclude sports
 	if !strings.Contains(result.TextBody, "주요 이슈") {
@@ -120,7 +120,7 @@ func TestFormatMessage_NoMatchingSubscriptions(t *testing.T) {
 	}
 	subscriptions := []string{"sports"}
 
-	result := FormatMessage(items, subscriptions)
+	result := FormatMessage(items, subscriptions, "")
 
 	// No "top" items and subscription doesn't match
 	if !strings.Contains(result.TextBody, "구독하신 주제에 대한 맥락이 없습니다") {
@@ -151,7 +151,7 @@ func TestFormatMessage_MultipleCategories(t *testing.T) {
 	}
 	subscriptions := []string{"entertainment", "economy"}
 
-	result := FormatMessage(items, subscriptions)
+	result := FormatMessage(items, subscriptions, "")
 
 	// Should include all three
 	if !strings.Contains(result.TextBody, "주요 화제") {
@@ -187,7 +187,7 @@ func TestFormatMessage_HTMLEscaping(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions)
+	result := FormatMessage(items, subscriptions, "")
 
 	// Note: Current implementation doesn't escape HTML
 	// This test documents current behavior
