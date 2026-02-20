@@ -63,7 +63,7 @@ function RotatingText() {
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 2500);
+    const interval = setInterval(() => setTick((t) => t + 1), 1500);
     return () => clearInterval(interval);
   }, []);
 
