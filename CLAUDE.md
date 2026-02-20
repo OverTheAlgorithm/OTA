@@ -298,3 +298,51 @@ server/
 2. Test with real email addresses
 3. Monitor delivery logs
 4. (Future) Add Kakao Talk integration
+
+### AI Model Decision Log (2026-02-20)
+
+#### Gemini 모델 선택 기준 및 결정
+
+**결정: `gemini-3.1-pro-preview` 사용**
+
+| 모델 ID | 출시일 | 비고 |
+|---|---|---|
+| `gemini-3.1-pro-preview` | 2026-02-19 | **현재 사용 중** — 최신, 최고 추론 |
+| `gemini-3-flash-preview` | 2025-12-17 | Flash급 속도, free tier |
+| `gemini-3-pro-preview` | 2025-11-18 | Gemini 3 첫 Pro |
+| `gemini-2.5-flash` | 2025-06 | 이전 세대 |
+| `gemini-2.5-flash-lite` | 2025-07 | ❌ 더 이상 사용 안 함 |
+
+**thinkingConfig:**
+- `thinkingBudget: -1` = dynamic (모델이 프롬프트 복잡도에 따라 자동 결정)
+- `0` = thinking 비활성화, 양수 = 고정 토큰 한도
+- Gemini 2.5 시리즈부터 thinking 지원 (2.0 시리즈는 미지원)
+
+**모델 변경 시 수정할 파일:**
+- `server/config/config.go` → `GeminiModel` 기본값
+- 또는 `.env`에 `GEMINI_MODEL=<model-id>` 설정으로 오버라이드
+
+**API 엔드포인트:** `https://generativelanguage.googleapis.com/v1beta/models/`
+- Gemini 3 시리즈도 동일한 v1beta 엔드포인트 사용
+
+### Data Collection Pipeline Improvement (2026-02-20)
+
+#### 문제점 및 해결 방안
+
+**기존 문제:**
+1. 단일 프롬프트 방식 → AI가 주제를 직접 생성 → 할루시네이션 발생
+2. 예시 문구를 AI가 그대로 복사하는 편향
+
+**개선 방안: 2단계 파이프라인**
+
+| 단계 | 역할 | 프롬프트 함수 |
+|---|---|---|
+| Stage 1 | 실제 웹 검색으로 트렌딩 키워드 추출 (15~20개) | `BuildKeywordExtractionPrompt()` |
+| Stage 2 | Stage 1 키워드를 앵커로 삼아 심화 수집 | `BuildEnrichmentPrompt(keywords)` |
+
+**핵심 원리:** Stage 1이 실제 검색으로 실존하는 키워드를 확정하므로, Stage 2는 그 키워드 범위 안에서만 작성 → 할루시네이션 차단
+
+**관련 파일:**
+- `server/domain/collector/prompt.go` — 2단계 프롬프트 함수
+- `server/domain/collector/service.go` — 파이프라인 오케스트레이션
+- `server/platform/gemini/client.go` — Gemini 클라이언트 (thinkingConfig 포함)

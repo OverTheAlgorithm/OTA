@@ -16,10 +16,12 @@ import (
 const baseURL = "https://generativelanguage.googleapis.com/v1beta/models/"
 
 // Available model names (as of Feb 2026):
-// - gemini-2.0-flash (deprecated, shuts down March 31, 2026)
-// - gemini-2.5-flash-lite (current lightweight model)
-// Note: All Gemini 1.x models are retired and return 404
+// - gemini-3.1-pro-preview (latest, released 2026-02-19) ← current default
+// - gemini-3-flash-preview (flash-tier Gemini 3, released 2025-12-17)
+// - gemini-3-pro-preview   (Gemini 3 Pro, released 2025-11-18)
+// - gemini-2.5-flash / gemini-2.5-flash-lite (previous gen)
 // Note: Using v1beta endpoint for Google Search grounding support
+// Note: thinkingBudget -1 = dynamic (model decides based on complexity)
 
 type Client struct {
 	apiKey     string
@@ -32,7 +34,8 @@ func NewClient(apiKey string, model string) *Client {
 		apiKey: apiKey,
 		model:  model,
 		httpClient: &http.Client{
-			Timeout: 120 * time.Second,
+			// Pro + thinking can take significantly longer than flash models
+			Timeout: 300 * time.Second,
 		},
 	}
 }
@@ -43,6 +46,11 @@ func (c *Client) SearchAndAnalyze(ctx context.Context, prompt string) (collector
 			{Parts: []part{{Text: prompt}}},
 		},
 		Tools: []tool{{GoogleSearch: &googleSearch{}}},
+		GenerationConfig: &generationConfig{
+			ThinkingConfig: &thinkingConfig{
+				ThinkingBudget: -1, // dynamic: model decides token budget per prompt
+			},
+		},
 	}
 
 	jsonBody, err := json.Marshal(body)
@@ -91,6 +99,7 @@ func parseResponse(raw []byte) (collector.AIResponse, error) {
 
 	var textParts []string
 	for _, p := range candidate.Content.Parts {
+		// thinking parts have empty Text but non-empty ThinkingText; skip them
 		if p.Text != "" {
 			textParts = append(textParts, p.Text)
 		}
@@ -131,8 +140,18 @@ func parseResponse(raw []byte) (collector.AIResponse, error) {
 // --- request types ---
 
 type requestBody struct {
-	Contents []content `json:"contents"`
-	Tools    []tool    `json:"tools"`
+	Contents         []content         `json:"contents"`
+	Tools            []tool            `json:"tools"`
+	GenerationConfig *generationConfig `json:"generationConfig,omitempty"`
+}
+
+type generationConfig struct {
+	ThinkingConfig *thinkingConfig `json:"thinkingConfig,omitempty"`
+}
+
+type thinkingConfig struct {
+	// -1 = dynamic (model decides), 0 = disabled, >0 = fixed token budget
+	ThinkingBudget int `json:"thinkingBudget"`
 }
 
 type content struct {
@@ -156,12 +175,19 @@ type apiResponse struct {
 }
 
 type candidate struct {
-	Content          responseContent   `json:"content"`
+	Content           responseContent    `json:"content"`
 	GroundingMetadata *groundingMetadata `json:"groundingMetadata"`
 }
 
 type responseContent struct {
-	Parts []part `json:"parts"`
+	Parts []responsePart `json:"parts"`
+}
+
+// responsePart separates visible text from internal thinking tokens.
+// ThinkingText is populated when the model uses thinking mode; we ignore it.
+type responsePart struct {
+	Text         string `json:"text"`
+	ThinkingText string `json:"thought"` // Gemini thinking token field
 }
 
 type groundingMetadata struct {

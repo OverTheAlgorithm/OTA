@@ -52,32 +52,51 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 		return CollectionResult{}, fmt.Errorf("creating collection run: %w", err)
 	}
 
-	prompt := BuildCollectionPrompt()
-
-	resp, err := s.callAIWithRetry(ctx, prompt)
+	// Stage 1: extract trending keywords from real web searches.
+	// This grounds the pipeline on actual trending topics, preventing hallucination.
+	log.Printf("collection run %s: stage 1 — keyword extraction", run.ID)
+	kwResp, err := s.callAIWithRetry(ctx, BuildKeywordExtractionPrompt())
 	if err != nil {
 		errMsg := err.Error()
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, nil)
-		return CollectionResult{}, fmt.Errorf("collecting: %w", err)
+		return CollectionResult{}, fmt.Errorf("stage 1 keyword extraction: %w", err)
 	}
 
-	items, err := parseContextItems(resp.OutputText, run.ID)
+	keywords, err := parseKeywords(kwResp.OutputText)
 	if err != nil {
 		errMsg := err.Error()
-		rawResp := resp.RawJSON
+		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, &kwResp.RawJSON)
+		return CollectionResult{}, fmt.Errorf("parsing keywords: %w", err)
+	}
+	log.Printf("collection run %s: stage 1 done — %d keywords extracted", run.ID, len(keywords))
+
+	// Stage 2: research each keyword in depth and produce structured summaries.
+	// Anchoring on Stage 1 keywords prevents the model from inventing topics.
+	log.Printf("collection run %s: stage 2 — topic enrichment", run.ID)
+	enrichResp, err := s.callAIWithRetry(ctx, BuildEnrichmentPrompt(keywords))
+	if err != nil {
+		errMsg := err.Error()
+		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, nil)
+		return CollectionResult{}, fmt.Errorf("stage 2 enrichment: %w", err)
+	}
+
+	items, err := parseContextItems(enrichResp.OutputText, run.ID)
+	if err != nil {
+		errMsg := err.Error()
+		rawResp := enrichResp.RawJSON
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, &rawResp)
 		return CollectionResult{}, fmt.Errorf("parsing ai response: %w", err)
 	}
 
 	if err := s.repo.SaveContextItems(ctx, items); err != nil {
 		errMsg := err.Error()
-		rawResp := resp.RawJSON
+		rawResp := enrichResp.RawJSON
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, &rawResp)
 		return CollectionResult{}, fmt.Errorf("saving context items: %w", err)
 	}
 
 	now := time.Now().UTC()
-	rawResp := resp.RawJSON
+	rawResp := enrichResp.RawJSON
 	run.CompletedAt = &now
 	run.Status = RunStatusSuccess
 	run.RawResponse = &rawResp
@@ -86,6 +105,7 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 		return CollectionResult{}, fmt.Errorf("completing run: %w", err)
 	}
 
+	log.Printf("collection run %s: complete — %d items saved", run.ID, len(items))
 	return CollectionResult{Run: run, Items: items}, nil
 }
 
