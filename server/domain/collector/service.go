@@ -12,8 +12,9 @@ import (
 )
 
 type Service struct {
-	ai   AIClient
-	repo Repository
+	ai         AIClient
+	fallbackAI AIClient // optional: used when primary fails with 5xx after all retries
+	repo       Repository
 }
 
 func NewService(aiClient AIClient, repo Repository) *Service {
@@ -21,6 +22,14 @@ func NewService(aiClient AIClient, repo Repository) *Service {
 		ai:   aiClient,
 		repo: repo,
 	}
+}
+
+// WithFallback sets a fallback AI client to use when the primary model returns
+// infrastructure errors (HTTP 5xx) after exhausting all retries.
+// The fallback itself also gets the same number of retries.
+func (s *Service) WithFallback(fallbackAI AIClient) *Service {
+	s.fallbackAI = fallbackAI
+	return s
 }
 
 func (s *Service) CollectIfNeeded(ctx context.Context) (*CollectionResult, error) {
@@ -114,47 +123,61 @@ const (
 	initialBackoff = 1 * time.Second
 )
 
-// callAIWithRetry calls the AI client with exponential backoff retry logic.
-// Retries on network and infrastructure errors, but not on format errors.
+// callAIWithRetry calls the primary AI client with retry logic.
+// If all retries fail with an infrastructure error (HTTP 5xx), and a fallback
+// client is configured, it retries the same number of times with the fallback.
 func (s *Service) callAIWithRetry(ctx context.Context, prompt string) (AIResponse, error) {
+	resp, err := s.retryClient(ctx, s.ai, prompt, "primary")
+	if err == nil {
+		return resp, nil
+	}
+
+	aiErr := ClassifyError(err)
+	if aiErr.Type == ErrorTypeInfrastructure && s.fallbackAI != nil {
+		log.Printf("primary AI exhausted retries with infrastructure error, switching to fallback model")
+		return s.retryClient(ctx, s.fallbackAI, prompt, "fallback")
+	}
+
+	return AIResponse{}, err
+}
+
+// retryClient runs up to maxRetries attempts against the given client using
+// exponential backoff. It stops early on non-retryable (format) errors.
+func (s *Service) retryClient(ctx context.Context, client AIClient, prompt string, label string) (AIResponse, error) {
 	var lastErr error
 	backoff := initialBackoff
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		resp, err := s.ai.SearchAndAnalyze(ctx, prompt)
+		resp, err := client.SearchAndAnalyze(ctx, prompt)
 		if err == nil {
 			return resp, nil
 		}
 
-		// Classify the error
 		aiErr := ClassifyError(err)
 		lastErr = aiErr
 
-		// Don't retry format errors - they won't be fixed by retrying
+		// Don't retry format errors — retrying won't fix a bad response shape
 		if !aiErr.IsRetryable() {
-			log.Printf("AI client error (non-retryable, attempt %d/%d): %v", attempt, maxRetries, aiErr)
+			log.Printf("%s AI error (non-retryable, attempt %d/%d): %v", label, attempt, maxRetries, aiErr)
 			return AIResponse{}, aiErr
 		}
 
-		// Last attempt - don't wait
 		if attempt == maxRetries {
-			log.Printf("AI client error (final attempt %d/%d): %v", attempt, maxRetries, aiErr)
+			log.Printf("%s AI error (final attempt %d/%d): %v", label, attempt, maxRetries, aiErr)
 			break
 		}
 
-		// Log and wait before retry
-		log.Printf("AI client error (attempt %d/%d, retrying in %v): %v", attempt, maxRetries, backoff, aiErr)
+		log.Printf("%s AI error (attempt %d/%d, retrying in %v): %v", label, attempt, maxRetries, backoff, aiErr)
 
 		select {
 		case <-ctx.Done():
 			return AIResponse{}, fmt.Errorf("context cancelled during retry: %w", ctx.Err())
 		case <-time.After(backoff):
-			// Exponential backoff: double the wait time
 			backoff *= 2
 		}
 	}
 
-	return AIResponse{}, fmt.Errorf("AI client failed after %d attempts: %w", maxRetries, lastErr)
+	return AIResponse{}, fmt.Errorf("%s AI failed after %d attempts: %w", label, maxRetries, lastErr)
 }
 
 type aiResponsePayload struct {

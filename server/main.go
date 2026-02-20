@@ -47,15 +47,24 @@ func main() {
 
 	// Data collection
 	var aiClient collector.AIClient
+	var fallbackAIClient collector.AIClient
 	switch cfg.AIProvider {
 	case "gemini":
 		aiClient = gemini.NewClient(cfg.GeminiAPIKey, cfg.GeminiModel)
+		if cfg.GeminiModelFallback != "" {
+			fallbackAIClient = gemini.NewClient(cfg.GeminiAPIKey, cfg.GeminiModelFallback)
+		}
 	case "openai":
 		aiClient = openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAIModel)
 	}
 	collectorRepo := storage.NewCollectorRepository(pool)
 	collectorService := collector.NewService(aiClient, collectorRepo)
-	log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
+	if fallbackAIClient != nil {
+		collectorService.WithFallback(fallbackAIClient)
+		log.Printf("collector service initialized (provider: %s, model: %s, fallback: %s)", cfg.AIProvider, cfg.GeminiModel, cfg.GeminiModelFallback)
+	} else {
+		log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
+	}
 
 	// Message delivery
 	emailSender := email.NewSMTPSender(email.SMTPConfig{

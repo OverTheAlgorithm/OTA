@@ -24,8 +24,9 @@ type Config struct {
 
 	AIProvider string // "gemini" or "openai"
 
-	GeminiAPIKey string
-	GeminiModel  string
+	GeminiAPIKey        string
+	GeminiModel         string
+	GeminiModelFallback string // used when primary model returns 5xx after all retries
 
 	OpenAIAPIKey string
 	OpenAIModel  string
@@ -67,8 +68,9 @@ func Load() (Config, error) {
 
 		AIProvider: getEnv("AI_PROVIDER", "gemini"),
 
-		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
-		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-3.1-pro-preview"),
+		GeminiAPIKey:        getEnv("GEMINI_API_KEY", ""),
+		GeminiModel:         getEnv("GEMINI_MODEL", "gemini-3.1-pro-preview"),
+		GeminiModelFallback: getEnv("GEMINI_MODEL_FALLBACK", "gemini-3-flash-preview"),
 
 		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
 		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-4o"),
