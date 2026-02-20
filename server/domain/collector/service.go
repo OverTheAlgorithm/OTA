@@ -146,6 +146,7 @@ type aiContextItem struct {
 	Rank     int      `json:"rank"`
 	Topic    string   `json:"topic"`
 	Summary  string   `json:"summary"`
+	Detail   string   `json:"detail"`
 	Sources  []string `json:"sources"`
 }
 
@@ -203,6 +204,7 @@ func parseContextItems(outputText string, runID uuid.UUID) ([]ContextItem, error
 			Rank:            raw.Rank,
 			Topic:           raw.Topic,
 			Summary:         raw.Summary,
+			Detail:          raw.Detail,
 			Sources:         raw.Sources,
 		})
 	}

@@ -30,6 +30,7 @@ type ContextItem struct {
 	Rank            int      `json:"rank"`
 	Topic           string   `json:"topic"`
 	Summary         string   `json:"summary"`
+	Detail          string   `json:"detail"`
 	Sources         []string `json:"sources"`
 }
 

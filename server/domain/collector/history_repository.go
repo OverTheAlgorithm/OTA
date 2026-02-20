@@ -3,6 +3,8 @@ package collector
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type HistoryItem struct {
@@ -18,6 +20,16 @@ type HistoryEntry struct {
 	Items       []HistoryItem `json:"items"`
 }
 
+// TopicDetail holds the full detail for a single context item, served on the public detail page.
+type TopicDetail struct {
+	ID        uuid.UUID `json:"id"`
+	Topic     string    `json:"topic"`
+	Detail    string    `json:"detail"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type HistoryRepository interface {
 	GetHistoryForUser(ctx context.Context, userID string) ([]HistoryEntry, error)
+	// GetContextItemByID returns the detail for a single topic. Returns nil, nil if not found.
+	GetContextItemByID(ctx context.Context, id uuid.UUID) (*TopicDetail, error)
 }

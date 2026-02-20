@@ -2,8 +2,11 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"ota/domain/collector"
 )
@@ -62,4 +65,22 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 		result = append(result, *entryMap[date])
 	}
 	return result, nil
+}
+
+// GetContextItemByID returns the detail for a single topic by its UUID.
+// Returns nil, nil if the item does not exist.
+func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID) (*collector.TopicDetail, error) {
+	var item collector.TopicDetail
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, topic, COALESCE(detail, ''), created_at
+		FROM context_items
+		WHERE id = $1
+	`, id).Scan(&item.ID, &item.Topic, &item.Detail, &item.CreatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
 }

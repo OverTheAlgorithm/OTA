@@ -79,7 +79,7 @@ func (a *CollectorServiceAdapter) GetLastDeliveredRun(ctx context.Context) (*col
 // GetContextItems retrieves all context items for a given run
 func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uuid.UUID) ([]collector.ContextItem, error) {
 	query := `
-		SELECT id, collection_run_id, category, rank, topic, summary, sources
+		SELECT id, collection_run_id, category, rank, topic, summary, detail, sources
 		FROM context_items
 		WHERE collection_run_id = $1
 		ORDER BY rank
@@ -101,6 +101,7 @@ func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uui
 			&item.Rank,
 			&item.Topic,
 			&item.Summary,
+			&item.Detail,
 			&item.Sources,
 		)
 		if err != nil {
