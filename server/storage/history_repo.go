@@ -23,10 +23,12 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			dl.created_at,
+			ci.id::text,
 			ci.category,
 			ci.rank,
 			ci.topic,
-			ci.summary
+			ci.summary,
+			COALESCE(ci.detail, '')
 		FROM delivery_logs dl
 		JOIN collection_runs cr ON dl.run_id = cr.id
 		JOIN context_items ci   ON ci.collection_run_id = cr.id
@@ -45,7 +47,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 	for rows.Next() {
 		var deliveredAt time.Time
 		var item collector.HistoryItem
-		if err := rows.Scan(&deliveredAt, &item.Category, &item.Rank, &item.Topic, &item.Summary); err != nil {
+		if err := rows.Scan(&deliveredAt, &item.ID, &item.Category, &item.Rank, &item.Topic, &item.Summary, &item.Detail); err != nil {
 			return nil, err
 		}
 		date := deliveredAt.UTC().Format("2006-01-02")
@@ -72,10 +74,10 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID) (*collector.TopicDetail, error) {
 	var item collector.TopicDetail
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, topic, COALESCE(detail, ''), created_at
+		SELECT id, topic, COALESCE(detail, ''), COALESCE(sources, '{}'), created_at
 		FROM context_items
 		WHERE id = $1
-	`, id).Scan(&item.ID, &item.Topic, &item.Detail, &item.CreatedAt)
+	`, id).Scan(&item.ID, &item.Topic, &item.Detail, &item.Sources, &item.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil

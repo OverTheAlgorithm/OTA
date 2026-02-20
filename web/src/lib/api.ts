@@ -68,10 +68,12 @@ export async function deleteSubscription(category: string): Promise<void> {
 
 // ── 맥락 이력 ─────────────────────────────────────────
 export interface HistoryItem {
+  id: string;
   category: string;
   rank: number;
   topic: string;
   summary: string;
+  detail: string;
 }
 
 export interface HistoryEntry {
@@ -160,6 +162,7 @@ export interface TopicDetail {
   id: string;
   topic: string;
   detail: string;
+  sources: string[];
   created_at: string;
 }
 

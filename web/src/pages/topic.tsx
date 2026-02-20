@@ -53,16 +53,49 @@ export function TopicPage() {
 
   return (
     <div className="min-h-screen px-6 py-12" style={{ background: "#0f0a19" }}>
-      <div className="max-w-2xl mx-auto">
-        <p className="text-sm mb-3" style={{ color: "#9b8bb4" }}>
-          {formatDate(topic.created_at)}
-        </p>
-        <h1 className="text-2xl font-bold mb-6 leading-snug" style={{ color: "#f5f0ff" }}>
-          {topic.topic}
-        </h1>
-        <p className="text-base leading-relaxed" style={{ color: "#d4cee0" }}>
-          {topic.detail || "상세 내용이 없습니다."}
-        </p>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div>
+          <p className="text-sm mb-3" style={{ color: "#9b8bb4" }}>
+            {formatDate(topic.created_at)}
+          </p>
+          <h1 className="text-2xl font-bold mb-6 leading-snug" style={{ color: "#f5f0ff" }}>
+            {topic.topic}
+          </h1>
+          {topic.detail ? (
+            <p className="text-base leading-relaxed" style={{ color: "#d4cee0" }}>
+              {topic.detail}
+            </p>
+          ) : (
+            <p className="text-sm" style={{ color: "#9b8bb4" }}>
+              관련한 자세히 보기가 없습니다.
+            </p>
+          )}
+        </div>
+
+        {topic.sources && topic.sources.length > 0 && (
+          <div className="rounded-xl border px-5 py-4 space-y-2" style={{ borderColor: "#2d1f42", background: "#1a1229" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9b8bb4" }}>
+              출처
+            </p>
+            <ul className="space-y-1.5">
+              {topic.sources.map((src, i) => (
+                <li key={i}>
+                  <a
+                    href={src}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm break-all transition-colors"
+                    style={{ color: "#9b8bb4" }}
+                    onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
+                    onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
+                  >
+                    {src}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );

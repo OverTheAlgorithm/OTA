@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { HistoryEntry, HistoryItem } from "@/lib/api";
 
 interface Props {
@@ -22,6 +23,15 @@ function TopicRow({ item, accent }: { item: HistoryItem; accent?: string }) {
       <div className="min-w-0">
         <p className="text-sm text-[#f5f0ff] leading-relaxed">{item.summary}</p>
         <p className="text-xs text-[#9b8bb4] mt-0.5 truncate">{item.topic}</p>
+        <Link
+          to={`/topic/${item.id}`}
+          className="inline-block mt-1 text-xs transition-colors"
+          style={{ color: "#9b8bb4" }}
+          onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
+          onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
+        >
+          자세히 말해주세요 →
+        </Link>
       </div>
     </li>
   );
@@ -97,6 +107,15 @@ function HistoryCard({
                     </div>
                     <p className="text-sm text-[#f5f0ff] leading-relaxed">{item.summary}</p>
                     <p className="text-xs text-[#9b8bb4] mt-0.5 truncate">{item.topic}</p>
+                    <Link
+                      to={`/topic/${item.id}`}
+                      className="inline-block mt-1 text-xs transition-colors"
+                      style={{ color: "#9b8bb4" }}
+                      onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
+                      onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
+                    >
+                      자세히 말해주세요 →
+                    </Link>
                   </div>
                 </li>
               ))}
