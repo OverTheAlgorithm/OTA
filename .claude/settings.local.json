@@ -64,7 +64,11 @@
       "mcp__playwright__browser_console_messages",
       "Bash(python3:*)",
       "Bash(git push:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:www.aifreeapi.com)",
+      "WebFetch(domain:blog.langchain.com)",
+      "WebFetch(domain:docs.cloud.google.com)"
     ]
   }
 }

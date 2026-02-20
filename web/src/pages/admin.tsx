@@ -54,7 +54,7 @@ export function AdminPage() {
         <section className="rounded-2xl border border-[#2d1f42] bg-[#1a1229] p-6 space-y-4">
           <h2 className="text-lg font-semibold">데이터 수집</h2>
           <p className="text-sm text-[#9b8bb4]">
-            AI를 통해 오늘의 한국 트렌드를 즉시 수집합니다. 완료까지 1~2분 소요될 수 있습니다.
+            AI를 통해 오늘의 한국 트렌드를 즉시 수집합니다. 이 작업은 1시간까지 소요될 수 있습니다.
           </p>
 
           <button
