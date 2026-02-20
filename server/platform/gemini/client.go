@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"ota/domain/collector"
 )
@@ -34,8 +33,10 @@ func NewClient(apiKey string, model string) *Client {
 		apiKey: apiKey,
 		model:  model,
 		httpClient: &http.Client{
-			// Pro + thinking can take significantly longer than flash models
-			Timeout: 300 * time.Second,
+			// No hard timeout here — caller's context controls the deadline.
+			// The admin /collect route uses a 1-hour context; the scheduler
+			// uses a background context bounded by the cron interval.
+			Timeout: 0,
 		},
 	}
 }

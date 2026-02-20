@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -22,7 +24,12 @@ func NewAdminHandler(collectorService *collector.Service) *AdminHandler {
 func (h *AdminHandler) TriggerCollection(c *gin.Context) {
 	log.Println("manual collection triggered")
 
-	result, err := h.collectorService.Collect(c.Request.Context())
+	// Use a detached 1-hour context so that thinking-model AI calls are not
+	// cancelled by the HTTP request lifecycle or any proxy timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+
+	result, err := h.collectorService.Collect(ctx)
 	if err != nil {
 		log.Printf("collection failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "collection failed", "details": err.Error()})
