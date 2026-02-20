@@ -61,8 +61,12 @@ func TestFormatMessage_OnlyTopCategory(t *testing.T) {
 		t.Errorf("expected text body to contain '주요 이슈 2', got '%s'", result.TextBody)
 	}
 
-	if !strings.Contains(result.HTMLBody, "<h2>🔥 주요 화제</h2>") {
-		t.Errorf("expected HTML body to contain '<h2>🔥 주요 화제</h2>', got '%s'", result.HTMLBody)
+	if !strings.Contains(result.HTMLBody, "전체 맥락") {
+		t.Errorf("expected HTML body to contain '전체 맥락', got '%s'", result.HTMLBody)
+	}
+
+	if !strings.Contains(result.HTMLBody, "주요 이슈 1") {
+		t.Errorf("expected HTML body to contain '주요 이슈 1', got '%s'", result.HTMLBody)
 	}
 }
 
@@ -167,12 +171,16 @@ func TestFormatMessage_MultipleCategories(t *testing.T) {
 	}
 
 	// HTML should have proper structure
-	if !strings.Contains(result.HTMLBody, "<ul>") {
-		t.Error("expected HTML body to contain '<ul>'")
+	if !strings.Contains(result.HTMLBody, "전체 맥락") {
+		t.Error("expected HTML body to contain '전체 맥락'")
 	}
 
-	if !strings.Contains(result.HTMLBody, "<li>") {
-		t.Error("expected HTML body to contain '<li>'")
+	if !strings.Contains(result.HTMLBody, "연예") {
+		t.Error("expected HTML body to contain '연예'")
+	}
+
+	if !strings.Contains(result.HTMLBody, "경제") {
+		t.Error("expected HTML body to contain '경제'")
 	}
 }
 

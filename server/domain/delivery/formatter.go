@@ -94,28 +94,107 @@ func generateTextBody(items []collector.ContextItem, frontendURL string) string 
 }
 
 func generateHTMLBody(items []collector.ContextItem, frontendURL string) string {
-	var sections []string
-
-	sections = append(sections, "<html><body style='font-family: sans-serif; line-height: 1.6;'>")
-
 	categoryGroups := groupByCategory(items)
 
+	var body strings.Builder
+
 	if topItems, ok := categoryGroups["top"]; ok {
-		sections = append(sections, "<h2>🔥 주요 화제</h2>")
-		sections = append(sections, formatItemsAsHTML(topItems, frontendURL))
+		body.WriteString(renderEmailSection("전체 맥락", "#e84d3d", topItems, frontendURL))
 	}
 
 	for category, catItems := range categoryGroups {
 		if category != "top" {
-			categoryTitle := getCategoryTitle(category)
-			sections = append(sections, fmt.Sprintf("<h2>📌 %s</h2>", categoryTitle))
-			sections = append(sections, formatItemsAsHTML(catItems, frontendURL))
+			body.WriteString(renderEmailSection(getCategoryTitle(category), "#5ba4d9", catItems, frontendURL))
 		}
 	}
 
-	sections = append(sections, "</body></html>")
+	return wrapEmailTemplate(body.String())
+}
 
-	return strings.Join(sections, "\n")
+func wrapEmailTemplate(content string) string {
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#0f0a19;font-family:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;">
+<table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0f0a19;">
+  <tr><td align="center" style="padding:32px 16px 48px;">
+    <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+
+      <!-- Header -->
+      <tr><td style="padding-bottom:28px;">
+        <p style="margin:0;font-size:22px;font-weight:700;color:#f5f0ff;letter-spacing:-0.03em;">OTA</p>
+        <p style="margin:4px 0 0;font-size:13px;color:#9b8bb4;letter-spacing:0.01em;">오늘의 맥락 브리핑</p>
+      </td></tr>
+
+      <!-- Sections -->
+      %s
+
+      <!-- Footer -->
+      <tr><td style="padding-top:32px;border-top:1px solid #2d1f42;text-align:center;">
+        <p style="margin:0;font-size:12px;color:#9b8bb4;">Over the Algorithm</p>
+        <p style="margin:6px 0 0;font-size:11px;color:#4a3d5c;line-height:1.6;">
+          알고리즘 너머의 맥락을 전달합니다.<br>
+          이 메일은 OTA 브리핑 서비스를 통해 발송되었습니다.
+        </p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`, content)
+}
+
+func renderEmailSection(title, accentColor string, items []collector.ContextItem, frontendURL string) string {
+	var rows strings.Builder
+	for i, item := range items {
+		borderBottom := "border-bottom:1px solid #2d1f42;"
+		if i == len(items)-1 {
+			borderBottom = ""
+		}
+
+		linkHTML := ""
+		if frontendURL != "" && item.Detail != "" {
+			linkHTML = fmt.Sprintf(
+				`<p style="margin:10px 0 0;"><a href="%s/topic/%s" style="font-size:12px;color:#9b8bb4;text-decoration:none;letter-spacing:0.01em;">자세히 말해주세요 →</a></p>`,
+				frontendURL, item.ID,
+			)
+		}
+
+		rows.WriteString(fmt.Sprintf(`
+      <tr><td style="padding:18px 24px;%s">
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td width="10" style="vertical-align:top;padding-top:6px;">
+              <div style="width:6px;height:6px;border-radius:50%%;background-color:%s;"></div>
+            </td>
+            <td style="padding-left:12px;">
+              <p style="margin:0 0 5px;font-size:12px;font-weight:700;color:%s;letter-spacing:0.01em;">%s</p>
+              <p style="margin:0;font-size:14px;color:#f5f0ff;line-height:1.7;">%s</p>
+              %s
+            </td>
+          </tr>
+        </table>
+      </td></tr>`,
+			borderBottom, accentColor, accentColor, item.Topic, item.Summary, linkHTML,
+		))
+	}
+
+	return fmt.Sprintf(`
+      <tr><td style="padding-bottom:16px;">
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1a1229;border-radius:16px;border:1px solid #2d1f42;">
+          <!-- Section header -->
+          <tr><td style="padding:16px 24px;border-bottom:1px solid #2d1f42;">
+            <p style="margin:0;font-size:11px;font-weight:700;color:%s;letter-spacing:0.1em;text-transform:uppercase;">%s</p>
+          </td></tr>
+          <!-- Items -->
+          %s
+        </table>
+      </td></tr>
+`, accentColor, title, rows.String())
 }
 
 func groupByCategory(items []collector.ContextItem) map[string][]collector.ContextItem {
@@ -135,24 +214,6 @@ func formatItemsAsText(items []collector.ContextItem, frontendURL string) string
 		}
 		lines = append(lines, line)
 	}
-	return strings.Join(lines, "\n")
-}
-
-func formatItemsAsHTML(items []collector.ContextItem, frontendURL string) string {
-	var lines []string
-	lines = append(lines, "<ul>")
-	for _, item := range items {
-		entry := fmt.Sprintf("  <li><strong>%s</strong>: %s", item.Topic, item.Summary)
-		if frontendURL != "" && item.Detail != "" {
-			entry += fmt.Sprintf(
-				`<br><a href="%s/topic/%s" style="font-size:0.85em;color:#5ba4d9;text-decoration:none;">자세히 말해주세요 →</a>`,
-				frontendURL, item.ID,
-			)
-		}
-		entry += "</li>"
-		lines = append(lines, entry)
-	}
-	lines = append(lines, "</ul>")
 	return strings.Join(lines, "\n")
 }
 
