@@ -31,7 +31,7 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 	collectorRepo := storage.NewCollectorRepository(db.Pool)
 	collectorService := collector.NewService(aiClient, collectorRepo)
 
-	adminHandler := handler.NewAdminHandler(collectorService)
+	adminHandler := handler.NewAdminHandler(collectorService, "") // no Slack webhook in tests
 
 	// Setup router
 	gin.SetMode(gin.TestMode)
@@ -43,13 +43,13 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 		},
 	})
 
-	// Test collection endpoint
+	// Endpoint is async: returns 202 immediately, runs collection in background.
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/v1/admin/collect", nil)
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected status 202, got %d: %s", w.Code, w.Body.String())
 	}
 
 	var response map[string]any
@@ -57,27 +57,17 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 		t.Fatalf("failed to parse response: %v", err)
 	}
 
-	if response["message"] != "collection completed" {
+	if response["message"] != "collection started" {
 		t.Errorf("unexpected message: %v", response["message"])
 	}
 
-	data, ok := response["data"].(map[string]any)
-	if !ok {
-		t.Fatal("expected data field")
-	}
-
-	if data["item_count"].(float64) != 3 {
-		t.Errorf("expected 3 items, got %v", data["item_count"])
-	}
-
-	// Verify second call skips due to coordination
+	// Second call should also return 202 immediately
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest("POST", "/api/v1/admin/collect", nil)
 	router.ServeHTTP(w2, req2)
 
-	// Manual trigger always runs (doesn't use CollectIfNeeded), so this should succeed too
-	if w2.Code != http.StatusOK {
-		t.Errorf("expected second call to also succeed (manual trigger), got %d", w2.Code)
+	if w2.Code != http.StatusAccepted {
+		t.Errorf("expected second call to return 202, got %d", w2.Code)
 	}
 }
 
