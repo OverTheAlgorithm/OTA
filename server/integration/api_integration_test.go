@@ -52,7 +52,7 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var response map[string]interface{}
+	var response map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("failed to parse response: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 		t.Errorf("unexpected message: %v", response["message"])
 	}
 
-	data, ok := response["data"].(map[string]interface{})
+	data, ok := response["data"].(map[string]any)
 	if !ok {
 		t.Fatal("expected data field")
 	}
@@ -102,7 +102,7 @@ func TestAPI_AuthFlow(t *testing.T) {
 	}
 
 	// Generate JWT token
-	token, err := jwtManager.Generate(testUser.ID)
+	token, err := jwtManager.Generate(testUser.ID, testUser.Role)
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}
@@ -131,12 +131,12 @@ func TestAPI_AuthFlow(t *testing.T) {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var response map[string]interface{}
+	var response map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("failed to parse response: %v", err)
 	}
 
-	data, ok := response["data"].(map[string]interface{})
+	data, ok := response["data"].(map[string]any)
 	if !ok {
 		t.Fatal("expected data field")
 	}
