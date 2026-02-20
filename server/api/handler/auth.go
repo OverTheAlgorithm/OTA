@@ -88,7 +88,7 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 		return
 	}
 
-	jwtToken, err := h.jwt.Generate(u.ID)
+	jwtToken, err := h.jwt.Generate(u.ID, u.Role)
 	if err != nil {
 		log.Printf("failed to generate JWT: %v", err)
 		c.Redirect(http.StatusFound, h.frontendURL+"/login?error=jwt_error")
@@ -177,13 +177,14 @@ func (h *AuthHandler) authMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userID, err := h.jwt.Validate(tokenStr)
+		claims, err := h.jwt.Validate(tokenStr)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
 
-		c.Set("userID", userID)
+		c.Set("userID", claims.UserID)
+		c.Set("role", claims.Role)
 		c.Next()
 	}
 }

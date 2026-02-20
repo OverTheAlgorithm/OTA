@@ -8,6 +8,7 @@ type User struct {
 	Email        string    `json:"email,omitempty"`
 	Nickname     string    `json:"nickname,omitempty"`
 	ProfileImage string    `json:"profile_image,omitempty"`
+	Role         string    `json:"role"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

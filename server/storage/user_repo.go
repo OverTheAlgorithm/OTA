@@ -27,11 +27,11 @@ func (r *UserRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64, ema
 			nickname = EXCLUDED.nickname,
 			profile_image = EXCLUDED.profile_image,
 			updated_at = NOW()
-		RETURNING id, kakao_id, email, nickname, profile_image, created_at, updated_at`
+		RETURNING id, kakao_id, email, nickname, profile_image, role, created_at, updated_at`
 
 	var u user.User
 	err := r.pool.QueryRow(ctx, query, kakaoID, email, nickname, profileImage).Scan(
-		&u.ID, &u.KakaoID, &u.Email, &u.Nickname, &u.ProfileImage, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.KakaoID, &u.Email, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
 		return user.User{}, fmt.Errorf("upsert user: %w", err)
@@ -40,11 +40,11 @@ func (r *UserRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64, ema
 }
 
 func (r *UserRepository) FindByID(ctx context.Context, id string) (user.User, error) {
-	query := `SELECT id, kakao_id, email, nickname, profile_image, created_at, updated_at FROM users WHERE id = $1`
+	query := `SELECT id, kakao_id, email, nickname, profile_image, role, created_at, updated_at FROM users WHERE id = $1`
 
 	var u user.User
 	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&u.ID, &u.KakaoID, &u.Email, &u.Nickname, &u.ProfileImage, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.KakaoID, &u.Email, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {

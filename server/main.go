@@ -109,7 +109,7 @@ func main() {
 		{
 			GroupName:   "admin",
 			Handler:     adminHandler,
-			Middlewares: []gin.HandlerFunc{},
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
 		},
 		{
 			GroupName:   "delivery",

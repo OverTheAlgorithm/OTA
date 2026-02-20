@@ -15,6 +15,7 @@ type JWTManager struct {
 
 type Claims struct {
 	UserID string `json:"user_id"`
+	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -22,10 +23,11 @@ func NewJWTManager(secret string) *JWTManager {
 	return &JWTManager{secret: []byte(secret)}
 }
 
-func (j *JWTManager) Generate(userID string) (string, error) {
+func (j *JWTManager) Generate(userID string, role string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID: userID,
+		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpiry)),
@@ -40,7 +42,8 @@ func (j *JWTManager) Generate(userID string) (string, error) {
 	return signed, nil
 }
 
-func (j *JWTManager) Validate(tokenStr string) (string, error) {
+// Validate parses and verifies the token, returning the full Claims.
+func (j *JWTManager) Validate(tokenStr string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -48,13 +51,13 @@ func (j *JWTManager) Validate(tokenStr string) (string, error) {
 		return j.secret, nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("parse token: %w", err)
+		return nil, fmt.Errorf("parse token: %w", err)
 	}
 
 	claims, ok := token.Claims.(*Claims)
 	if !ok || !token.Valid {
-		return "", fmt.Errorf("invalid token claims")
+		return nil, fmt.Errorf("invalid token claims")
 	}
 
-	return claims.UserID, nil
+	return claims, nil
 }

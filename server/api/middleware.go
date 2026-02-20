@@ -7,6 +7,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"ota/auth"
+	"ota/domain/user"
 )
 
 func CORSMiddleware(frontendURL string) gin.HandlerFunc {
@@ -34,13 +35,37 @@ func AuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 			return
 		}
 
-		userID, err := jwtManager.Validate(tokenStr)
+		claims, err := jwtManager.Validate(tokenStr)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
 
-		c.Set("userID", userID)
+		c.Set("userID", claims.UserID)
+		c.Set("role", claims.Role)
+		c.Next()
+	}
+}
+
+// AdminMiddleware must run after AuthMiddleware (requires userID and role in context).
+// Fast path: reject immediately if JWT role is not "admin".
+// DB check: if JWT says admin, verify role against DB to catch revocations.
+func AdminMiddleware(userRepo user.Repository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if roleStr, ok := role.(string); !ok || roleStr != "admin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+
+		// Confirm current role from DB — prevents stale JWT from granting access after demotion
+		userID := c.GetString("userID")
+		u, err := userRepo.FindByID(c.Request.Context(), userID)
+		if err != nil || u.Role != "admin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+
 		c.Next()
 	}
 }
