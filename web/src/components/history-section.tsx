@@ -44,7 +44,7 @@ function HistoryCard({
       <div className="px-6 py-4 border-b border-[#2d1f42] flex items-center justify-between">
         <span className="font-semibold text-[#f5f0ff]">{formatDate(entry.date)}</span>
         <span className="text-xs text-[#9b8bb4] bg-[#0f0a19] px-2.5 py-1 rounded-full border border-[#2d1f42]">
-          {entry.items.length}개 토픽
+          {topItems.length + interestItems.length}개 토픽
         </span>
       </div>
 
