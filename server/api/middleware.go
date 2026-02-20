@@ -47,18 +47,10 @@ func AuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 	}
 }
 
-// AdminMiddleware must run after AuthMiddleware (requires userID and role in context).
-// Fast path: reject immediately if JWT role is not "admin".
-// DB check: if JWT says admin, verify role against DB to catch revocations.
+// AdminMiddleware must run after AuthMiddleware (requires userID in context).
+// Always checks DB so that role changes take effect immediately without re-login.
 func AdminMiddleware(userRepo user.Repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role, _ := c.Get("role")
-		if roleStr, ok := role.(string); !ok || roleStr != "admin" {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-
-		// Confirm current role from DB — prevents stale JWT from granting access after demotion
 		userID := c.GetString("userID")
 		u, err := userRepo.FindByID(c.Request.Context(), userID)
 		if err != nil || u.Role != "admin" {
