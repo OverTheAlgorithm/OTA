@@ -58,16 +58,34 @@ export function TopicPage() {
           <p className="text-sm mb-3" style={{ color: "#9b8bb4" }}>
             {formatDate(topic.created_at)}
           </p>
-          <h1 className="text-2xl font-bold mb-6 leading-snug" style={{ color: "#f5f0ff" }}>
-            {topic.topic}
-          </h1>
-          {topic.detail ? (
+          <div className="flex items-center gap-3 mb-6">
+            <h1 className="text-2xl font-bold leading-snug" style={{ color: "#f5f0ff" }}>
+              {topic.topic}
+            </h1>
+            {topic.buzz_score > 0 && (
+              <span className="text-sm font-bold shrink-0" style={{ color: "#e84d3d" }}>
+                🔥 {topic.buzz_score}
+              </span>
+            )}
+          </div>
+          {topic.details && topic.details.length > 0 ? (
+            <ul className="space-y-3">
+              {topic.details.map((detail, i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="mt-2 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "#9b8bb4" }} />
+                  <p className="text-base leading-relaxed" style={{ color: "#d4cee0" }}>
+                    {detail}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : topic.detail ? (
             <p className="text-base leading-relaxed" style={{ color: "#d4cee0" }}>
               {topic.detail}
             </p>
           ) : (
             <p className="text-sm" style={{ color: "#9b8bb4" }}>
-              관련한 자세히 보기가 없습니다.
+              추가 정보가 없습니다.
             </p>
           )}
         </div>

@@ -13,8 +13,18 @@ function formatDate(dateStr: string): string {
   return `${y}.${m}.${d}`;
 }
 
+function BuzzBadge({ score }: { score: number }) {
+  if (!score) return null;
+  return (
+    <span className="ml-2 text-xs font-bold text-[#e84d3d]">
+      🔥 {score}
+    </span>
+  );
+}
+
 function TopicRow({ item, accent }: { item: HistoryItem; accent?: string }) {
   const dotColor = accent ?? "#9b8bb4";
+  const hasDetails = item.details && item.details.length > 0;
   return (
     <li className="flex gap-3 py-2.5 border-b border-[#2d1f42]/60 last:border-0">
       <span
@@ -22,17 +32,22 @@ function TopicRow({ item, accent }: { item: HistoryItem; accent?: string }) {
         style={{ backgroundColor: dotColor + "99" }}
       />
       <div className="min-w-0">
-        <p className="text-sm text-[#f5f0ff] leading-relaxed">{item.summary}</p>
-        <p className="text-xs text-[#9b8bb4] mt-0.5 truncate">{item.topic}</p>
-        <Link
-          to={`/topic/${item.id}`}
-          className="inline-block mt-1 text-xs transition-colors"
-          style={{ color: "#9b8bb4" }}
-          onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
-          onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
-        >
-          자세히 말해주세요 →
-        </Link>
+        <p className="text-sm font-semibold text-[#f5f0ff] leading-snug">
+          {item.topic}
+          <BuzzBadge score={item.buzz_score} />
+        </p>
+        <p className="text-xs text-[#d4cee0] mt-1 leading-relaxed">{item.summary}</p>
+        {hasDetails && (
+          <Link
+            to={`/topic/${item.id}`}
+            className="inline-block mt-1 text-xs transition-colors"
+            style={{ color: "#9b8bb4" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
+            onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
+          >
+            {item.details.length}개의 추가 정보가 있어요 →
+          </Link>
+        )}
       </div>
     </li>
   );
@@ -114,29 +129,37 @@ function HistoryCard({
               </span>
             </div>
             <ul>
-              {interestItems.map((item, i) => (
-                <li key={i} className="flex gap-3 py-2.5 border-b border-[#2d1f42]/60 last:border-0">
-                  <span className="mt-2 w-1.5 h-1.5 rounded-full bg-[#5ba4d9]/60 shrink-0" />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-[#5ba4d9]/10 text-[#5ba4d9] border border-[#5ba4d9]/20">
-                        {item.category}
-                      </span>
+              {interestItems.map((item, i) => {
+                const hasDetails = item.details && item.details.length > 0;
+                return (
+                  <li key={i} className="flex gap-3 py-2.5 border-b border-[#2d1f42]/60 last:border-0">
+                    <span className="mt-2 w-1.5 h-1.5 rounded-full bg-[#5ba4d9]/60 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[#5ba4d9]/10 text-[#5ba4d9] border border-[#5ba4d9]/20">
+                          {item.category}
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-[#f5f0ff] leading-snug">
+                        {item.topic}
+                        <BuzzBadge score={item.buzz_score} />
+                      </p>
+                      <p className="text-xs text-[#d4cee0] mt-1 leading-relaxed">{item.summary}</p>
+                      {hasDetails && (
+                        <Link
+                          to={`/topic/${item.id}`}
+                          className="inline-block mt-1 text-xs transition-colors"
+                          style={{ color: "#9b8bb4" }}
+                          onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
+                          onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
+                        >
+                          {item.details.length}개의 추가 정보가 있어요 →
+                        </Link>
+                      )}
                     </div>
-                    <p className="text-sm text-[#f5f0ff] leading-relaxed">{item.summary}</p>
-                    <p className="text-xs text-[#9b8bb4] mt-0.5 truncate">{item.topic}</p>
-                    <Link
-                      to={`/topic/${item.id}`}
-                      className="inline-block mt-1 text-xs transition-colors"
-                      style={{ color: "#9b8bb4" }}
-                      onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
-                      onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
-                    >
-                      자세히 말해주세요 →
-                    </Link>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
