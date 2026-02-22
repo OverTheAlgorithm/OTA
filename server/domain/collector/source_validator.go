@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -51,6 +52,34 @@ var notFoundPatterns = []string{
 	"not found",
 	"this page doesn't exist",
 	"this page does not exist",
+}
+
+// blockedHosts are portal/aggregator sites that are never valid as a topic-specific source.
+// These URLs point to homepages or search pages, not to specific topic content.
+var blockedHosts = []string{
+	"trends.google.co.kr",
+	"trends.google.com",
+	"naver.com",
+	"www.naver.com",
+	"m.naver.com",
+	"daum.net",
+	"www.daum.net",
+	"m.daum.net",
+	"google.com",
+	"www.google.com",
+	"google.co.kr",
+	"www.google.co.kr",
+}
+
+// blockedPathPrefixes are host+path combos that are too generic (e.g. finance.naver.com with no article path).
+var blockedPathPrefixes = []struct {
+	host    string
+	maxPath int // if path segment count <= this, block it (e.g. "/" = 0 segments, "/item" = 1)
+}{
+	{"finance.naver.com", 1},
+	{"search.naver.com", 1},
+	{"search.daum.net", 1},
+	{"m.search.naver.com", 1},
 }
 
 const (
@@ -119,6 +148,11 @@ func (v *SourceValidator) checkURL(ctx context.Context, rawURL string) string {
 		return "invalid scheme"
 	}
 
+	// Block portal/aggregator homepages that aren't topic-specific.
+	if reason := checkBlockedURL(rawURL); reason != "" {
+		return reason
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return fmt.Sprintf("invalid url: %v", err)
@@ -151,4 +185,43 @@ func (v *SourceValidator) checkURL(ctx context.Context, rawURL string) string {
 	}
 
 	return ""
+}
+
+// checkBlockedURL returns a reason if the URL is a portal/aggregator homepage
+// that doesn't point to specific topic content. Returns "" if allowed.
+func checkBlockedURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	host := strings.ToLower(parsed.Hostname())
+
+	// Exact host block (portal homepages, trend aggregators).
+	for _, blocked := range blockedHosts {
+		if host == blocked {
+			return fmt.Sprintf("blocked portal/aggregator: %s", host)
+		}
+	}
+
+	// Path-depth block (e.g. finance.naver.com with no article path).
+	pathSegments := countPathSegments(parsed.Path)
+	for _, bp := range blockedPathPrefixes {
+		if host == bp.host && pathSegments <= bp.maxPath {
+			return fmt.Sprintf("blocked generic page: %s (path too short)", host)
+		}
+	}
+
+	return ""
+}
+
+// countPathSegments counts non-empty segments in a URL path.
+// "/" → 0, "/finance" → 1, "/finance/article/123" → 3
+func countPathSegments(path string) int {
+	count := 0
+	for _, seg := range strings.Split(path, "/") {
+		if seg != "" {
+			count++
+		}
+	}
+	return count
 }

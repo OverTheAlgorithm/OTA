@@ -191,3 +191,61 @@ func TestValidateSources_MultipleNotFoundPatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateSources_BlockedPortalURLs(t *testing.T) {
+	blockedURLs := []string{
+		"https://trends.google.co.kr/trending?geo=KR",
+		"https://naver.com",
+		"https://www.naver.com",
+		"https://www.google.com",
+		"https://daum.net",
+		"https://finance.naver.com",
+		"https://finance.naver.com/",
+	}
+
+	for _, u := range blockedURLs {
+		t.Run(u, func(t *testing.T) {
+			v := NewSourceValidator()
+			items := []ContextItem{makeItem(u)}
+
+			invalid := v.ValidateSources(context.Background(), items)
+
+			if len(invalid) != 1 {
+				t.Errorf("expected %q to be blocked, got %d invalid", u, len(invalid))
+			}
+		})
+	}
+}
+
+func TestValidateSources_AllowedSpecificURLs(t *testing.T) {
+	// These URLs point to specific content pages, not portal homepages.
+	// We use a test server to avoid real HTTP calls.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "<html><body>Article content</body></html>")
+	}))
+	defer srv.Close()
+
+	v := NewSourceValidator()
+	items := []ContextItem{makeItem(srv.URL + "/article/12345")}
+
+	invalid := v.ValidateSources(context.Background(), items)
+
+	if len(invalid) != 0 {
+		t.Errorf("expected specific URL to be allowed, got %d invalid: %+v", len(invalid), invalid)
+	}
+}
+
+func TestCheckBlockedURL_FinanceNaverWithPath(t *testing.T) {
+	// finance.naver.com with a deep article path should be allowed
+	reason := checkBlockedURL("https://finance.naver.com/item/main.naver?code=005930")
+	if reason != "" {
+		t.Errorf("expected finance.naver.com with article path to be allowed, got: %s", reason)
+	}
+
+	// finance.naver.com root should be blocked
+	reason = checkBlockedURL("https://finance.naver.com")
+	if reason == "" {
+		t.Error("expected finance.naver.com root to be blocked")
+	}
+}
