@@ -159,7 +159,7 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 		buzzHTML := ""
 		if item.BuzzScore > 0 {
 			buzzHTML = fmt.Sprintf(
-				`<span style="font-size:11px;color:#e84d3d;font-weight:700;margin-left:8px;">🔥 %d</span>`,
+				`<p style="margin:0 0 4px;font-size:11px;color:#e84d3d;font-weight:700;letter-spacing:0.01em;">🔥 화제도 %d</p>`,
 				item.BuzzScore,
 			)
 		}
@@ -180,14 +180,15 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
               <div style="width:6px;height:6px;border-radius:50%%;background-color:%s;"></div>
             </td>
             <td style="padding-left:12px;">
-              <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#f5f0ff;letter-spacing:-0.01em;">%s%s</p>
+              %s
+              <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#f5f0ff;letter-spacing:-0.01em;">%s</p>
               <p style="margin:0;font-size:13px;color:#d4cee0;line-height:1.7;">%s</p>
               %s
             </td>
           </tr>
         </table>
       </td></tr>`,
-			borderBottom, accentColor, item.Topic, buzzHTML, item.Summary, linkHTML,
+			borderBottom, accentColor, buzzHTML, item.Topic, item.Summary, linkHTML,
 		))
 	}
 
@@ -218,7 +219,7 @@ func formatItemsAsText(items []collector.ContextItem, frontendURL string) string
 	for i, item := range items {
 		buzzStr := ""
 		if item.BuzzScore > 0 {
-			buzzStr = fmt.Sprintf(" 🔥%d", item.BuzzScore)
+			buzzStr = fmt.Sprintf(" 🔥화제도 %d", item.BuzzScore)
 		}
 		line := fmt.Sprintf("%d. %s%s: %s", i+1, item.Topic, buzzStr, item.Summary)
 		if frontendURL != "" && len(item.Details) > 0 {

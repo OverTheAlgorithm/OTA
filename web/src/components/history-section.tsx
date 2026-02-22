@@ -16,8 +16,8 @@ function formatDate(dateStr: string): string {
 function BuzzBadge({ score }: { score: number }) {
   if (!score) return null;
   return (
-    <span className="ml-2 text-xs font-bold text-[#e84d3d]">
-      🔥 {score}
+    <span className="text-xs font-bold text-[#e84d3d]">
+      🔥 화제도 {score}
     </span>
   );
 }
@@ -32,9 +32,9 @@ function TopicRow({ item, accent }: { item: HistoryItem; accent?: string }) {
         style={{ backgroundColor: dotColor + "99" }}
       />
       <div className="min-w-0">
+        <BuzzBadge score={item.buzz_score} />
         <p className="text-sm font-semibold text-[#f5f0ff] leading-snug">
           {item.topic}
-          <BuzzBadge score={item.buzz_score} />
         </p>
         <p className="text-xs text-[#d4cee0] mt-1 leading-relaxed">{item.summary}</p>
         {hasDetails && (
@@ -140,9 +140,9 @@ function HistoryCard({
                           {item.category}
                         </span>
                       </div>
+                      <BuzzBadge score={item.buzz_score} />
                       <p className="text-sm font-semibold text-[#f5f0ff] leading-snug">
                         {item.topic}
-                        <BuzzBadge score={item.buzz_score} />
                       </p>
                       <p className="text-xs text-[#d4cee0] mt-1 leading-relaxed">{item.summary}</p>
                       {hasDetails && (
