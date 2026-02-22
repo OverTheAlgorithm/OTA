@@ -32,10 +32,10 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, fronte
 		subSet[sub] = true
 	}
 
-	// Filter items: always include "top", plus subscribed categories
+	// Filter items: always include "top" and "brief", plus subscribed categories
 	var selectedItems []collector.ContextItem
 	for _, item := range items {
-		if item.Category == "top" || subSet[item.Category] {
+		if item.Category == "top" || item.Category == "brief" || subSet[item.Category] {
 			selectedItems = append(selectedItems, item)
 		}
 	}
@@ -60,15 +60,15 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, fronte
 }
 
 func generateSubject(items []collector.ContextItem) string {
-	topCount := 0
+	universalCount := 0
 	for _, item := range items {
-		if item.Category == "top" {
-			topCount++
+		if item.Category == "top" || item.Category == "brief" {
+			universalCount++
 		}
 	}
 
-	if topCount == len(items) {
-		return fmt.Sprintf("오늘의 맥락 %d가지", topCount)
+	if universalCount == len(items) {
+		return fmt.Sprintf("오늘의 맥락 %d가지", len(items))
 	}
 
 	return fmt.Sprintf("오늘의 맥락 %d가지 (구독 주제 포함)", len(items))
@@ -80,14 +80,18 @@ func generateTextBody(items []collector.ContextItem, frontendURL string) string 
 	categoryGroups := groupByCategory(items)
 
 	if topItems, ok := categoryGroups["top"]; ok {
-		sections = append(sections, "🔥 주요 화제\n"+formatItemsAsText(topItems, frontendURL))
+		sections = append(sections, "🔥 대화 소재\n"+formatItemsAsText(topItems, frontendURL))
 	}
 
 	for category, catItems := range categoryGroups {
-		if category != "top" {
+		if category != "top" && category != "brief" {
 			categoryTitle := getCategoryTitle(category)
 			sections = append(sections, fmt.Sprintf("\n📌 %s\n%s", categoryTitle, formatItemsAsText(catItems, frontendURL)))
 		}
+	}
+
+	if briefItems, ok := categoryGroups["brief"]; ok {
+		sections = append(sections, "\n💡 알아두면 좋은 것\n"+formatBriefItemsAsText(briefItems))
 	}
 
 	return strings.Join(sections, "\n")
@@ -99,13 +103,17 @@ func generateHTMLBody(items []collector.ContextItem, frontendURL string) string 
 	var body strings.Builder
 
 	if topItems, ok := categoryGroups["top"]; ok {
-		body.WriteString(renderEmailSection("전체 맥락", "#e84d3d", topItems, frontendURL))
+		body.WriteString(renderEmailSection("대화 소재", "#e84d3d", topItems, frontendURL))
 	}
 
 	for category, catItems := range categoryGroups {
-		if category != "top" {
+		if category != "top" && category != "brief" {
 			body.WriteString(renderEmailSection(getCategoryTitle(category), "#5ba4d9", catItems, frontendURL))
 		}
+	}
+
+	if briefItems, ok := categoryGroups["brief"]; ok {
+		body.WriteString(renderBriefEmailSection(briefItems))
 	}
 
 	return wrapEmailTemplate(body.String())
@@ -228,6 +236,49 @@ func formatItemsAsText(items []collector.ContextItem, frontendURL string) string
 		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func formatBriefItemsAsText(items []collector.ContextItem) string {
+	var lines []string
+	for _, item := range items {
+		lines = append(lines, fmt.Sprintf("• %s: %s", item.Topic, item.Summary))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderBriefEmailSection(items []collector.ContextItem) string {
+	var rows strings.Builder
+	for i, item := range items {
+		borderBottom := "border-bottom:1px solid #2d1f42;"
+		if i == len(items)-1 {
+			borderBottom = ""
+		}
+		rows.WriteString(fmt.Sprintf(`
+      <tr><td style="padding:12px 24px;%s">
+        <table width="100%%%%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td width="10" style="vertical-align:top;padding-top:5px;">
+              <div style="width:5px;height:5px;border-radius:50%%%%;background-color:#4a3d5c;"></div>
+            </td>
+            <td style="padding-left:10px;">
+              <p style="margin:0;font-size:12px;font-weight:600;color:#9b8bb4;letter-spacing:-0.01em;">%s</p>
+              <p style="margin:2px 0 0;font-size:12px;color:#6b5f80;line-height:1.6;">%s</p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>`, borderBottom, item.Topic, item.Summary))
+	}
+
+	return fmt.Sprintf(`
+      <tr><td style="padding-bottom:16px;">
+        <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#130e1e;border-radius:12px;border:1px solid #1e1730;">
+          <tr><td style="padding:12px 24px;border-bottom:1px solid #1e1730;">
+            <p style="margin:0;font-size:10px;font-weight:600;color:#4a3d5c;letter-spacing:0.1em;text-transform:uppercase;">💡 알아두면 좋은 것</p>
+          </td></tr>
+          %s
+        </table>
+      </td></tr>
+`, rows.String())
 }
 
 func getCategoryTitle(category string) string {

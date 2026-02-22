@@ -64,8 +64,9 @@ function HistoryCard({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const topItems = entry.items.filter((i) => i.category === "top");
+  const briefItems = entry.items.filter((i) => i.category === "brief");
   const interestItems = entry.items.filter(
-    (i) => i.category !== "top" && subscriptions.includes(i.category),
+    (i) => i.category !== "top" && i.category !== "brief" && subscriptions.includes(i.category),
   );
 
   return (
@@ -78,7 +79,7 @@ function HistoryCard({
         <span className="font-semibold text-[#f5f0ff]">{formatDate(entry.date)}</span>
         <div className="flex items-center gap-2">
           <span className="text-xs text-[#9b8bb4] bg-[#0f0a19] px-2.5 py-1 rounded-full border border-[#2d1f42]">
-            {topItems.length + interestItems.length}개 토픽
+            {topItems.length + briefItems.length + interestItems.length}개 토픽
           </span>
           <svg
             className="w-4 h-4 text-[#9b8bb4] transition-transform duration-200"
@@ -104,7 +105,7 @@ function HistoryCard({
                 </svg>
               </div>
               <span className="text-xs font-semibold text-[#e84d3d] uppercase tracking-wider">
-                전체 맥락
+                대화 소재
               </span>
             </div>
             <ul>
@@ -160,6 +161,32 @@ function HistoryCard({
                   </li>
                 );
               })}
+            </ul>
+          </div>
+        )}
+
+        {briefItems.length > 0 && (
+          <div className="pt-2">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-5 h-5 rounded-md bg-[#4a3d5c]/20 flex items-center justify-center">
+                <span className="text-xs">💡</span>
+              </div>
+              <span className="text-[10px] font-semibold text-[#4a3d5c] uppercase tracking-wider">
+                알아두면 좋은 것
+              </span>
+            </div>
+            <ul>
+              {briefItems.map((item, i) => (
+                <li key={i} className="flex gap-2.5 py-1.5">
+                  <span className="mt-1.5 w-1 h-1 rounded-full bg-[#4a3d5c] shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-[#9b8bb4] leading-snug">
+                      {item.topic}
+                    </p>
+                    <p className="text-xs text-[#6b5f80] mt-0.5 leading-relaxed">{item.summary}</p>
+                  </div>
+                </li>
+              ))}
             </ul>
           </div>
         )}

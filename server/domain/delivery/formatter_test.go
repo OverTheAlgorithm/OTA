@@ -49,8 +49,8 @@ func TestFormatMessage_OnlyTopCategory(t *testing.T) {
 		t.Errorf("expected subject to contain '오늘의 맥락 2가지', got '%s'", result.Subject)
 	}
 
-	if !strings.Contains(result.TextBody, "주요 화제") {
-		t.Errorf("expected text body to contain '주요 화제', got '%s'", result.TextBody)
+	if !strings.Contains(result.TextBody, "대화 소재") {
+		t.Errorf("expected text body to contain '대화 소재', got '%s'", result.TextBody)
 	}
 
 	if !strings.Contains(result.TextBody, "주요 이슈 1") {
@@ -61,8 +61,8 @@ func TestFormatMessage_OnlyTopCategory(t *testing.T) {
 		t.Errorf("expected text body to contain '주요 이슈 2', got '%s'", result.TextBody)
 	}
 
-	if !strings.Contains(result.HTMLBody, "전체 맥락") {
-		t.Errorf("expected HTML body to contain '전체 맥락', got '%s'", result.HTMLBody)
+	if !strings.Contains(result.HTMLBody, "대화 소재") {
+		t.Errorf("expected HTML body to contain '대화 소재', got '%s'", result.HTMLBody)
 	}
 
 	if !strings.Contains(result.HTMLBody, "주요 이슈 1") {
@@ -158,8 +158,8 @@ func TestFormatMessage_MultipleCategories(t *testing.T) {
 	result := FormatMessage(items, subscriptions, "")
 
 	// Should include all three
-	if !strings.Contains(result.TextBody, "주요 화제") {
-		t.Error("expected text body to contain '주요 화제'")
+	if !strings.Contains(result.TextBody, "대화 소재") {
+		t.Error("expected text body to contain '대화 소재'")
 	}
 
 	if !strings.Contains(result.TextBody, "연예") {
@@ -171,8 +171,8 @@ func TestFormatMessage_MultipleCategories(t *testing.T) {
 	}
 
 	// HTML should have proper structure
-	if !strings.Contains(result.HTMLBody, "전체 맥락") {
-		t.Error("expected HTML body to contain '전체 맥락'")
+	if !strings.Contains(result.HTMLBody, "대화 소재") {
+		t.Error("expected HTML body to contain '대화 소재'")
 	}
 
 	if !strings.Contains(result.HTMLBody, "연예") {
@@ -181,6 +181,35 @@ func TestFormatMessage_MultipleCategories(t *testing.T) {
 
 	if !strings.Contains(result.HTMLBody, "경제") {
 		t.Error("expected HTML body to contain '경제'")
+	}
+}
+
+func TestFormatMessage_BriefCategory(t *testing.T) {
+	items := []collector.ContextItem{
+		{Category: "top", Rank: 1, Topic: "대화 주제", Summary: "대화할 수 있는 주제."},
+		{Category: "brief", Rank: 1, Topic: "산불 발생", Summary: "경남에서 산불이 발생했어요."},
+	}
+	subscriptions := []string{}
+
+	result := FormatMessage(items, subscriptions, "")
+
+	// brief items should be included (universal)
+	if !strings.Contains(result.TextBody, "산불 발생") {
+		t.Error("expected text body to contain brief item")
+	}
+	if !strings.Contains(result.TextBody, "알아두면 좋은 것") {
+		t.Error("expected text body to contain '알아두면 좋은 것' section")
+	}
+	if !strings.Contains(result.HTMLBody, "알아두면 좋은 것") {
+		t.Error("expected HTML body to contain '알아두면 좋은 것' section")
+	}
+	// brief section should be visually distinct (dimmer colors)
+	if !strings.Contains(result.HTMLBody, "#9b8bb4") {
+		t.Error("expected HTML brief section to use subdued color")
+	}
+	// subject should count both top and brief
+	if !strings.Contains(result.Subject, "2가지") {
+		t.Errorf("expected subject to contain '2가지', got '%s'", result.Subject)
 	}
 }
 
