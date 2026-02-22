@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -79,7 +80,8 @@ func (a *CollectorServiceAdapter) GetLastDeliveredRun(ctx context.Context) (*col
 // GetContextItems retrieves all context items for a given run
 func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uuid.UUID) ([]collector.ContextItem, error) {
 	query := `
-		SELECT id, collection_run_id, category, rank, topic, summary, COALESCE(detail, ''), COALESCE(sources, '{}')
+		SELECT id, collection_run_id, category, rank, topic, summary,
+		       COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '{}')
 		FROM context_items
 		WHERE collection_run_id = $1
 		ORDER BY rank
@@ -94,6 +96,7 @@ func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uui
 	var items []collector.ContextItem
 	for rows.Next() {
 		var item collector.ContextItem
+		var detailsJSON []byte
 		err := rows.Scan(
 			&item.ID,
 			&item.CollectionRunID,
@@ -102,11 +105,14 @@ func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uui
 			&item.Topic,
 			&item.Summary,
 			&item.Detail,
+			&detailsJSON,
+			&item.BuzzScore,
 			&item.Sources,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan context item: %w", err)
 		}
+		_ = json.Unmarshal(detailsJSON, &item.Details)
 		items = append(items, item)
 	}
 

@@ -45,13 +45,22 @@ var notFoundPatterns = []string{
 	"요청하신 페이지를 찾을 수 없",
 	"찾을 수 없는 페이지",
 	"삭제된 페이지",
+	"삭제된 기사",
 	"해당 페이지가 없습니다",
 	"페이지가 존재하지 않",
+	"기사가 존재하지 않",
+	"삭제되었거나 존재하지 않는",
+	"서비스가 종료",
+	"잘못된 접근",
+	"더 이상 제공되지 않",
 	"404 not found",
 	"page not found",
 	"not found",
 	"this page doesn't exist",
 	"this page does not exist",
+	"no longer available",
+	"article not found",
+	"content not found",
 }
 
 // blockedHosts are portal/aggregator sites that are never valid as a topic-specific source.
@@ -84,7 +93,7 @@ var blockedPathPrefixes = []struct {
 
 const (
 	maxConcurrentChecks = 10
-	maxBodyRead         = 10 * 1024 // 10KB
+	maxBodyRead         = 100 * 1024 // 100KB — Korean sites often have 50KB+ of CSS/JS in <head>
 )
 
 // ValidateSources checks all source URLs across all items concurrently.
@@ -157,8 +166,9 @@ func (v *SourceValidator) checkURL(ctx context.Context, rawURL string) string {
 	if err != nil {
 		return fmt.Sprintf("invalid url: %v", err)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; OTA-Bot/1.0)")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
 
 	resp, err := v.client.Do(req)
 	if err != nil {
