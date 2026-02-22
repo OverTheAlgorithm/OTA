@@ -23,7 +23,6 @@ func (r *UserRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64, ema
 		INSERT INTO users (kakao_id, email, nickname, profile_image)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (kakao_id) DO UPDATE SET
-			email = EXCLUDED.email,
 			nickname = EXCLUDED.nickname,
 			profile_image = EXCLUDED.profile_image,
 			updated_at = NOW()
