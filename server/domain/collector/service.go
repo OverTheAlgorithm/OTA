@@ -97,6 +97,9 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 		return CollectionResult{}, fmt.Errorf("parsing ai response: %w", err)
 	}
 
+	// Stage 3: validate source URLs via HTTP and fix/remove broken ones.
+	items = s.validateAndFixSources(ctx, items)
+
 	if err := s.repo.SaveContextItems(ctx, items); err != nil {
 		errMsg := err.Error()
 		rawResp := enrichResp.RawJSON
@@ -185,12 +188,14 @@ type aiResponsePayload struct {
 }
 
 type aiContextItem struct {
-	Category string   `json:"category"`
-	Rank     int      `json:"rank"`
-	Topic    string   `json:"topic"`
-	Summary  string   `json:"summary"`
-	Detail   string   `json:"detail"`
-	Sources  []string `json:"sources"`
+	Category  string   `json:"category"`
+	Rank      int      `json:"rank"`
+	Topic     string   `json:"topic"`
+	Summary   string   `json:"summary"`
+	Detail    string   `json:"detail"`
+	Details   []string `json:"details"`
+	BuzzScore int      `json:"buzz_score"`
+	Sources   []string `json:"sources"`
 }
 
 // stripMarkdownCodeFence removes markdown code fence markers from text
@@ -248,6 +253,8 @@ func parseContextItems(outputText string, runID uuid.UUID) ([]ContextItem, error
 			Topic:           raw.Topic,
 			Summary:         raw.Summary,
 			Detail:          raw.Detail,
+			Details:         raw.Details,
+			BuzzScore:       raw.BuzzScore,
 			Sources:         raw.Sources,
 		})
 	}
@@ -257,4 +264,115 @@ func parseContextItems(outputText string, runID uuid.UUID) ([]ContextItem, error
 	}
 
 	return items, nil
+}
+
+// validateAndFixSources checks all source URLs, asks the AI for replacements,
+// and strips any URLs that are still invalid after one re-review attempt.
+// Returns a new slice — the input is not mutated.
+func (s *Service) validateAndFixSources(ctx context.Context, items []ContextItem) []ContextItem {
+	validator := NewSourceValidator()
+
+	invalid := validator.ValidateSources(ctx, items)
+	if len(invalid) == 0 {
+		return items
+	}
+
+	log.Printf("source validation: %d invalid URL(s) found, requesting AI re-review", len(invalid))
+
+	// Ask the AI to find replacement URLs (single attempt, no retry).
+	prompt := BuildSourceReviewPrompt(items, invalid)
+	reviewResp, err := s.ai.SearchAndAnalyze(ctx, prompt)
+	if err != nil {
+		log.Printf("source re-review request failed: %v — removing invalid URLs", err)
+		return removeInvalidSources(items, invalid)
+	}
+
+	items = applySourceCorrections(items, reviewResp.OutputText, invalid)
+
+	// Validate the corrected URLs.
+	stillInvalid := validator.ValidateSources(ctx, items)
+	if len(stillInvalid) > 0 {
+		log.Printf("source validation: %d URL(s) still invalid after re-review — removing", len(stillInvalid))
+		items = removeInvalidSources(items, stillInvalid)
+	}
+
+	return items
+}
+
+// sourceCorrection represents a single URL replacement from AI re-review.
+type sourceCorrection struct {
+	OldURL string `json:"old_url"`
+	NewURL string `json:"new_url"`
+}
+
+// applySourceCorrections parses the AI's correction response and replaces
+// old URLs with new ones in the items. Returns a new slice.
+func applySourceCorrections(items []ContextItem, responseText string, invalid []InvalidSource) []ContextItem {
+	clean := stripMarkdownCodeFence(responseText)
+
+	var payload struct {
+		Corrections []sourceCorrection `json:"corrections"`
+	}
+	if err := json.Unmarshal([]byte(clean), &payload); err != nil {
+		log.Printf("failed to parse source corrections JSON: %v — removing invalid URLs", err)
+		return removeInvalidSources(items, invalid)
+	}
+
+	// Build lookup: old_url → new_url
+	corrections := make(map[string]string)
+	for _, c := range payload.Corrections {
+		corrections[c.OldURL] = c.NewURL
+	}
+
+	// Build set of invalid URLs for quick removal if no correction found.
+	invalidSet := make(map[string]bool)
+	for _, inv := range invalid {
+		invalidSet[inv.URL] = true
+	}
+
+	result := make([]ContextItem, len(items))
+	for i, item := range items {
+		result[i] = item
+		var newSources []string
+		for _, src := range item.Sources {
+			if newURL, ok := corrections[src]; ok {
+				if newURL != "" {
+					newSources = append(newSources, newURL)
+				}
+				// empty newURL means AI couldn't find replacement — drop it
+			} else if invalidSet[src] {
+				// invalid with no correction — drop
+			} else {
+				newSources = append(newSources, src)
+			}
+		}
+		result[i].Sources = newSources
+	}
+	return result
+}
+
+// removeInvalidSources strips all invalid URLs from items. Returns a new slice.
+func removeInvalidSources(items []ContextItem, invalid []InvalidSource) []ContextItem {
+	// Build set of URLs to remove, keyed by (itemIndex, url).
+	type key struct {
+		idx int
+		url string
+	}
+	removeSet := make(map[key]bool)
+	for _, inv := range invalid {
+		removeSet[key{inv.ItemIndex, inv.URL}] = true
+	}
+
+	result := make([]ContextItem, len(items))
+	for i, item := range items {
+		result[i] = item
+		var kept []string
+		for _, src := range item.Sources {
+			if !removeSet[key{i, src}] {
+				kept = append(kept, src)
+			}
+		}
+		result[i].Sources = kept
+	}
+	return result
 }

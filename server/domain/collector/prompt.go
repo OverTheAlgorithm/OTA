@@ -3,6 +3,7 @@ package collector
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -16,7 +17,16 @@ func BuildKeywordExtractionPrompt() string {
 	return fmt.Sprintf(`당신은 한국 트렌드 모니터입니다.
 
 오늘(%s) 한국에서 실제로 가장 많이 검색되고 언급되는 키워드를 웹에서 직접 검색해서 확인하세요.
-구글 한국어 검색어 순위, 네이버 실시간 검색어, 트위터(X) 트렌드, 유튜브 인기 동영상, 주요 뉴스 사이트, 커뮤니티(에펨코리아, 디시인사이드, 더쿠)를 참고하세요.
+
+## 참고할 소스 (우선순위 순)
+1. **구글 트렌드 한국** (https://trends.google.co.kr/trending?geo=KR) — 최우선 확인
+2. **X(트위터) 한국 트렌드** — 실시간 화제 키워드
+3. **네이버/다음 실시간 검색어** — 포털 검색 순위
+4. **유튜브 인기 동영상** — 영상 콘텐츠 화제
+5. **커뮤니티** (에펨코리아, 디시인사이드, 더쿠, 레딧 코리아) — 사람들이 실제로 대화하는 주제
+6. 뉴스 사이트 — 참고용 (뉴스에만 의존하지 말 것)
+
+⚠️ **뉴스 기사는 보조 소스입니다.** 실시간 검색어, SNS 트렌드, 커뮤니티 화제가 더 중요합니다.
 
 ## 출력 형식
 반드시 순수 JSON만 출력하세요. 마크다운 코드 블록이나 추가 설명 없이.
@@ -31,7 +41,7 @@ func BuildKeywordExtractionPrompt() string {
 ## 규칙
 - 15~20개 추출
 - 막연한 분야명 금지: "AI 기술", "주식 시장", "정치 이슈" → 이런 단어는 절대 사용 금지
-- 반드시 구체적 사건·인물·수치·프로그램명 포함: "오픈AI o3 한국 출시 논란", "[가수명] 콘서트 취소", "코스피 X%% 급락"
+- 반드시 구체적 사건·인물·수치·프로그램명 포함: "오픈AI o3 한국 출시 논란", "[가수명] 콘서트 취소", "코스피 X%%%% 급락"
 - 오늘 또는 최근 2~3일 이내의 화제만 포함
 - 연예, 경제, 스포츠, 정치, 기술, 사회 등 다양한 분야에서 고르게 추출
 - 마크다운 코드 블록 없이 JSON만 출력`, dateStr)
@@ -103,9 +113,39 @@ func BuildEnrichmentPrompt(keywords []string) string {
 ⚠️ **아래는 형식과 수준을 보여주기 위한 예시입니다. 내용을 절대 복사하지 마세요.**
 실제 출력에는 위 키워드 목록에서 찾은 실제 내용만 담아야 합니다.
 
-- **좋은 summary**: "[실제 인물명]이 [구체적 사건]을 했다. [왜 논란인지/사람들 반응]. [대화를 이어갈 수 있는 포인트]."
-- **좋은 detail**: 위 summary의 배경, 경위, 당사자 입장, 찬반 여론, 이 사건의 의미. 3~5문장.
-- **sources**: 실제로 참고한 뉴스/기사 URL. 없으면 빈 배열 [].
+- **좋은 summary**: "[실제 인물명]이 [구체적 사건]을 했는데, [왜 난리인지/사람들 반응]. [대화 포인트]."
+- **좋은 details**: summary에 없는 새로운 추가 정보들. 당사자 발언, 커뮤니티 밈/반응, 관련 수치, 이전 사건과의 연결점 등.
+
+## details 작성 규칙
+- 최대 5개, 각각 독립적으로 읽을 수 있는 한 문장 추가 정보
+- summary를 반복하지 말 것. summary에 없는 새로운 정보만
+- 예: 당사자 발언 인용, 커뮤니티 밈/반응, 관련 통계/수치, 이전 사건과의 연결, 예상 전개
+- 추가 정보가 없으면 빈 배열 []
+
+## buzz_score (화제도 점수)
+- 1~100 정수. 지금 사람들이 이 주제로 얼마나 대화하고 있는지의 체감 지표
+- 90~100: 전 국민이 아는 수준 (대통령 탄핵, 월드컵 4강 등)
+- 70~89: 직장/학교에서 한번쯤 들어봤을 정도
+- 40~69: 관심 있는 사람들 사이에서 화제
+- 1~39: 특정 커뮤니티에서만 화제
+- top 카테고리의 1위는 반드시 70 이상이어야 함
+
+## sources 작성 규칙
+- 실제로 웹 검색에서 참고한 URL만 포함. 없으면 빈 배열 []
+- ⚠️ **뉴스 기사에 국한하지 말 것!** 다양한 출처를 권장:
+  * X(트위터) 트렌드/트윗
+  * 구글 트렌드 한국
+  * 네이버/다음 검색어 페이지
+  * 커뮤니티 글 (에펨코리아, 디시인사이드, 더쿠, 레딧)
+  * YouTube 영상/채널
+  * 위키피디아, 나무위키
+- **확실하지 않은 URL은 절대 넣지 마세요.** 존재하지 않는 URL을 만들어내느니 빈 배열이 낫습니다
+
+## 톤 & 스타일
+- ❌ 뉴스 기사체 금지: "~했다", "~밝혔다", "~것으로 알려졌다"
+- ✅ 친구에게 말해주는 톤: "~했는데", "~라서 난리남", "~해서 화제"
+- 재미있는 주제는 재미있게, 심각한 주제는 적절한 톤으로
+- 딱딱하고 건조한 뉴스 요약이 아니라, 읽는 사람이 "오 진짜?" 하고 반응할 수 있는 글
 
 ## ❌ 나쁜 예시 (절대 이렇게 쓰면 안 됨)
 
@@ -124,7 +164,7 @@ func BuildEnrichmentPrompt(keywords []string) string {
 ## 작성 규칙
 1. **구체성 최우선**: 인물명, 프로그램명, 수치, 발언 인용 등 대화에 쓸 수 있는 디테일
 2. **summary 길이**: 1~3문장. 대화에 필요한 맥락이 충분히 담겨야 함. 핵심 정보를 줄이느라 모호해지면 안 됨
-3. **detail 길이**: 3~5문장. summary의 배경, 경위, 핵심 인물의 발언, 대립하는 시각, 왜 이게 중요한지를 담아야 함. "이걸 읽으면 그 주제에 대해 5분은 대화할 수 있다"는 기준
+3. **details**: summary에 없는 추가 정보 최대 5개. 각각 한 문장
 4. **흥미 요소 필수**: 논란/갈등/반전/기록/충격 중 최소 하나가 summary에 포함
 5. **대화 연결점**: 가능하면 "사람들이 갈리는 의견"이나 "밈/유행어"를 언급
 6. **순수 JSON**: 마크다운 코드 블록 없이 JSON만 출력
@@ -133,6 +173,8 @@ func BuildEnrichmentPrompt(keywords []string) string {
 }
 
 // jsonFormatExample returns the JSON schema example used in Stage 2 prompt.
+// Source URLs intentionally show diverse types (trends, SNS, community, wiki)
+// to prevent the model from only citing news articles.
 func jsonFormatExample() string {
 	return `{
   "items": [
@@ -140,28 +182,88 @@ func jsonFormatExample() string {
       "category": "top",
       "rank": 1,
       "topic": "[인물/사건 특정] 구체적 주제명",
-      "summary": "누가 무엇을 했고, 왜 사람들이 이야기하는지, 어떤 논란/반응이 있는지까지 포함. 이 정보만으로 대화를 시작할 수 있어야 함.",
-      "detail": "summary보다 깊은 배경 설명. 사건의 경위, 핵심 인물의 발언 인용, 찬반 양측의 시각, 이 사건이 왜 중요한지, 앞으로 어떻게 될 것 같은지까지. 3~5문장으로 충분히 읽을 만한 분량.",
-      "sources": ["https://example.com/article1"]
+      "summary": "누가 무엇을 했는데, 왜 사람들이 난리인지, 어떤 논란/반응이 있는지까지. 이 정보만으로 대화를 시작할 수 있어야 함.",
+      "details": [
+        "당사자가 직접 한 발언이나 SNS 게시물 인용",
+        "커뮤니티에서 퍼진 밈이나 유행어",
+        "관련 통계나 수치 (조회수, 검색량 등)"
+      ],
+      "buzz_score": 92,
+      "sources": ["https://trends.google.co.kr/trending?geo=KR"]
     },
     {
       "category": "top",
       "rank": 2,
       "topic": "[인물/사건 특정] 두 번째 주제",
       "summary": "구체적 수치, 인물 발언, 커뮤니티 반응 등 대화 소재가 되는 디테일 포함.",
-      "detail": "이 주제의 배경, 왜 지금 화제가 됐는지, 관련 인물들의 입장, 커뮤니티에서 어떤 논쟁이 벌어지고 있는지 상세히.",
-      "sources": ["https://example.com/article2"]
+      "details": [
+        "이 사건의 배경과 경위",
+        "찬반 양측의 시각 요약"
+      ],
+      "buzz_score": 78,
+      "sources": ["https://namu.wiki/w/관련주제"]
     },
     {
       "category": "entertainment",
       "rank": 1,
       "topic": "[프로그램명+인물명] 구체적 사건",
       "summary": "무슨 일이 있었고 사람들이 어떻게 반응하는지까지.",
-      "detail": "사건의 전말, 당사자 반응, 제작진 입장, 시청자 여론이 어떻게 나뉘는지, 관련 밈이나 유행어까지 상세히.",
-      "sources": ["https://example.com/article3"]
+      "details": [],
+      "buzz_score": 65,
+      "sources": []
     }
   ]
 }`
+}
+
+// BuildSourceReviewPrompt returns a Stage 3 prompt that asks the AI to find
+// replacement URLs for source links that failed HTTP validation.
+// The AI is given the topic context and the broken URLs so it can search for
+// correct alternatives. Pass empty items to get an empty prompt.
+func BuildSourceReviewPrompt(items []ContextItem, invalid []InvalidSource) string {
+	if len(invalid) == 0 {
+		return ""
+	}
+
+	// Group invalid sources by item index for context.
+	type entry struct {
+		Topic  string
+		URL    string
+		Reason string
+	}
+	var entries []entry
+	for _, inv := range invalid {
+		topic := ""
+		if inv.ItemIndex < len(items) {
+			topic = items[inv.ItemIndex].Topic
+		}
+		entries = append(entries, entry{Topic: topic, URL: inv.URL, Reason: inv.Reason})
+	}
+
+	var list strings.Builder
+	for i, e := range entries {
+		list.WriteString(fmt.Sprintf("%d. 주제: %q / 실패한 URL: %s / 사유: %s\n", i+1, e.Topic, e.URL, e.Reason))
+	}
+
+	return fmt.Sprintf(`아래 출처 URL들이 실제로 접속했을 때 유효하지 않았습니다 (404, 페이지 없음 등).
+각 항목에 대해 웹 검색으로 해당 주제의 실제 출처 URL을 찾아주세요.
+
+## 실패한 URL 목록
+%s
+## 출력 형식
+반드시 순수 JSON만 출력하세요. 마크다운 코드 블록 없이.
+
+{
+  "corrections": [
+    {"old_url": "실패한 URL", "new_url": "대체 URL 또는 빈 문자열"}
+  ]
+}
+
+## 규칙
+- 대체 URL을 찾을 수 없으면 new_url을 빈 문자열 ""로 설정
+- 대체 URL은 반드시 실제 존재하는 페이지여야 함
+- 주제와 관련 있는 URL만 제공
+- 확실하지 않으면 빈 문자열이 낫습니다`, list.String())
 }
 
 // parseKeywords extracts the keyword list from Stage 1 JSON response.
