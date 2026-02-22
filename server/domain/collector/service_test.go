@@ -10,13 +10,30 @@ import (
 
 // --- mocks ---
 
+// mockAIClient supports a response queue for multi-stage pipeline testing.
+// Each call to SearchAndAnalyze pops the next response/error from the queue.
 type mockAIClient struct {
-	resp AIResponse
-	err  error
+	responses []AIResponse
+	errs      []error
+	callIdx   int
 }
 
 func (m *mockAIClient) SearchAndAnalyze(_ context.Context, _ string) (AIResponse, error) {
-	return m.resp, m.err
+	idx := m.callIdx
+	m.callIdx++
+
+	var err error
+	if idx < len(m.errs) {
+		err = m.errs[idx]
+	}
+	if err != nil {
+		return AIResponse{}, err
+	}
+
+	if idx < len(m.responses) {
+		return m.responses[idx], nil
+	}
+	return AIResponse{}, nil
 }
 
 type mockRepo struct {
@@ -56,9 +73,9 @@ func (m *mockRepo) CanRunToday(_ context.Context) (bool, error) {
 func TestCollect_Success(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
-		resp: AIResponse{
-			OutputText: validCollectionJSON,
-			RawJSON:    `{"raw":"data"}`,
+		responses: []AIResponse{
+			{OutputText: validKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
+			{OutputText: validCollectionJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
 
@@ -90,7 +107,7 @@ func TestCollect_Success(t *testing.T) {
 
 func TestCollect_AIFailure(t *testing.T) {
 	repo := &mockRepo{}
-	aiClient := &mockAIClient{err: errors.New("openai down")}
+	aiClient := &mockAIClient{errs: []error{errors.New("openai down")}}
 
 	svc := NewService(aiClient, repo)
 	_, err := svc.Collect(context.Background())
@@ -105,7 +122,7 @@ func TestCollect_AIFailure(t *testing.T) {
 func TestCollect_MalformedAIResponse(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
-		resp: AIResponse{OutputText: "not json at all", RawJSON: `{"raw":"bad"}`},
+		responses: []AIResponse{{OutputText: "not json at all", RawJSON: `{"raw":"bad"}`}},
 	}
 
 	svc := NewService(aiClient, repo)
@@ -135,13 +152,16 @@ func TestCollect_CreateRunFailure(t *testing.T) {
 func TestCollect_SkipsInvalidItems(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
-		resp: AIResponse{
-			OutputText: `{"items":[
+		responses: []AIResponse{
+			{OutputText: validKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
+			{
+				OutputText: `{"items":[
 				{"category":"top","rank":1,"topic":"유효","summary":"유효한 항목","sources":[]},
 				{"category":"","rank":2,"topic":"빈 카테고리","summary":"필터됨","sources":[]},
 				{"category":"top","rank":3,"topic":"","summary":"빈 토픽","sources":[]}
 			]}`,
-			RawJSON: "{}",
+				RawJSON: "{}",
+			},
 		},
 	}
 
@@ -158,9 +178,12 @@ func TestCollect_SkipsInvalidItems(t *testing.T) {
 func TestCollect_AllItemsInvalid(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
-		resp: AIResponse{
-			OutputText: `{"items":[{"category":"","rank":1,"topic":"","summary":"","sources":[]}]}`,
-			RawJSON:    "{}",
+		responses: []AIResponse{
+			{OutputText: validKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
+			{
+				OutputText: `{"items":[{"category":"","rank":1,"topic":"","summary":"","sources":[]}]}`,
+				RawJSON:    "{}",
+			},
 		},
 	}
 
@@ -188,9 +211,9 @@ func TestCollectIfNeeded_AlreadyRun(t *testing.T) {
 func TestCollectIfNeeded_CanRun(t *testing.T) {
 	repo := &mockRepo{canRunToday: true}
 	aiClient := &mockAIClient{
-		resp: AIResponse{
-			OutputText: validCollectionJSON,
-			RawJSON:    `{"raw":"data"}`,
+		responses: []AIResponse{
+			{OutputText: validKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
+			{OutputText: validCollectionJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
 
@@ -206,6 +229,8 @@ func TestCollectIfNeeded_CanRun(t *testing.T) {
 		t.Errorf("expected 2 items, got %d", len(result.Items))
 	}
 }
+
+const validKeywordsJSON = `{"keywords": ["환승연애 시즌3", "뉴진스 컴백"]}`
 
 const validCollectionJSON = `{
 	"items": [

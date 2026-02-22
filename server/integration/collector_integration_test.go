@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,12 +13,31 @@ import (
 )
 
 type mockAIClient struct {
-	resp collector.AIResponse
-	err  error
+	mu        sync.Mutex
+	responses []collector.AIResponse
+	errs      []error
+	callIdx   int
 }
 
-func (m *mockAIClient) SearchAndAnalyze(ctx context.Context, prompt string) (collector.AIResponse, error) {
-	return m.resp, m.err
+func (m *mockAIClient) SearchAndAnalyze(_ context.Context, _ string) (collector.AIResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	idx := m.callIdx
+	m.callIdx++
+
+	var err error
+	if idx < len(m.errs) {
+		err = m.errs[idx]
+	}
+	if err != nil {
+		return collector.AIResponse{}, err
+	}
+
+	if idx < len(m.responses) {
+		return m.responses[idx], nil
+	}
+	return collector.AIResponse{}, nil
 }
 
 func TestCollector_FullFlow(t *testing.T) {
@@ -25,11 +45,14 @@ func TestCollector_FullFlow(t *testing.T) {
 	defer db.Truncate(t, "context_items", "collection_runs")
 
 	aiClient := &mockAIClient{
-		resp: collector.AIResponse{
-			OutputText: validJSON,
-			RawJSON:    `{"raw":"data"}`,
-			Annotations: []collector.AIAnnotation{
-				{URL: "https://example.com", Title: "Example"},
+		responses: []collector.AIResponse{
+			{OutputText: integrationKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
+			{
+				OutputText: validJSON,
+				RawJSON:    `{"raw":"data"}`,
+				Annotations: []collector.AIAnnotation{
+					{URL: "https://example.com", Title: "Example"},
+				},
 			},
 		},
 	}
@@ -148,9 +171,9 @@ func TestCollector_CollectIfNeeded(t *testing.T) {
 	defer db.Truncate(t, "context_items", "collection_runs")
 
 	aiClient := &mockAIClient{
-		resp: collector.AIResponse{
-			OutputText: validJSON,
-			RawJSON:    `{"raw":"data"}`,
+		responses: []collector.AIResponse{
+			{OutputText: integrationKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
+			{OutputText: validJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
 
@@ -180,10 +203,12 @@ func TestCollector_MultipleInstances(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, "context_items", "collection_runs")
 
+	// Only one goroutine will actually call AI (the other skips via CanRunToday),
+	// so 2 responses (keywords + items) is sufficient.
 	aiClient := &mockAIClient{
-		resp: collector.AIResponse{
-			OutputText: validJSON,
-			RawJSON:    `{"raw":"data"}`,
+		responses: []collector.AIResponse{
+			{OutputText: integrationKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
+			{OutputText: validJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
 
@@ -232,6 +257,8 @@ func TestCollector_MultipleInstances(t *testing.T) {
 		t.Errorf("expected exactly 1 skip, got %d", skipCount)
 	}
 }
+
+const integrationKeywordsJSON = `{"keywords": ["테스트 주제 1", "테스트 주제 2", "테스트 주제 3"]}`
 
 const validJSON = `{
 	"items": [

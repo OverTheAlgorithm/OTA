@@ -71,7 +71,9 @@ func (s *Scheduler) Stop() context.Context {
 
 func (s *Scheduler) collect() {
 	log.Println("checking if collection is needed")
-	result, err := s.collectorService.CollectIfNeeded(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	result, err := s.collectorService.CollectIfNeeded(ctx)
 	if err != nil {
 		log.Printf("collection failed: %v", err)
 		return
@@ -85,7 +87,9 @@ func (s *Scheduler) collect() {
 
 func (s *Scheduler) deliver() {
 	log.Println("starting message delivery")
-	result, err := s.deliveryService.DeliverAll(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	result, err := s.deliveryService.DeliverAll(ctx)
 	if err != nil {
 		log.Printf("delivery failed: %v", err)
 		return
@@ -96,7 +100,9 @@ func (s *Scheduler) deliver() {
 
 func (s *Scheduler) retryFailed() {
 	log.Println("starting retry for failed deliveries")
-	result, err := s.deliveryService.RetryFailedDeliveries(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	result, err := s.deliveryService.RetryFailedDeliveries(ctx)
 	if err != nil {
 		log.Printf("retry failed: %v", err)
 		return

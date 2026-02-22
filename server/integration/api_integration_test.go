@@ -23,9 +23,9 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 
 	// Setup services
 	aiClient := &mockAIClient{
-		resp: collector.AIResponse{
-			OutputText: validJSON,
-			RawJSON:    `{"raw":"data"}`,
+		responses: []collector.AIResponse{
+			{OutputText: integrationKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
+			{OutputText: validJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
 	collectorRepo := storage.NewCollectorRepository(db.Pool)
