@@ -8,12 +8,14 @@ import (
 )
 
 type HistoryItem struct {
-	ID       string `json:"id"`
-	Category string `json:"category"`
-	Rank     int    `json:"rank"`
-	Topic    string `json:"topic"`
-	Summary  string `json:"summary"`
-	Detail   string `json:"detail"`
+	ID        string   `json:"id"`
+	Category  string   `json:"category"`
+	Rank      int      `json:"rank"`
+	Topic     string   `json:"topic"`
+	Summary   string   `json:"summary"`
+	Detail    string   `json:"detail"`
+	Details   []string `json:"details"`
+	BuzzScore int      `json:"buzz_score"`
 }
 
 type HistoryEntry struct {
@@ -27,6 +29,8 @@ type TopicDetail struct {
 	ID        uuid.UUID `json:"id"`
 	Topic     string    `json:"topic"`
 	Detail    string    `json:"detail"`
+	Details   []string  `json:"details"`
+	BuzzScore int       `json:"buzz_score"`
 	Sources   []string  `json:"sources"`
 	CreatedAt time.Time `json:"created_at"`
 }

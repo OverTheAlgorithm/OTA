@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -28,7 +29,9 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 			ci.rank,
 			ci.topic,
 			ci.summary,
-			COALESCE(ci.detail, '')
+			COALESCE(ci.detail, ''),
+			COALESCE(ci.details, '[]'),
+			COALESCE(ci.buzz_score, 0)
 		FROM delivery_logs dl
 		JOIN collection_runs cr ON dl.run_id = cr.id
 		JOIN context_items ci   ON ci.collection_run_id = cr.id
@@ -47,9 +50,11 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 	for rows.Next() {
 		var deliveredAt time.Time
 		var item collector.HistoryItem
-		if err := rows.Scan(&deliveredAt, &item.ID, &item.Category, &item.Rank, &item.Topic, &item.Summary, &item.Detail); err != nil {
+		var detailsJSON []byte
+		if err := rows.Scan(&deliveredAt, &item.ID, &item.Category, &item.Rank, &item.Topic, &item.Summary, &item.Detail, &detailsJSON, &item.BuzzScore); err != nil {
 			return nil, err
 		}
+		_ = json.Unmarshal(detailsJSON, &item.Details)
 		date := deliveredAt.UTC().Format("2006-01-02")
 		if _, ok := entryMap[date]; !ok {
 			entryMap[date] = &collector.HistoryEntry{
@@ -73,16 +78,18 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 // Returns nil, nil if the item does not exist.
 func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID) (*collector.TopicDetail, error) {
 	var item collector.TopicDetail
+	var detailsJSON []byte
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, topic, COALESCE(detail, ''), COALESCE(sources, '{}'), created_at
+		SELECT id, topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '{}'), created_at
 		FROM context_items
 		WHERE id = $1
-	`, id).Scan(&item.ID, &item.Topic, &item.Detail, &item.Sources, &item.CreatedAt)
+	`, id).Scan(&item.ID, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
 	}
+	_ = json.Unmarshal(detailsJSON, &item.Details)
 	return &item, nil
 }

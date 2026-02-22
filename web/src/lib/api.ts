@@ -74,6 +74,8 @@ export interface HistoryItem {
   topic: string;
   summary: string;
   detail: string;
+  details: string[];
+  buzz_score: number;
 }
 
 export interface HistoryEntry {
@@ -162,6 +164,8 @@ export interface TopicDetail {
   id: string;
   topic: string;
   detail: string;
+  details: string[];
+  buzz_score: number;
   sources: string[];
   created_at: string;
 }

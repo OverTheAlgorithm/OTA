@@ -31,6 +31,8 @@ type ContextItem struct {
 	Topic           string   `json:"topic"`
 	Summary         string   `json:"summary"`
 	Detail          string   `json:"detail"`
+	Details         []string `json:"details"`
+	BuzzScore       int      `json:"buzz_score"`
 	Sources         []string `json:"sources"`
 }
 
