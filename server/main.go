@@ -76,6 +76,10 @@ func main() {
 	collectorService.WithAggregator(aggregator).WithTrendingRepo(trendingRepo)
 	log.Println("structured source pipeline initialized (google_trends + google_news)")
 
+	// Brain categories (for AI prompt + admin management)
+	brainCategoryRepo := storage.NewBrainCategoryRepository(pool)
+	collectorService.WithBrainCategoryRepo(brainCategoryRepo)
+
 	// Message delivery
 	emailSender := email.NewSMTPSender(email.SMTPConfig{
 		Host:     cfg.SMTPHost,
@@ -86,7 +90,7 @@ func main() {
 	})
 	deliveryRepo := storage.NewDeliveryRepository(pool)
 	collectorAdapter := storage.NewCollectorServiceAdapter(pool)
-	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter, cfg.FrontendURL)
+	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter, brainCategoryRepo, cfg.FrontendURL)
 	log.Println("delivery service initialized")
 
 	// Scheduler
@@ -104,7 +108,8 @@ func main() {
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
 	stateStore := auth.NewStateStore()
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, cfg.FrontendURL)
-	adminHandler := handler.NewAdminHandler(collectorService, cfg.SlackWebhookURL)
+	brainCategoryHandler := handler.NewBrainCategoryHandler(brainCategoryRepo)
+	adminHandler := handler.NewAdminHandler(collectorService, cfg.SlackWebhookURL, brainCategoryHandler)
 	deliveryHandler := api.NewDeliveryHandler(deliveryService, api.AuthMiddleware(jwtManager))
 	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo, deliveryService)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionRepo, api.AuthMiddleware(jwtManager))
@@ -153,6 +158,11 @@ func main() {
 		{
 			GroupName:   "context",
 			Handler:     contextHistoryHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "brain-categories",
+			Handler:     brainCategoryHandler,
 			Middlewares: []gin.HandlerFunc{},
 		},
 	})

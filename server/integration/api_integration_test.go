@@ -33,7 +33,7 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 	collectorService := collector.NewService(aiClient, collectorRepo)
 	collectorService.WithAggregator(agg)
 
-	adminHandler := handler.NewAdminHandler(collectorService, "") // no Slack webhook in tests
+	adminHandler := handler.NewAdminHandler(collectorService, "", nil) // no Slack webhook or brain categories in tests
 
 	// Setup router
 	gin.SetMode(gin.TestMode)

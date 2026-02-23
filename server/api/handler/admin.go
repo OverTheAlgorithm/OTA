@@ -15,14 +15,16 @@ import (
 )
 
 type AdminHandler struct {
-	collectorService *collector.Service
-	slackWebhookURL  string
+	collectorService     *collector.Service
+	slackWebhookURL      string
+	brainCategoryHandler *BrainCategoryHandler
 }
 
-func NewAdminHandler(collectorService *collector.Service, slackWebhookURL string) *AdminHandler {
+func NewAdminHandler(collectorService *collector.Service, slackWebhookURL string, brainCatHandler *BrainCategoryHandler) *AdminHandler {
 	return &AdminHandler{
-		collectorService: collectorService,
-		slackWebhookURL:  slackWebhookURL,
+		collectorService:     collectorService,
+		slackWebhookURL:      slackWebhookURL,
+		brainCategoryHandler: brainCatHandler,
 	}
 }
 
@@ -71,4 +73,9 @@ func (h *AdminHandler) notifySlack(text string) {
 
 func (h *AdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/collect", h.TriggerCollection)
+
+	if h.brainCategoryHandler != nil {
+		bcGroup := group.Group("/brain-categories")
+		h.brainCategoryHandler.RegisterAdminRoutes(bcGroup)
+	}
 }
