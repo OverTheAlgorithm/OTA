@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { HistoryEntry, HistoryItem } from "@/lib/api";
+import type { HistoryEntry, HistoryItem, BrainCategory } from "@/lib/api";
+import { getBrainCategories } from "@/lib/api";
 
 interface Props {
   entries: HistoryEntry[];
@@ -53,21 +54,37 @@ function TopicRow({ item, accent }: { item: HistoryItem; accent?: string }) {
   );
 }
 
+function groupByBrainCategory(items: HistoryItem[]): Record<string, HistoryItem[]> {
+  const groups: Record<string, HistoryItem[]> = {};
+  for (const item of items) {
+    const key = item.brain_category || "";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  }
+  return groups;
+}
+
 function HistoryCard({
   entry,
   subscriptions,
+  brainCategories,
   defaultOpen,
 }: {
   entry: HistoryEntry;
   subscriptions: string[];
+  brainCategories: BrainCategory[];
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const topItems = entry.items.filter((i) => i.category === "top");
-  const briefItems = entry.items.filter((i) => i.category === "brief");
-  const interestItems = entry.items.filter(
-    (i) => i.category !== "top" && i.category !== "brief" && subscriptions.includes(i.category),
+
+  // Filter: always include top + brief, plus subscribed categories
+  const subSet = new Set(subscriptions);
+  const selectedItems = entry.items.filter(
+    (i) => i.category === "top" || i.category === "brief" || subSet.has(i.category),
   );
+
+  const bcGroups = groupByBrainCategory(selectedItems);
+  const bcLookup = new Map(brainCategories.map(bc => [bc.key, bc]));
 
   return (
     <div className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] overflow-hidden">
@@ -79,7 +96,7 @@ function HistoryCard({
         <span className="font-semibold text-[#f5f0ff]">{formatDate(entry.date)}</span>
         <div className="flex items-center gap-2">
           <span className="text-xs text-[#9b8bb4] bg-[#0f0a19] px-2.5 py-1 rounded-full border border-[#2d1f42]">
-            {topItems.length + briefItems.length + interestItems.length}개 토픽
+            {selectedItems.length}개 토픽
           </span>
           <svg
             className="w-4 h-4 text-[#9b8bb4] transition-transform duration-200"
@@ -93,99 +110,49 @@ function HistoryCard({
       </button>
 
       {open && <div className="p-6 space-y-5">
-        {topItems.length > 0 && (
+        {/* Render brain category sections in display_order */}
+        {brainCategories.map((bc) => {
+          const items = bcGroups[bc.key];
+          if (!items || items.length === 0) return null;
+          return (
+            <div key={bc.key}>
+              <div className="flex items-center gap-2 mb-3">
+                <div
+                  className="w-6 h-6 rounded-md flex items-center justify-center text-sm"
+                  style={{ backgroundColor: bc.accent_color + "15" }}
+                >
+                  {bc.emoji}
+                </div>
+                <span
+                  className="text-xs font-semibold tracking-wider"
+                  style={{ color: bc.accent_color }}
+                >
+                  {bc.label}
+                </span>
+              </div>
+              <ul>
+                {items.map((item, i) => (
+                  <TopicRow key={i} item={item} accent={bc.accent_color} />
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+
+        {/* Ungrouped items (no brain_category) */}
+        {bcGroups[""] && bcGroups[""].length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-md bg-[#e84d3d]/10 flex items-center justify-center">
-                <svg className="w-3.5 h-3.5 text-[#e84d3d]" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M2 12h20"/>
-                  <path d="M12 2a15 15 0 014 10 15 15 0 01-4 10 15 15 0 01-4-10 15 15 0 014-10z"/>
-                </svg>
+              <div className="w-6 h-6 rounded-md bg-[#9b8bb4]/10 flex items-center justify-center">
+                <span className="text-sm">📌</span>
               </div>
-              <span className="text-xs font-semibold text-[#e84d3d] uppercase tracking-wider">
-                대화 소재
+              <span className="text-xs font-semibold text-[#9b8bb4] tracking-wider">
+                기타
               </span>
             </div>
             <ul>
-              {topItems.map((item, i) => (
-                <TopicRow key={i} item={item} accent="#e84d3d" />
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {interestItems.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-md bg-[#5ba4d9]/10 flex items-center justify-center">
-                <svg className="w-3.5 h-3.5 text-[#5ba4d9]" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                </svg>
-              </div>
-              <span className="text-xs font-semibold text-[#5ba4d9] uppercase tracking-wider">
-                내 관심사
-              </span>
-            </div>
-            <ul>
-              {interestItems.map((item, i) => {
-                const hasDetails = item.details && item.details.length > 0;
-                return (
-                  <li key={i} className="flex gap-3 py-2.5 border-b border-[#2d1f42]/60 last:border-0">
-                    <span className="mt-2 w-1.5 h-1.5 rounded-full bg-[#5ba4d9]/60 shrink-0" />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-[#5ba4d9]/10 text-[#5ba4d9] border border-[#5ba4d9]/20">
-                          {item.category}
-                        </span>
-                      </div>
-                      <BuzzBadge score={item.buzz_score} />
-                      <p className="text-sm font-semibold text-[#f5f0ff] leading-snug">
-                        {item.topic}
-                      </p>
-                      <p className="text-xs text-[#d4cee0] mt-1 leading-relaxed">{item.summary}</p>
-                      {hasDetails && (
-                        <Link
-                          to={`/topic/${item.id}`}
-                          className="inline-block mt-1 text-xs transition-colors"
-                          style={{ color: "#9b8bb4" }}
-                          onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
-                          onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
-                        >
-                          {item.details.length}개의 추가 정보가 있어요 →
-                        </Link>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-
-        {briefItems.length > 0 && (
-          <div className="pt-2">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-5 h-5 rounded-md bg-[#4a3d5c]/20 flex items-center justify-center">
-                <span className="text-xs">💡</span>
-              </div>
-              <span className="text-[10px] font-semibold text-[#4a3d5c] uppercase tracking-wider">
-                알아두면 좋은 것
-              </span>
-            </div>
-            <ul>
-              {briefItems.map((item, i) => (
-                <li key={i} className="flex gap-2.5 py-1.5">
-                  <span className="mt-1.5 w-1 h-1 rounded-full bg-[#4a3d5c] shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-[#9b8bb4] leading-snug">
-                      {item.topic}
-                    </p>
-                    <p className="text-xs text-[#6b5f80] mt-0.5 leading-relaxed">{item.summary}</p>
-                  </div>
-                </li>
+              {bcGroups[""].map((item, i) => (
+                <TopicRow key={i} item={item} accent="#9b8bb4" />
               ))}
             </ul>
           </div>
@@ -196,6 +163,12 @@ function HistoryCard({
 }
 
 export function HistorySection({ entries, subscriptions, loading }: Props) {
+  const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
+
+  useEffect(() => {
+    getBrainCategories().then(setBrainCategories).catch(() => {});
+  }, []);
+
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
@@ -232,7 +205,13 @@ export function HistorySection({ entries, subscriptions, loading }: Props) {
       ) : (
         <div className="space-y-4">
           {entries.map((entry, i) => (
-            <HistoryCard key={entry.date} entry={entry} subscriptions={subscriptions} defaultOpen={i === 0} />
+            <HistoryCard
+              key={entry.date}
+              entry={entry}
+              subscriptions={subscriptions}
+              brainCategories={brainCategories}
+              defaultOpen={i === 0}
+            />
           ))}
         </div>
       )}

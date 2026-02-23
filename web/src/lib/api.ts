@@ -67,14 +67,20 @@ export async function deleteSubscription(category: string): Promise<void> {
 }
 
 // ── 맥락 이력 ─────────────────────────────────────────
+export interface DetailItem {
+  title: string;
+  content: string;
+}
+
 export interface HistoryItem {
   id: string;
   category: string;
+  brain_category: string;
   rank: number;
   topic: string;
   summary: string;
   detail: string;
-  details: string[];
+  details: DetailItem[];
   buzz_score: number;
 }
 
@@ -164,7 +170,7 @@ export interface TopicDetail {
   id: string;
   topic: string;
   detail: string;
-  details: string[];
+  details: DetailItem[];
   buzz_score: number;
   sources: string[];
   created_at: string;
@@ -204,6 +210,61 @@ export async function verifyEmailCode(code: string): Promise<void> {
   if (!res.ok) {
     const err: ApiError = await res.json();
     throw new Error(err.error || "인증 코드 확인에 실패했습니다");
+  }
+}
+
+// ── Brain Category ────────────────────────────────────
+export interface BrainCategory {
+  key: string;
+  emoji: string;
+  label: string;
+  accent_color: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getBrainCategories(): Promise<BrainCategory[]> {
+  const res = await fetch(`${API_BASE}/api/v1/brain-categories`);
+  if (!res.ok) throw new Error("Failed to fetch brain categories");
+  const body: ApiResponse<BrainCategory[]> = await res.json();
+  return body.data;
+}
+
+export async function createBrainCategory(bc: Omit<BrainCategory, "created_at" | "updated_at">): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/brain-categories`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bc),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "Failed to create brain category");
+  }
+}
+
+export async function updateBrainCategory(key: string, bc: Partial<BrainCategory>): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/brain-categories/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bc),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "Failed to update brain category");
+  }
+}
+
+export async function deleteBrainCategory(key: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/brain-categories/${encodeURIComponent(key)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "Failed to delete brain category");
   }
 }
 

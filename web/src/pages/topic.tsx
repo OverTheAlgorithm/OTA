@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { fetchTopicDetail, type TopicDetail } from "@/lib/api";
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
+  const d = new Date(iso);  
   return d.toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "long",
@@ -67,16 +67,18 @@ export function TopicPage() {
             {topic.topic}
           </h1>
           {topic.details && topic.details.length > 0 ? (
-            <ul className="space-y-3">
+            <div className="space-y-5">
               {topic.details.map((detail, i) => (
-                <li key={i} className="flex gap-3">
-                  <span className="mt-2 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "#9b8bb4" }} />
-                  <p className="text-base leading-relaxed" style={{ color: "#d4cee0" }}>
-                    {detail}
+                <div key={i} className="border-l-2 pl-4" style={{ borderColor: "#2d1f42" }}>
+                  <h3 className="text-base font-semibold leading-snug mb-1.5" style={{ color: "#f5f0ff" }}>
+                    {detail.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed" style={{ color: "#9b8bb4" }}>
+                    {detail.content}
                   </p>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           ) : topic.detail ? (
             <p className="text-base leading-relaxed" style={{ color: "#d4cee0" }}>
               {topic.detail}
