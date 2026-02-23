@@ -40,8 +40,7 @@ func (r *DeliveryRepository) GetEligibleUsers(ctx context.Context) ([]delivery.E
 		INNER JOIN user_delivery_channels udc ON u.id = udc.user_id
 		LEFT JOIN user_subscriptions us ON u.id = us.user_id
 		WHERE udc.enabled = true
-		  AND u.email IS NOT NULL
-		  AND u.email != ''
+		  AND (udc.channel != 'email' OR (u.email IS NOT NULL AND u.email != ''))
 		GROUP BY u.id, u.email
 		HAVING COUNT(DISTINCT udc.channel) FILTER (WHERE udc.enabled = true) > 0
 		ORDER BY u.created_at
@@ -264,8 +263,7 @@ func (r *DeliveryRepository) GetEligibleUserByID(ctx context.Context, userID str
 		LEFT JOIN user_subscriptions us ON u.id = us.user_id
 		WHERE u.id = $1
 		  AND udc.enabled = true
-		  AND u.email IS NOT NULL
-		  AND u.email != ''
+		  AND (udc.channel != 'email' OR (u.email IS NOT NULL AND u.email != ''))
 		GROUP BY u.id, u.email
 		HAVING COUNT(DISTINCT udc.channel) FILTER (WHERE udc.enabled = true) > 0
 	`
