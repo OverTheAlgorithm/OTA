@@ -26,6 +26,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 			dl.created_at,
 			ci.id::text,
 			ci.category,
+			COALESCE(ci.brain_category, ''),
 			ci.rank,
 			ci.topic,
 			ci.summary,
@@ -51,7 +52,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 		var deliveredAt time.Time
 		var item collector.HistoryItem
 		var detailsJSON []byte
-		if err := rows.Scan(&deliveredAt, &item.ID, &item.Category, &item.Rank, &item.Topic, &item.Summary, &item.Detail, &detailsJSON, &item.BuzzScore); err != nil {
+		if err := rows.Scan(&deliveredAt, &item.ID, &item.Category, &item.BrainCategory, &item.Rank, &item.Topic, &item.Summary, &item.Detail, &detailsJSON, &item.BuzzScore); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal(detailsJSON, &item.Details)

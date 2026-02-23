@@ -12,11 +12,12 @@ import (
 )
 
 type Service struct {
-	ai           AIClient
-	fallbackAI   AIClient // optional: used when primary fails with 5xx after all retries
-	repo         Repository
-	aggregator   *Aggregator
-	trendingRepo TrendingItemRepository // optional: persists raw trending data
+	ai              AIClient
+	fallbackAI      AIClient // optional: used when primary fails with 5xx after all retries
+	repo            Repository
+	aggregator      *Aggregator
+	trendingRepo    TrendingItemRepository    // optional: persists raw trending data
+	brainCatRepo    BrainCategoryRepository   // optional: loads brain categories for AI prompt
 }
 
 func NewService(aiClient AIClient, repo Repository) *Service {
@@ -35,6 +36,12 @@ func (s *Service) WithAggregator(agg *Aggregator) *Service {
 // WithTrendingRepo sets the repository for persisting raw trending data.
 func (s *Service) WithTrendingRepo(repo TrendingItemRepository) *Service {
 	s.trendingRepo = repo
+	return s
+}
+
+// WithBrainCategoryRepo sets the repository for loading brain categories into the AI prompt.
+func (s *Service) WithBrainCategoryRepo(repo BrainCategoryRepository) *Service {
+	s.brainCatRepo = repo
 	return s
 }
 
@@ -83,9 +90,19 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 		}
 	}
 
+	// Load brain categories for AI prompt injection.
+	var brainCategories []BrainCategory
+	if s.brainCatRepo != nil {
+		brainCategories, err = s.brainCatRepo.GetAll(ctx)
+		if err != nil {
+			log.Printf("warning: failed to load brain categories: %v — proceeding without them", err)
+			brainCategories = nil
+		}
+	}
+
 	// Stage 1: AI clustering + summarization (data-grounded, no hallucination).
 	log.Printf("collection run %s: stage 1 — AI clustering and summarization", run.ID)
-	prompt := BuildSourceBasedPrompt(data.FormattedText)
+	prompt := BuildSourceBasedPrompt(data.FormattedText, brainCategories)
 	aiResp, err := s.callAIWithRetry(ctx, prompt)
 	if err != nil {
 		errMsg := err.Error()
@@ -211,14 +228,15 @@ type aiResponsePayload struct {
 }
 
 type aiContextItem struct {
-	Category  string   `json:"category"`
-	Rank      int      `json:"rank"`
-	Topic     string   `json:"topic"`
-	Summary   string   `json:"summary"`
-	Detail    string   `json:"detail"`
-	Details   []string `json:"details"`
-	BuzzScore int      `json:"buzz_score"`
-	Sources   []string `json:"sources"`
+	Category      string       `json:"category"`
+	BrainCategory string       `json:"brain_category"`
+	Rank          int          `json:"rank"`
+	Topic         string       `json:"topic"`
+	Summary       string       `json:"summary"`
+	Detail        string       `json:"detail"`
+	Details       []DetailItem `json:"details"`
+	BuzzScore     int          `json:"buzz_score"`
+	Sources       []string     `json:"sources"`
 }
 
 // stripMarkdownCodeFence removes markdown code fence markers from text
@@ -272,6 +290,7 @@ func parseContextItems(outputText string, runID uuid.UUID) ([]ContextItem, error
 			ID:              uuid.New(),
 			CollectionRunID: runID,
 			Category:        raw.Category,
+			BrainCategory:   raw.BrainCategory,
 			Rank:            raw.Rank,
 			Topic:           raw.Topic,
 			Summary:         raw.Summary,

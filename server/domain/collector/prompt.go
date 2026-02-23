@@ -10,7 +10,20 @@ import (
 // It takes pre-collected trending data (from Google Trends, Google News, etc.)
 // and asks the AI to cluster, rank, and summarize — NOT to discover topics.
 // The prompt is in English for optimal model performance; output is Korean.
-func BuildSourceBasedPrompt(collectedData string) string {
+// formatBrainCategoryList formats brain categories for inclusion in the AI prompt.
+func formatBrainCategoryList(categories []BrainCategory) string {
+	if len(categories) == 0 {
+		return "(No brain categories configured)"
+	}
+	var sb strings.Builder
+	sb.WriteString("| key | emoji | label |\n|-----|-------|-------|\n")
+	for _, bc := range categories {
+		sb.WriteString(fmt.Sprintf("| %s | %s | %s |\n", bc.Key, bc.Emoji, bc.Label))
+	}
+	return sb.String()
+}
+
+func BuildSourceBasedPrompt(collectedData string, brainCategories []BrainCategory) string {
 	now := time.Now().UTC().Add(9 * time.Hour) // KST
 	dateStr := now.Format("2006-01-02")
 
@@ -65,7 +78,15 @@ When writing summaries and details for each topic:
    Example: A dating show contestant's scandal may be more "top"-worthy than a GDP report, because more people actually talk about it at work/school.
    Aim for a healthy mix: at least 1-2 "top" items should be light/fun/gossip topics if they exist in the data.
 
-4. **Write**: For each topic, produce a Korean summary in a friendly, polite tone.
+4. **Brain Category**: Assign each topic a "brain_category" key from the table below.
+   Brain categories tell users HOW to use each piece of information in daily life.
+   Choose the SINGLE most fitting key for each topic.
+
+%s
+   - Every topic MUST have a brain_category (do not leave it empty).
+   - Multiple topics can share the same brain_category.
+
+5. **Write**: For each topic, produce a Korean summary in a friendly, polite tone.
    - Read article URLs as needed to get specific details (quotes, numbers, context).
    - For "top" items, always try to read at least one article URL to ensure accuracy.
 
@@ -102,12 +123,15 @@ Enough context to start a conversation. Must include names, events, and why it m
 Extended context beyond the summary. Background, timeline, causes, and implications.
 Write as a coherent paragraph, not bullet points. Skip for "brief" category (use empty string "").
 
-### details (up to 5 expanded bullet points)
-Each is an independent, NEW fact not in summary or detail.
-Each bullet should be 3-4 sentences — provide enough context to be interesting on its own.
-Users who tap into the detail page want MORE depth, not just one-liners.
+### details (up to 5 structured detail entries)
+Each entry is a JSON object with "title" and "content" fields:
+- "title": A concise one-sentence heading that captures the key point (works as a scannable subtitle)
+- "content": 2-3 sentences expanding on the title with specific details, quotes, numbers, or context
 
-Types of content for each bullet:
+The title should be instantly understandable on its own — users scan titles first, then tap to read content.
+Each entry must be an independent, NEW fact not in summary or detail.
+
+Types of content for each entry:
 - Direct quotes from people involved + context of when/where they said it
 - Community memes or reactions + why they went viral
 - Related statistics or numbers + what they mean in context
@@ -119,7 +143,7 @@ Empty array [] if no additional facts available. MUST NOT repeat summary or deta
 1. Only use topics from the collected data. Do NOT add topics you found yourself.
 2. Every source URL must come from the collected data. No invented URLs.
 3. Write in Korean. Instructions are in English for precision, but all topic/summary/detail/details must be Korean.
-4. Pure JSON only. No markdown fences.`, dateStr, collectedData, jsonFormatExample())
+4. Pure JSON only. No markdown fences.`, dateStr, collectedData, formatBrainCategoryList(brainCategories), jsonFormatExample())
 }
 
 // BuildSourceReviewPrompt asks the AI to find replacement URLs for invalid sources.
@@ -177,33 +201,36 @@ func jsonFormatExample() string {
   "items": [
     {
       "category": "top",
+      "brain_category": "must_know",
       "rank": 1,
       "topic": "[인물/사건 특정] 구체적 주제명",
       "summary": "누가 무엇을 했는데, 왜 사람들이 난리인지, 어떤 논란/반응이 있는지까지. 이 정보만으로 대화를 시작할 수 있어야 합니다.",
       "detail": "이 사건의 상세 맥락을 설명합니다. summary에서 다루지 못한 배경, 경위, 전개 과정을 3~5문장 정도로 서술해요. 구체적인 수치, 당사자 발언, 사건의 타임라인 등을 포함하면 좋습니다.",
       "details": [
-        "당사자가 본인 인스타그램에 '이런 논란은 처음'이라는 글을 올렸는데요, 해당 게시물은 올린 지 2시간 만에 댓글 5천 개가 달렸대요. 이후 소속사에서 공식 입장을 내겠다고 밝혔지만 아직 발표는 없는 상황이에요.",
-        "온라인 커뮤니티에서는 관련 밈이 빠르게 퍼지고 있는데요, 특히 '이건 좀...' 짤이 실시간 트렌드에 올랐어요. X(트위터)에서도 관련 해시태그가 트렌딩 1위를 차지했대요.",
-        "비슷한 사례가 지난달에도 있었는데요, 그때는 3일 만에 사과문이 나왔어요. 이번에는 상황이 더 복잡해서 어떻게 전개될지 관심이 쏠리고 있어요."
+        {"title": "당사자가 인스타그램에 '이런 논란은 처음'이라는 글을 올렸대요", "content": "해당 게시물은 올린 지 2시간 만에 댓글 5천 개가 달렸어요. 이후 소속사에서 공식 입장을 내겠다고 밝혔지만 아직 발표는 없는 상황이에요."},
+        {"title": "온라인 커뮤니티에서 관련 밈이 빠르게 퍼지고 있어요", "content": "특히 '이건 좀...' 짤이 실시간 트렌드에 올랐고, X(트위터)에서도 관련 해시태그가 트렌딩 1위를 차지했대요."},
+        {"title": "비슷한 사례가 지난달에도 있었는데 3일 만에 사과문이 나왔어요", "content": "이번에는 상황이 더 복잡해서 어떻게 전개될지 관심이 쏠리고 있어요. 업계에서는 최소 일주일은 지켜봐야 한다는 반응이에요."}
       ],
       "buzz_score": 92,
       "sources": ["https://www.yna.co.kr/view/AKR20260222012345"]
     },
     {
       "category": "top",
+      "brain_category": "conversation",
       "rank": 2,
       "topic": "[인물/사건 특정] 두 번째 주제",
       "summary": "구체적 수치, 인물 발언, 커뮤니티 반응 등 대화 소재가 되는 디테일 포함.",
       "detail": "이 사건이 왜 중요한지 배경을 설명합니다. 관련된 이전 사건과의 연결, 각 측의 입장 차이, 향후 전개 예상 등을 포함해요.",
       "details": [
-        "이 사건은 지난주 처음 보도됐을 때는 큰 관심을 받지 못했는데요, 어제 새로운 증거가 공개되면서 상황이 완전히 바뀌었어요. 특히 내부 관계자의 폭로가 결정적이었대요.",
-        "찬성 측에서는 '당연한 조치'라는 입장인 반면, 반대 측은 '절차가 잘못됐다'며 강하게 반발하고 있어요. SNS에서도 의견이 크게 갈리면서 댓글창이 뜨겁게 달아오르고 있어요."
+        {"title": "어제 새로운 증거가 공개되면서 상황이 완전히 바뀌었어요", "content": "지난주 처음 보도됐을 때는 큰 관심을 받지 못했는데, 내부 관계자의 폭로가 결정적이었대요. 기존 보도와 완전히 다른 내용이라 충격이 컸어요."},
+        {"title": "찬성 측과 반대 측의 의견이 크게 갈리고 있어요", "content": "찬성 측에서는 '당연한 조치'라는 입장인 반면, 반대 측은 '절차가 잘못됐다'며 강하게 반발하고 있어요. SNS 댓글창이 뜨겁게 달아오르고 있대요."}
       ],
       "buzz_score": 78,
       "sources": ["https://namu.wiki/w/관련주제"]
     },
     {
       "category": "brief",
+      "brain_category": "result",
       "rank": 1,
       "topic": "[사건/주제] 간단한 제목",
       "summary": "한 문장으로 요약. 대화 소재는 아니지만 알아두면 좋은 정보.",
@@ -214,6 +241,7 @@ func jsonFormatExample() string {
     },
     {
       "category": "entertainment",
+      "brain_category": "fun",
       "rank": 1,
       "topic": "[프로그램명+인물명] 구체적 사건",
       "summary": "무슨 일이 있었고 사람들이 어떻게 반응하는지까지.",
