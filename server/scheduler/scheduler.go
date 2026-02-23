@@ -71,9 +71,9 @@ func (s *Scheduler) Stop() context.Context {
 
 func (s *Scheduler) collect() {
 	log.Println("checking if collection is needed")
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
-	result, err := s.collectorService.CollectIfNeeded(ctx)
+	result, err := s.collectorService.CollectFromSourcesIfNeeded(ctx)
 	if err != nil {
 		log.Printf("collection failed: %v", err)
 		return

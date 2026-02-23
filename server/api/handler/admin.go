@@ -36,7 +36,7 @@ func (h *AdminHandler) TriggerCollection(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 		defer cancel()
 
-		result, err := h.collectorService.Collect(ctx)
+		result, err := h.collectorService.CollectFromSources(ctx)
 		if err != nil {
 			log.Printf("collection failed: %v", err)
 			h.notifySlack(fmt.Sprintf(":x: *Collection failed*\n```%v```", err))

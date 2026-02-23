@@ -15,6 +15,8 @@ import (
 	"ota/domain/user"
 	"ota/platform/email"
 	"ota/platform/gemini"
+	"ota/platform/googlenews"
+	"ota/platform/googletrends"
 	"ota/platform/kakao"
 	"ota/platform/openai"
 	"ota/scheduler"
@@ -65,6 +67,14 @@ func main() {
 	} else {
 		log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
 	}
+
+	// Structured source collectors (Google Trends + Google News)
+	trendsCollector := googletrends.NewCollector()
+	newsCollector := googlenews.NewCollector(googlenews.DefaultTopics())
+	aggregator := collector.NewAggregator([]collector.SourceCollector{trendsCollector, newsCollector})
+	trendingRepo := storage.NewTrendingItemRepository(pool)
+	collectorService.WithAggregator(aggregator).WithTrendingRepo(trendingRepo)
+	log.Println("structured source pipeline initialized (google_trends + google_news)")
 
 	// Message delivery
 	emailSender := email.NewSMTPSender(email.SMTPConfig{

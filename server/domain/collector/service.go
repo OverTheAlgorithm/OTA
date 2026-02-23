@@ -12,9 +12,11 @@ import (
 )
 
 type Service struct {
-	ai         AIClient
-	fallbackAI AIClient // optional: used when primary fails with 5xx after all retries
-	repo       Repository
+	ai           AIClient
+	fallbackAI   AIClient // optional: used when primary fails with 5xx after all retries
+	repo         Repository
+	aggregator   *Aggregator
+	trendingRepo TrendingItemRepository // optional: persists raw trending data
 }
 
 func NewService(aiClient AIClient, repo Repository) *Service {
@@ -22,6 +24,18 @@ func NewService(aiClient AIClient, repo Repository) *Service {
 		ai:   aiClient,
 		repo: repo,
 	}
+}
+
+// WithAggregator sets the source aggregator for the new structured pipeline.
+func (s *Service) WithAggregator(agg *Aggregator) *Service {
+	s.aggregator = agg
+	return s
+}
+
+// WithTrendingRepo sets the repository for persisting raw trending data.
+func (s *Service) WithTrendingRepo(repo TrendingItemRepository) *Service {
+	s.trendingRepo = repo
+	return s
 }
 
 // WithFallback sets a fallback AI client to use when the primary model returns
@@ -32,25 +46,15 @@ func (s *Service) WithFallback(fallbackAI AIClient) *Service {
 	return s
 }
 
-func (s *Service) CollectIfNeeded(ctx context.Context) (*CollectionResult, error) {
-	canRun, err := s.repo.CanRunToday(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("checking run status: %w", err)
+// CollectFromSources runs the structured source collection pipeline:
+// Stage 0: Collect from structured sources (Google Trends, Google News, etc.)
+// Stage 1: AI clusters, ranks, and summarizes the collected data
+// Stage 2: Validate source URLs (reused from existing pipeline)
+func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, error) {
+	if s.aggregator == nil {
+		return CollectionResult{}, fmt.Errorf("aggregator not configured — call WithAggregator()")
 	}
 
-	if !canRun {
-		return nil, nil
-	}
-
-	result, err := s.Collect(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &result, nil
-}
-
-func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 	run := CollectionRun{
 		ID:        uuid.New(),
 		StartedAt: time.Now().UTC(),
@@ -61,54 +65,54 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 		return CollectionResult{}, fmt.Errorf("creating collection run: %w", err)
 	}
 
-	// Stage 1: extract trending keywords from real web searches.
-	// This grounds the pipeline on actual trending topics, preventing hallucination.
-	log.Printf("collection run %s: stage 1 — keyword extraction", run.ID)
-	kwResp, err := s.callAIWithRetry(ctx, BuildKeywordExtractionPrompt())
+	// Stage 0: collect from structured sources (no AI involved).
+	log.Printf("collection run %s: stage 0 — structured source collection", run.ID)
+	data, err := s.aggregator.Collect(ctx)
 	if err != nil {
 		errMsg := err.Error()
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, nil)
-		return CollectionResult{}, fmt.Errorf("stage 1 keyword extraction: %w", err)
+		return CollectionResult{}, fmt.Errorf("source collection: %w", err)
+	}
+	log.Printf("collection run %s: stage 0 done — %d items from sources", run.ID, len(data.Items))
+
+	// Persist raw trending data for tracking/analysis.
+	if s.trendingRepo != nil {
+		if err := s.trendingRepo.SaveTrendingItems(ctx, run.ID, data.Items); err != nil {
+			log.Printf("warning: failed to save trending items: %v", err)
+			// Non-fatal — continue pipeline
+		}
 	}
 
-	keywords, err := parseKeywords(kwResp.OutputText)
-	if err != nil {
-		errMsg := err.Error()
-		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, &kwResp.RawJSON)
-		return CollectionResult{}, fmt.Errorf("parsing keywords: %w", err)
-	}
-	log.Printf("collection run %s: stage 1 done — %d keywords extracted", run.ID, len(keywords))
-
-	// Stage 2: research each keyword in depth and produce structured summaries.
-	// Anchoring on Stage 1 keywords prevents the model from inventing topics.
-	log.Printf("collection run %s: stage 2 — topic enrichment", run.ID)
-	enrichResp, err := s.callAIWithRetry(ctx, BuildEnrichmentPrompt(keywords))
+	// Stage 1: AI clustering + summarization (data-grounded, no hallucination).
+	log.Printf("collection run %s: stage 1 — AI clustering and summarization", run.ID)
+	prompt := BuildSourceBasedPrompt(data.FormattedText)
+	aiResp, err := s.callAIWithRetry(ctx, prompt)
 	if err != nil {
 		errMsg := err.Error()
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, nil)
-		return CollectionResult{}, fmt.Errorf("stage 2 enrichment: %w", err)
+		return CollectionResult{}, fmt.Errorf("AI clustering: %w", err)
 	}
 
-	items, err := parseContextItems(enrichResp.OutputText, run.ID)
+	items, err := parseContextItems(aiResp.OutputText, run.ID)
 	if err != nil {
 		errMsg := err.Error()
-		rawResp := enrichResp.RawJSON
+		rawResp := aiResp.RawJSON
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, &rawResp)
-		return CollectionResult{}, fmt.Errorf("parsing ai response: %w", err)
+		return CollectionResult{}, fmt.Errorf("parsing AI response: %w", err)
 	}
 
-	// Stage 3: validate source URLs via HTTP and fix/remove broken ones.
+	// Stage 2: validate source URLs (reuse existing logic).
 	items = s.validateAndFixSources(ctx, items)
 
 	if err := s.repo.SaveContextItems(ctx, items); err != nil {
 		errMsg := err.Error()
-		rawResp := enrichResp.RawJSON
+		rawResp := aiResp.RawJSON
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, &rawResp)
 		return CollectionResult{}, fmt.Errorf("saving context items: %w", err)
 	}
 
 	now := time.Now().UTC()
-	rawResp := enrichResp.RawJSON
+	rawResp := aiResp.RawJSON
 	run.CompletedAt = &now
 	run.Status = RunStatusSuccess
 	run.RawResponse = &rawResp
@@ -117,8 +121,27 @@ func (s *Service) Collect(ctx context.Context) (CollectionResult, error) {
 		return CollectionResult{}, fmt.Errorf("completing run: %w", err)
 	}
 
-	log.Printf("collection run %s: complete — %d items saved", run.ID, len(items))
+	log.Printf("collection run %s: complete — %d items from %d source items", run.ID, len(items), len(data.Items))
 	return CollectionResult{Run: run, Items: items}, nil
+}
+
+// CollectFromSourcesIfNeeded checks if collection already ran today and skips if so.
+func (s *Service) CollectFromSourcesIfNeeded(ctx context.Context) (*CollectionResult, error) {
+	canRun, err := s.repo.CanRunToday(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("checking run status: %w", err)
+	}
+
+	if !canRun {
+		return nil, nil
+	}
+
+	result, err := s.CollectFromSources(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
 
 const (
