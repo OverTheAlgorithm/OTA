@@ -12,12 +12,9 @@ import {
 const CHANNEL_INFO = {
   email: { label: "이메일", icon: "📧", description: "이메일로 맥락을 받아요" },
   kakao: { label: "카카오톡", icon: "💬", description: "카카오톡으로 맥락을 받아요 (준비중)" },
-  telegram: { label: "텔레그램", icon: "✈️", description: "텔레그램으로 맥락을 받아요 (준비중)" },
-  sms: { label: "SMS", icon: "📱", description: "문자로 맥락을 받아요 (준비중)" },
-  push: { label: "푸시 알림", icon: "🔔", description: "앱 푸시로 맥락을 받아요 (준비중)" },
 };
 
-const CHANNEL_ORDER = ["email", "kakao", "telegram", "sms", "push"];
+const CHANNEL_ORDER = ["email", "kakao"];
 const MAX_RETRIES = 3;
 
 export function ChannelPreferencesSection() {
