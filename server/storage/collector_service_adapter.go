@@ -81,7 +81,7 @@ func (a *CollectorServiceAdapter) GetLastDeliveredRun(ctx context.Context) (*col
 func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uuid.UUID) ([]collector.ContextItem, error) {
 	query := `
 		SELECT id, collection_run_id, category, rank, topic, summary,
-		       COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '{}')
+		       COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]')
 		FROM context_items
 		WHERE collection_run_id = $1
 		ORDER BY rank

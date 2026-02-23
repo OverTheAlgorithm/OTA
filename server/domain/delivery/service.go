@@ -117,7 +117,6 @@ func (s *Service) DeliverToTargets(ctx context.Context, runID string, items []co
 
 		if alreadySent {
 			result.SkippedCount++
-			s.logDelivery(ctx, runID, target.User.UserID, target.Channel, target.RetryCount, StatusSkipped, "already sent")
 			continue
 		}
 
