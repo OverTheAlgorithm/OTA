@@ -68,7 +68,21 @@
       "WebFetch(domain:ai.google.dev)",
       "WebFetch(domain:www.aifreeapi.com)",
       "WebFetch(domain:blog.langchain.com)",
-      "WebFetch(domain:docs.cloud.google.com)"
+      "WebFetch(domain:docs.cloud.google.com)",
+      "WebFetch(domain:trends.google.co.kr)",
+      "WebFetch(domain:trends.google.com)",
+      "WebFetch(domain:www.yna.co.kr)",
+      "WebFetch(domain:news.kbs.co.kr)",
+      "WebFetch(domain:news.sbs.co.kr)",
+      "WebFetch(domain:imnews.imbc.com)",
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:rss.feedspot.com)",
+      "WebFetch(domain:datalab.naver.com)",
+      "WebFetch(domain:junpyopark.github.io)",
+      "WebFetch(domain:w3devlabs.net)",
+      "Bash(__NEW_LINE_48201c5f5975b6e5__ echo \"=== Entertainment sources ===\")",
+      "Bash(__NEW_LINE_05f7bdfc96f331a7__ echo \"=== Business sources ===\")"
     ]
   }
 }
