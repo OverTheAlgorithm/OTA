@@ -11,13 +11,13 @@ import (
 // This is a pure function - no side effects, completely testable.
 //
 // Rules:
-// - Always include items from "top" category (universal topics)
+// - Always include items from "top" and "brief" categories (universal topics)
 // - Append items from subscribed categories
-// - One sentence per topic (max 2 if necessary)
-// - Output in Korean
-// - frontendURL is used to generate "자세히 말해주세요" links per item.
+// - Groups items by brain_category (action-oriented labels) instead of raw category
+// - brainCategories provides the display metadata (emoji, label, color, order)
+// - frontendURL is used to generate detail links per item.
 //   Pass empty string to omit links (e.g. in tests or when URL is unavailable).
-func FormatMessage(items []collector.ContextItem, subscriptions []string, frontendURL string) FormattedMessage {
+func FormatMessage(items []collector.ContextItem, subscriptions []string, brainCategories []collector.BrainCategory, frontendURL string) FormattedMessage {
 	if len(items) == 0 {
 		return FormattedMessage{
 			Subject:  "오늘의 맥락",
@@ -49,8 +49,8 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, fronte
 	}
 
 	subject := generateSubject(selectedItems)
-	textBody := generateTextBody(selectedItems, frontendURL)
-	htmlBody := generateHTMLBody(selectedItems, frontendURL)
+	textBody := generateTextBody(selectedItems, brainCategories, frontendURL)
+	htmlBody := generateHTMLBody(selectedItems, brainCategories, frontendURL)
 
 	return FormattedMessage{
 		Subject:  subject,
@@ -74,46 +74,42 @@ func generateSubject(items []collector.ContextItem) string {
 	return fmt.Sprintf("오늘의 맥락 %d가지 (구독 주제 포함)", len(items))
 }
 
-func generateTextBody(items []collector.ContextItem, frontendURL string) string {
+func generateTextBody(items []collector.ContextItem, brainCategories []collector.BrainCategory, frontendURL string) string {
 	var sections []string
 
-	categoryGroups := groupByCategory(items)
-
-	if topItems, ok := categoryGroups["top"]; ok {
-		sections = append(sections, "🔥 대화 소재\n"+formatItemsAsText(topItems, frontendURL))
-	}
-
-	for category, catItems := range categoryGroups {
-		if category != "top" && category != "brief" {
-			categoryTitle := getCategoryTitle(category)
-			sections = append(sections, fmt.Sprintf("\n📌 %s\n%s", categoryTitle, formatItemsAsText(catItems, frontendURL)))
+	bcGroups := groupByBrainCategory(items)
+	// Render in brain category display_order
+	for _, bc := range brainCategories {
+		if groupItems, ok := bcGroups[bc.Key]; ok {
+			header := fmt.Sprintf("%s %s", bc.Emoji, bc.Label)
+			sections = append(sections, header+"\n"+formatItemsAsText(groupItems, frontendURL))
 		}
 	}
 
-	if briefItems, ok := categoryGroups["brief"]; ok {
-		sections = append(sections, "\n💡 알아두면 좋은 것\n"+formatBriefItemsAsText(briefItems))
+	// Items without brain_category (legacy/unmapped)
+	if ungrouped, ok := bcGroups[""]; ok {
+		sections = append(sections, "📌 기타\n"+formatItemsAsText(ungrouped, frontendURL))
 	}
 
-	return strings.Join(sections, "\n")
+	return strings.Join(sections, "\n\n")
 }
 
-func generateHTMLBody(items []collector.ContextItem, frontendURL string) string {
-	categoryGroups := groupByCategory(items)
+func generateHTMLBody(items []collector.ContextItem, brainCategories []collector.BrainCategory, frontendURL string) string {
+	bcGroups := groupByBrainCategory(items)
 
 	var body strings.Builder
 
-	if topItems, ok := categoryGroups["top"]; ok {
-		body.WriteString(renderEmailSection("대화 소재", "#e84d3d", topItems, frontendURL))
-	}
-
-	for category, catItems := range categoryGroups {
-		if category != "top" && category != "brief" {
-			body.WriteString(renderEmailSection(getCategoryTitle(category), "#5ba4d9", catItems, frontendURL))
+	// Render in brain category display_order
+	for _, bc := range brainCategories {
+		if groupItems, ok := bcGroups[bc.Key]; ok {
+			sectionTitle := fmt.Sprintf("%s %s", bc.Emoji, bc.Label)
+			body.WriteString(renderEmailSection(sectionTitle, bc.AccentColor, groupItems, frontendURL))
 		}
 	}
 
-	if briefItems, ok := categoryGroups["brief"]; ok {
-		body.WriteString(renderBriefEmailSection(briefItems))
+	// Items without brain_category (legacy/unmapped)
+	if ungrouped, ok := bcGroups[""]; ok {
+		body.WriteString(renderEmailSection("📌 기타", "#9b8bb4", ungrouped, frontendURL))
 	}
 
 	return wrapEmailTemplate(body.String())
@@ -214,12 +210,21 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 `, accentColor, title, rows.String())
 }
 
-func groupByCategory(items []collector.ContextItem) map[string][]collector.ContextItem {
+func groupByBrainCategory(items []collector.ContextItem) map[string][]collector.ContextItem {
 	groups := make(map[string][]collector.ContextItem)
 	for _, item := range items {
-		groups[item.Category] = append(groups[item.Category], item)
+		groups[item.BrainCategory] = append(groups[item.BrainCategory], item)
 	}
 	return groups
+}
+
+// buildBrainCategoryLookup creates a key→BrainCategory map for quick access.
+func buildBrainCategoryLookup(categories []collector.BrainCategory) map[string]collector.BrainCategory {
+	m := make(map[string]collector.BrainCategory, len(categories))
+	for _, bc := range categories {
+		m[bc.Key] = bc
+	}
+	return m
 }
 
 func formatItemsAsText(items []collector.ContextItem, frontendURL string) string {
@@ -238,61 +243,4 @@ func formatItemsAsText(items []collector.ContextItem, frontendURL string) string
 	return strings.Join(lines, "\n")
 }
 
-func formatBriefItemsAsText(items []collector.ContextItem) string {
-	var lines []string
-	for _, item := range items {
-		lines = append(lines, fmt.Sprintf("• %s: %s", item.Topic, item.Summary))
-	}
-	return strings.Join(lines, "\n")
-}
 
-func renderBriefEmailSection(items []collector.ContextItem) string {
-	var rows strings.Builder
-	for i, item := range items {
-		borderBottom := "border-bottom:1px solid #2d1f42;"
-		if i == len(items)-1 {
-			borderBottom = ""
-		}
-		rows.WriteString(fmt.Sprintf(`
-      <tr><td style="padding:12px 24px;%s">
-        <table width="100%%%%" cellpadding="0" cellspacing="0" border="0">
-          <tr>
-            <td width="10" style="vertical-align:top;padding-top:5px;">
-              <div style="width:5px;height:5px;border-radius:50%%%%;background-color:#4a3d5c;"></div>
-            </td>
-            <td style="padding-left:10px;">
-              <p style="margin:0;font-size:12px;font-weight:600;color:#9b8bb4;letter-spacing:-0.01em;">%s</p>
-              <p style="margin:2px 0 0;font-size:12px;color:#6b5f80;line-height:1.6;">%s</p>
-            </td>
-          </tr>
-        </table>
-      </td></tr>`, borderBottom, item.Topic, item.Summary))
-	}
-
-	return fmt.Sprintf(`
-      <tr><td style="padding-bottom:16px;">
-        <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#130e1e;border-radius:12px;border:1px solid #1e1730;">
-          <tr><td style="padding:12px 24px;border-bottom:1px solid #1e1730;">
-            <p style="margin:0;font-size:10px;font-weight:600;color:#4a3d5c;letter-spacing:0.1em;text-transform:uppercase;">💡 알아두면 좋은 것</p>
-          </td></tr>
-          %s
-        </table>
-      </td></tr>
-`, rows.String())
-}
-
-func getCategoryTitle(category string) string {
-	titles := map[string]string{
-		"entertainment": "연예",
-		"economy":       "경제",
-		"sports":        "스포츠",
-		"politics":      "정치",
-		"technology":    "기술",
-		"society":       "사회",
-	}
-
-	if title, ok := titles[category]; ok {
-		return title
-	}
-	return category
-}

@@ -145,7 +145,7 @@ func TestDeliverAll_Success(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 
 	result, err := service.DeliverAll(context.Background())
 	if err != nil {
@@ -183,7 +183,7 @@ func TestDeliverAll_NoCompletedRun(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 
 	_, err := service.DeliverAll(context.Background())
 	if err == nil {
@@ -206,7 +206,7 @@ func TestDeliverAll_NoItems(t *testing.T) {
 		items: []collector.ContextItem{},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 
 	result, err := service.DeliverAll(context.Background())
 	if err != nil {
@@ -247,7 +247,7 @@ func TestDeliverAll_Idempotency(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 
 	result, err := service.DeliverAll(context.Background())
 	if err != nil {
@@ -294,7 +294,7 @@ func TestDeliverAll_PartialFailure(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 
 	// First delivery succeeds
 	result, err := service.DeliverAll(context.Background())
@@ -353,7 +353,7 @@ func TestDeliverToUser_Success(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 	result, err := service.DeliverToUser(context.Background(), "user1")
 
 	if err != nil {
@@ -383,7 +383,7 @@ func TestDeliverToUser_NotEligible(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 	_, err := service.DeliverToUser(context.Background(), "user1")
 
 	if err == nil {
@@ -401,7 +401,7 @@ func TestDeliverToUser_NoCompletedRun(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 	_, err := service.DeliverToUser(context.Background(), "user1")
 
 	if err == nil {
@@ -434,7 +434,7 @@ func TestDeliverToUser_Idempotency(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 	result, err := service.DeliverToUser(context.Background(), "user1")
 
 	if err != nil {
@@ -463,7 +463,7 @@ func TestDeliverAll_NoUsers(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockRepo, mockEmailSender, mockCollector, "")
+	service := NewService(mockRepo, mockEmailSender, mockCollector, nil, "")
 
 	result, err := service.DeliverAll(context.Background())
 	if err != nil {

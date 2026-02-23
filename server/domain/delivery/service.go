@@ -16,6 +16,7 @@ type Service struct {
 	repo         Repository
 	emailSender  email.Sender
 	collectorSvc CollectorService
+	brainCatRepo collector.BrainCategoryRepository
 	frontendURL  string
 }
 
@@ -32,13 +33,28 @@ type WelcomeDeliverer interface {
 }
 
 // NewService creates a new delivery service
-func NewService(repo Repository, emailSender email.Sender, collectorSvc CollectorService, frontendURL string) *Service {
+func NewService(repo Repository, emailSender email.Sender, collectorSvc CollectorService, brainCatRepo collector.BrainCategoryRepository, frontendURL string) *Service {
 	return &Service{
 		repo:         repo,
 		emailSender:  emailSender,
 		collectorSvc: collectorSvc,
+		brainCatRepo: brainCatRepo,
 		frontendURL:  frontendURL,
 	}
+}
+
+// loadBrainCategories fetches brain categories from the repository.
+// Returns an empty slice on error (non-fatal — email renders without section headers).
+func (s *Service) loadBrainCategories(ctx context.Context) []collector.BrainCategory {
+	if s.brainCatRepo == nil {
+		return nil
+	}
+	cats, err := s.brainCatRepo.GetAll(ctx)
+	if err != nil {
+		fmt.Printf("WARNING: failed to load brain categories for delivery: %v\n", err)
+		return nil
+	}
+	return cats
 }
 
 // DeliveryResult represents the outcome of a delivery operation
@@ -105,6 +121,8 @@ func (s *Service) DeliverToTargets(ctx context.Context, runID string, items []co
 		DeliveryErrors: make(map[string]string),
 	}
 
+	brainCats := s.loadBrainCategories(ctx)
+
 	for _, target := range targets {
 		// Check idempotency
 		alreadySent, err := s.repo.HasDeliveryLog(ctx, runID, target.User.UserID, target.Channel)
@@ -121,7 +139,7 @@ func (s *Service) DeliverToTargets(ctx context.Context, runID string, items []co
 		}
 
 		// Format message per user (uses their subscriptions)
-		message := FormatMessage(items, target.User.Subscriptions, s.frontendURL)
+		message := FormatMessage(items, target.User.Subscriptions, brainCats, s.frontendURL)
 
 		// Send via appropriate channel
 		err = s.sendViaChannel(ctx, target.Channel, target.User, message)
@@ -266,7 +284,8 @@ func (s *Service) DeliverToNewUser(ctx context.Context, userID string, userEmail
 		return nil
 	}
 
-	message := FormatMessage(items, []string{}, s.frontendURL)
+	brainCats := s.loadBrainCategories(ctx)
+	message := FormatMessage(items, []string{}, brainCats, s.frontendURL)
 
 	if err := s.emailSender.Send(userEmail, message.Subject, message.TextBody, message.HTMLBody); err != nil {
 		s.logDelivery(ctx, run.ID.String(), userID, ChannelEmail, 0, StatusFailed, err.Error())
