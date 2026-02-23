@@ -102,13 +102,17 @@ Enough context to start a conversation. Must include names, events, and why it m
 Extended context beyond the summary. Background, timeline, causes, and implications.
 Write as a coherent paragraph, not bullet points. Skip for "brief" category (use empty string "").
 
-### details (up to 5 bullet points)
-Each is an independent, NEW fact not in summary or detail:
-- Direct quotes from people involved
-- Community memes or reactions
-- Related statistics or numbers
-- Connection to previous events
-- Expected next developments
+### details (up to 5 expanded bullet points)
+Each is an independent, NEW fact not in summary or detail.
+Each bullet should be 3-4 sentences — provide enough context to be interesting on its own.
+Users who tap into the detail page want MORE depth, not just one-liners.
+
+Types of content for each bullet:
+- Direct quotes from people involved + context of when/where they said it
+- Community memes or reactions + why they went viral
+- Related statistics or numbers + what they mean in context
+- Connection to previous events + how this changes things
+- Expected next developments + what experts/insiders are saying
 Empty array [] if no additional facts available. MUST NOT repeat summary or detail content.
 
 ## Critical Rules
@@ -178,9 +182,9 @@ func jsonFormatExample() string {
       "summary": "누가 무엇을 했는데, 왜 사람들이 난리인지, 어떤 논란/반응이 있는지까지. 이 정보만으로 대화를 시작할 수 있어야 합니다.",
       "detail": "이 사건의 상세 맥락을 설명합니다. summary에서 다루지 못한 배경, 경위, 전개 과정을 3~5문장 정도로 서술해요. 구체적인 수치, 당사자 발언, 사건의 타임라인 등을 포함하면 좋습니다.",
       "details": [
-        "당사자가 직접 한 발언이나 SNS 게시물 인용",
-        "커뮤니티에서 퍼진 밈이나 유행어",
-        "관련 통계나 수치 (조회수, 검색량 등)"
+        "당사자가 본인 인스타그램에 '이런 논란은 처음'이라는 글을 올렸는데요, 해당 게시물은 올린 지 2시간 만에 댓글 5천 개가 달렸대요. 이후 소속사에서 공식 입장을 내겠다고 밝혔지만 아직 발표는 없는 상황이에요.",
+        "온라인 커뮤니티에서는 관련 밈이 빠르게 퍼지고 있는데요, 특히 '이건 좀...' 짤이 실시간 트렌드에 올랐어요. X(트위터)에서도 관련 해시태그가 트렌딩 1위를 차지했대요.",
+        "비슷한 사례가 지난달에도 있었는데요, 그때는 3일 만에 사과문이 나왔어요. 이번에는 상황이 더 복잡해서 어떻게 전개될지 관심이 쏠리고 있어요."
       ],
       "buzz_score": 92,
       "sources": ["https://www.yna.co.kr/view/AKR20260222012345"]
@@ -192,8 +196,8 @@ func jsonFormatExample() string {
       "summary": "구체적 수치, 인물 발언, 커뮤니티 반응 등 대화 소재가 되는 디테일 포함.",
       "detail": "이 사건이 왜 중요한지 배경을 설명합니다. 관련된 이전 사건과의 연결, 각 측의 입장 차이, 향후 전개 예상 등을 포함해요.",
       "details": [
-        "이 사건의 배경과 경위",
-        "찬반 양측의 시각 요약"
+        "이 사건은 지난주 처음 보도됐을 때는 큰 관심을 받지 못했는데요, 어제 새로운 증거가 공개되면서 상황이 완전히 바뀌었어요. 특히 내부 관계자의 폭로가 결정적이었대요.",
+        "찬성 측에서는 '당연한 조치'라는 입장인 반면, 반대 측은 '절차가 잘못됐다'며 강하게 반발하고 있어요. SNS에서도 의견이 크게 갈리면서 댓글창이 뜨겁게 달아오르고 있어요."
       ],
       "buzz_score": 78,
       "sources": ["https://namu.wiki/w/관련주제"]

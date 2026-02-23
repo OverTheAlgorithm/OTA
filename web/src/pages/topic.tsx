@@ -93,23 +93,28 @@ export function TopicPage() {
             <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9b8bb4" }}>
               출처
             </p>
-            <ul className="space-y-1.5">
+            <div className="flex flex-wrap gap-2">
               {topic.sources.map((src, i) => (
-                <li key={i}>
-                  <a
-                    href={src}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm break-all transition-colors"
-                    style={{ color: "#9b8bb4" }}
-                    onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
-                    onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
-                  >
-                    {src}
-                  </a>
-                </li>
+                <a
+                  key={i}
+                  href={src}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm px-3 py-1 rounded-full transition-colors"
+                  style={{ color: "#9b8bb4", border: "1px solid #2d1f42" }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.color = "#f5f0ff";
+                    e.currentTarget.style.borderColor = "#9b8bb4";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.color = "#9b8bb4";
+                    e.currentTarget.style.borderColor = "#2d1f42";
+                  }}
+                >
+                  출처 {i + 1}
+                </a>
               ))}
-            </ul>
+            </div>
           </div>
         )}
       </div>
