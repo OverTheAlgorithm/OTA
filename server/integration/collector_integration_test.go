@@ -40,29 +40,52 @@ func (m *mockAIClient) SearchAndAnalyze(_ context.Context, _ string) (collector.
 	return collector.AIResponse{}, nil
 }
 
+// mockSourceCollector implements collector.SourceCollector for integration tests.
+type mockSourceCollector struct {
+	name  string
+	items []collector.TrendingItem
+}
+
+func (m *mockSourceCollector) Name() string { return m.name }
+func (m *mockSourceCollector) Collect(_ context.Context) ([]collector.TrendingItem, error) {
+	return m.items, nil
+}
+
+var testTrendingItems = []collector.TrendingItem{
+	{Keyword: "테스트 주제 1", Source: "google_trends", Traffic: 5000, ArticleURLs: []string{"https://example1.com"}, ArticleTitles: []string{"테스트 기사 1"}},
+	{Keyword: "테스트 주제 2", Source: "google_news", Category: "entertainment", ArticleURLs: []string{"https://example2.com"}, ArticleTitles: []string{"테스트 기사 2"}},
+	{Keyword: "테스트 주제 3", Source: "google_news", Category: "economy", ArticleURLs: []string{"https://example3.com"}, ArticleTitles: []string{"테스트 기사 3"}},
+}
+
+func newIntegrationService(aiClient *mockAIClient, pool interface{ Close() }, db *TestDB) *collector.Service {
+	repo := storage.NewCollectorRepository(db.Pool)
+	sc := &mockSourceCollector{name: "test_source", items: testTrendingItems}
+	agg := collector.NewAggregator([]collector.SourceCollector{sc})
+	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
+
+	svc := collector.NewService(aiClient, repo)
+	svc.WithAggregator(agg).WithTrendingRepo(trendingRepo)
+	return svc
+}
+
 func TestCollector_FullFlow(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "context_items", "collection_runs")
+	defer db.Truncate(t, "trending_items", "context_items", "collection_runs")
 
 	aiClient := &mockAIClient{
 		responses: []collector.AIResponse{
-			{OutputText: integrationKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
 			{
 				OutputText: validJSON,
 				RawJSON:    `{"raw":"data"}`,
-				Annotations: []collector.AIAnnotation{
-					{URL: "https://example.com", Title: "Example"},
-				},
 			},
 		},
 	}
 
-	repo := storage.NewCollectorRepository(db.Pool)
-	service := collector.NewService(aiClient, repo)
+	service := newIntegrationService(aiClient, nil, db)
 
-	result, err := service.Collect(context.Background())
+	result, err := service.CollectFromSources(context.Background())
 	if err != nil {
-		t.Fatalf("Collect failed: %v", err)
+		t.Fatalf("CollectFromSources failed: %v", err)
 	}
 
 	if result.Run.Status != collector.RunStatusSuccess {
@@ -73,7 +96,7 @@ func TestCollector_FullFlow(t *testing.T) {
 		t.Fatalf("expected 3 items, got %d", len(result.Items))
 	}
 
-	// Verify items were saved to DB
+	// Verify context items were saved to DB
 	rows, err := db.Pool.Query(context.Background(), "SELECT category, topic FROM context_items ORDER BY rank")
 	if err != nil {
 		t.Fatalf("failed to query items: %v", err)
@@ -92,11 +115,22 @@ func TestCollector_FullFlow(t *testing.T) {
 	if count != 3 {
 		t.Errorf("expected 3 items in DB, got %d", count)
 	}
+
+	// Verify trending items were saved to DB
+	var trendingCount int
+	err = db.Pool.QueryRow(context.Background(),
+		"SELECT COUNT(*) FROM trending_items WHERE collection_run_id = $1", result.Run.ID).Scan(&trendingCount)
+	if err != nil {
+		t.Fatalf("failed to count trending items: %v", err)
+	}
+	if trendingCount != 3 {
+		t.Errorf("expected 3 trending items in DB, got %d", trendingCount)
+	}
 }
 
 func TestCollector_CanRunToday(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "context_items", "collection_runs")
+	defer db.Truncate(t, "trending_items", "context_items", "collection_runs")
 
 	repo := storage.NewCollectorRepository(db.Pool)
 
@@ -166,33 +200,31 @@ func TestCollector_CanRunToday(t *testing.T) {
 	}
 }
 
-func TestCollector_CollectIfNeeded(t *testing.T) {
+func TestCollector_CollectFromSourcesIfNeeded(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "context_items", "collection_runs")
+	defer db.Truncate(t, "trending_items", "context_items", "collection_runs")
 
 	aiClient := &mockAIClient{
 		responses: []collector.AIResponse{
-			{OutputText: integrationKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
 			{OutputText: validJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
 
-	repo := storage.NewCollectorRepository(db.Pool)
-	service := collector.NewService(aiClient, repo)
+	service := newIntegrationService(aiClient, nil, db)
 
 	// First call should succeed
-	result1, err := service.CollectIfNeeded(context.Background())
+	result1, err := service.CollectFromSourcesIfNeeded(context.Background())
 	if err != nil {
-		t.Fatalf("CollectIfNeeded failed: %v", err)
+		t.Fatalf("CollectFromSourcesIfNeeded failed: %v", err)
 	}
 	if result1 == nil {
 		t.Fatal("expected result on first call")
 	}
 
 	// Second call should return nil (already collected today)
-	result2, err := service.CollectIfNeeded(context.Background())
+	result2, err := service.CollectFromSourcesIfNeeded(context.Background())
 	if err != nil {
-		t.Fatalf("CollectIfNeeded failed: %v", err)
+		t.Fatalf("CollectFromSourcesIfNeeded failed: %v", err)
 	}
 	if result2 != nil {
 		t.Error("expected nil result on second call (already collected)")
@@ -201,19 +233,15 @@ func TestCollector_CollectIfNeeded(t *testing.T) {
 
 func TestCollector_MultipleInstances(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "context_items", "collection_runs")
+	defer db.Truncate(t, "trending_items", "context_items", "collection_runs")
 
-	// Only one goroutine will actually call AI (the other skips via CanRunToday),
-	// so 2 responses (keywords + items) is sufficient.
 	aiClient := &mockAIClient{
 		responses: []collector.AIResponse{
-			{OutputText: integrationKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
 			{OutputText: validJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
 
-	repo := storage.NewCollectorRepository(db.Pool)
-	service := collector.NewService(aiClient, repo)
+	service := newIntegrationService(aiClient, nil, db)
 
 	// Simulate two instances calling at the same time
 	results := make(chan *collector.CollectionResult, 2)
@@ -221,7 +249,7 @@ func TestCollector_MultipleInstances(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		go func() {
-			result, err := service.CollectIfNeeded(context.Background())
+			result, err := service.CollectFromSourcesIfNeeded(context.Background())
 			if err != nil {
 				errors <- err
 			} else {
@@ -258,8 +286,6 @@ func TestCollector_MultipleInstances(t *testing.T) {
 	}
 }
 
-const integrationKeywordsJSON = `{"keywords": ["테스트 주제 1", "테스트 주제 2", "테스트 주제 3"]}`
-
 const validJSON = `{
 	"items": [
 		{
@@ -267,6 +293,7 @@ const validJSON = `{
 			"rank": 1,
 			"topic": "테스트 주제 1",
 			"summary": "첫 번째 테스트 요약",
+			"detail": "첫 번째 테스트 상세 설명입니다.",
 			"sources": ["https://example1.com"]
 		},
 		{
@@ -274,6 +301,7 @@ const validJSON = `{
 			"rank": 1,
 			"topic": "테스트 주제 2",
 			"summary": "두 번째 테스트 요약",
+			"detail": "두 번째 테스트 상세 설명입니다.",
 			"sources": ["https://example2.com"]
 		},
 		{
@@ -281,6 +309,7 @@ const validJSON = `{
 			"rank": 1,
 			"topic": "테스트 주제 3",
 			"summary": "세 번째 테스트 요약",
+			"detail": "세 번째 테스트 상세 설명입니다.",
 			"sources": ["https://example3.com"]
 		}
 	]

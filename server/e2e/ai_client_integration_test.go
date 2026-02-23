@@ -157,9 +157,14 @@ func TestAIClient_RetryLogic(t *testing.T) {
 	}
 
 	repo := storage.NewCollectorRepository(db.Pool)
+	sc := &e2eSourceCollector{items: []collector.TrendingItem{
+		{Keyword: "test", Source: "test", Traffic: 100},
+	}}
+	agg := collector.NewAggregator([]collector.SourceCollector{sc})
 	service := collector.NewService(failingClient, repo)
+	service.WithAggregator(agg)
 
-	result, err := service.Collect(context.Background())
+	result, err := service.CollectFromSources(context.Background())
 	if err != nil {
 		t.Fatalf("expected success after retries, got error: %v", err)
 	}
@@ -185,9 +190,14 @@ func TestAIClient_NoRetryOnFormatError(t *testing.T) {
 	}
 
 	repo := storage.NewCollectorRepository(db.Pool)
+	sc := &e2eSourceCollector{items: []collector.TrendingItem{
+		{Keyword: "test", Source: "test", Traffic: 100},
+	}}
+	agg := collector.NewAggregator([]collector.SourceCollector{sc})
 	service := collector.NewService(failingClient, repo)
+	service.WithAggregator(agg)
 
-	_, err := service.Collect(context.Background())
+	_, err := service.CollectFromSources(context.Background())
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -276,6 +286,16 @@ func TestAIClient_Gemini_InvalidAPIKey(t *testing.T) {
 	if !hasAuthKeyword {
 		t.Logf("Warning: Error message doesn't contain obvious authentication keywords: %s", errMsg)
 	}
+}
+
+// e2eSourceCollector is a simple mock for SourceCollector in e2e tests.
+type e2eSourceCollector struct {
+	items []collector.TrendingItem
+}
+
+func (m *e2eSourceCollector) Name() string { return "e2e_test" }
+func (m *e2eSourceCollector) Collect(_ context.Context) ([]collector.TrendingItem, error) {
+	return m.items, nil
 }
 
 // Helper functions and types

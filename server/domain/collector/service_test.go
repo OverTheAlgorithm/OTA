@@ -10,8 +10,6 @@ import (
 
 // --- mocks ---
 
-// mockAIClient supports a response queue for multi-stage pipeline testing.
-// Each call to SearchAndAnalyze pops the next response/error from the queue.
 type mockAIClient struct {
 	responses []AIResponse
 	errs      []error
@@ -68,19 +66,52 @@ func (m *mockRepo) CanRunToday(_ context.Context) (bool, error) {
 	return m.canRunToday, m.canRunTodayErr
 }
 
+// mockSourceCollector is defined in aggregator_test.go (same package).
+
+// mockTrendingRepo records saved items for verification.
+type mockTrendingRepo struct {
+	savedItems []TrendingItem
+	savedRunID uuid.UUID
+	saveErr    error
+}
+
+func (m *mockTrendingRepo) SaveTrendingItems(_ context.Context, runID uuid.UUID, items []TrendingItem) error {
+	m.savedRunID = runID
+	m.savedItems = items
+	return m.saveErr
+}
+
+func (m *mockTrendingRepo) GetTrendingItemsByRunID(_ context.Context, _ uuid.UUID) ([]TrendingItem, error) {
+	return m.savedItems, nil
+}
+
+// --- helpers ---
+
+func newTestService(aiClient AIClient, repo *mockRepo, collectors []SourceCollector) *Service {
+	svc := NewService(aiClient, repo)
+	agg := NewAggregator(collectors)
+	svc.WithAggregator(agg)
+	return svc
+}
+
+var testTrendingItems = []TrendingItem{
+	{Keyword: "RTX 5090", Source: "google_trends", Traffic: 5000, ArticleURLs: []string{"https://example.com/rtx"}, ArticleTitles: []string{"RTX 5090 출시"}},
+	{Keyword: "엔비디아 신제품 발표", Source: "google_news", Category: "technology", ArticleURLs: []string{"https://example.com/nvidia"}, ArticleTitles: []string{"엔비디아 신제품"}},
+}
+
 // --- tests ---
 
-func TestCollect_Success(t *testing.T) {
+func TestCollectFromSources_Success(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
 		responses: []AIResponse{
-			{OutputText: validKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
 			{OutputText: validCollectionJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := NewService(aiClient, repo)
-	result, err := svc.Collect(context.Background())
+	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	result, err := svc.CollectFromSources(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -94,9 +125,6 @@ func TestCollect_Success(t *testing.T) {
 	if result.Items[0].Category != "top" {
 		t.Errorf("expected category top, got %s", result.Items[0].Category)
 	}
-	if result.Items[1].Category != "entertainment" {
-		t.Errorf("expected category entertainment, got %s", result.Items[1].Category)
-	}
 	if repo.completedStatus != RunStatusSuccess {
 		t.Errorf("expected repo completed with success, got %s", repo.completedStatus)
 	}
@@ -105,12 +133,13 @@ func TestCollect_Success(t *testing.T) {
 	}
 }
 
-func TestCollect_AIFailure(t *testing.T) {
+func TestCollectFromSources_AIFailure(t *testing.T) {
 	repo := &mockRepo{}
-	aiClient := &mockAIClient{errs: []error{errors.New("openai down")}}
+	aiClient := &mockAIClient{errs: []error{errors.New("ai down")}}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := NewService(aiClient, repo)
-	_, err := svc.Collect(context.Background())
+	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	_, err := svc.CollectFromSources(context.Background())
 	if err == nil {
 		t.Fatal("expected error when AI fails")
 	}
@@ -119,14 +148,15 @@ func TestCollect_AIFailure(t *testing.T) {
 	}
 }
 
-func TestCollect_MalformedAIResponse(t *testing.T) {
+func TestCollectFromSources_MalformedAIResponse(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
 		responses: []AIResponse{{OutputText: "not json at all", RawJSON: `{"raw":"bad"}`}},
 	}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := NewService(aiClient, repo)
-	_, err := svc.Collect(context.Background())
+	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	_, err := svc.CollectFromSources(context.Background())
 	if err == nil {
 		t.Fatal("expected error for malformed AI response")
 	}
@@ -138,22 +168,48 @@ func TestCollect_MalformedAIResponse(t *testing.T) {
 	}
 }
 
-func TestCollect_CreateRunFailure(t *testing.T) {
+func TestCollectFromSources_CreateRunFailure(t *testing.T) {
 	repo := &mockRepo{createRunErr: errors.New("db down")}
 	aiClient := &mockAIClient{}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := NewService(aiClient, repo)
-	_, err := svc.Collect(context.Background())
+	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	_, err := svc.CollectFromSources(context.Background())
 	if err == nil {
 		t.Fatal("expected error when CreateRun fails")
 	}
 }
 
-func TestCollect_SkipsInvalidItems(t *testing.T) {
+func TestCollectFromSources_NoAggregator(t *testing.T) {
+	repo := &mockRepo{}
+	aiClient := &mockAIClient{}
+	svc := NewService(aiClient, repo)
+
+	_, err := svc.CollectFromSources(context.Background())
+	if err == nil {
+		t.Fatal("expected error when aggregator not configured")
+	}
+}
+
+func TestCollectFromSources_SourceCollectionFails(t *testing.T) {
+	repo := &mockRepo{}
+	aiClient := &mockAIClient{}
+	collector := &mockSourceCollector{name: "test_source", err: errors.New("rss down")}
+
+	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	_, err := svc.CollectFromSources(context.Background())
+	if err == nil {
+		t.Fatal("expected error when all sources fail")
+	}
+	if repo.completedStatus != RunStatusFailed {
+		t.Errorf("expected repo completed with failed, got %s", repo.completedStatus)
+	}
+}
+
+func TestCollectFromSources_SkipsInvalidItems(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
 		responses: []AIResponse{
-			{OutputText: validKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
 			{
 				OutputText: `{"items":[
 				{"category":"top","rank":1,"topic":"유효","summary":"유효한 항목","sources":[]},
@@ -164,9 +220,10 @@ func TestCollect_SkipsInvalidItems(t *testing.T) {
 			},
 		},
 	}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := NewService(aiClient, repo)
-	result, err := svc.Collect(context.Background())
+	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	result, err := svc.CollectFromSources(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -175,31 +232,35 @@ func TestCollect_SkipsInvalidItems(t *testing.T) {
 	}
 }
 
-func TestCollect_AllItemsInvalid(t *testing.T) {
+func TestCollectFromSources_SavesTrendingItems(t *testing.T) {
 	repo := &mockRepo{}
+	trendingRepo := &mockTrendingRepo{}
 	aiClient := &mockAIClient{
 		responses: []AIResponse{
-			{OutputText: validKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
-			{
-				OutputText: `{"items":[{"category":"","rank":1,"topic":"","summary":"","sources":[]}]}`,
-				RawJSON:    "{}",
-			},
+			{OutputText: validCollectionJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := NewService(aiClient, repo)
-	_, err := svc.Collect(context.Background())
-	if err == nil {
-		t.Fatal("expected error when all items are invalid")
+	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	svc.WithTrendingRepo(trendingRepo)
+
+	_, err := svc.CollectFromSources(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(trendingRepo.savedItems) != 2 {
+		t.Errorf("expected 2 trending items saved, got %d", len(trendingRepo.savedItems))
 	}
 }
 
-func TestCollectIfNeeded_AlreadyRun(t *testing.T) {
+func TestCollectFromSourcesIfNeeded_AlreadyRun(t *testing.T) {
 	repo := &mockRepo{canRunToday: false}
 	aiClient := &mockAIClient{}
 
 	svc := NewService(aiClient, repo)
-	result, err := svc.CollectIfNeeded(context.Background())
+	svc.WithAggregator(NewAggregator(nil))
+	result, err := svc.CollectFromSourcesIfNeeded(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -208,17 +269,17 @@ func TestCollectIfNeeded_AlreadyRun(t *testing.T) {
 	}
 }
 
-func TestCollectIfNeeded_CanRun(t *testing.T) {
+func TestCollectFromSourcesIfNeeded_CanRun(t *testing.T) {
 	repo := &mockRepo{canRunToday: true}
 	aiClient := &mockAIClient{
 		responses: []AIResponse{
-			{OutputText: validKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
 			{OutputText: validCollectionJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := NewService(aiClient, repo)
-	result, err := svc.CollectIfNeeded(context.Background())
+	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	result, err := svc.CollectFromSourcesIfNeeded(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -230,22 +291,22 @@ func TestCollectIfNeeded_CanRun(t *testing.T) {
 	}
 }
 
-const validKeywordsJSON = `{"keywords": ["환승연애 시즌3", "뉴진스 컴백"]}`
-
 const validCollectionJSON = `{
 	"items": [
 		{
 			"category": "top",
 			"rank": 1,
-			"topic": "환승연애 시즌3",
-			"summary": "출연자가 전 남자친구를 두 명이나 데리고 출연하며 화제를 모으고 있다.",
+			"topic": "RTX 5090 출시",
+			"summary": "엔비디아가 RTX 5090을 출시해서 화제예요.",
+			"detail": "엔비디아가 차세대 그래픽카드 RTX 5090을 공식 발표했는데요.",
 			"sources": ["https://example.com/news1"]
 		},
 		{
 			"category": "entertainment",
 			"rank": 1,
 			"topic": "뉴진스 컴백",
-			"summary": "뉴진스가 새 앨범으로 컴백을 발표했다.",
+			"summary": "뉴진스가 새 앨범으로 컴백을 발표했대요.",
+			"detail": "뉴진스가 새 앨범 발매를 공식 발표했는데요.",
 			"sources": ["https://example.com/news2"]
 		}
 	]

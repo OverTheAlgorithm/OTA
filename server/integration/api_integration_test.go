@@ -24,12 +24,14 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 	// Setup services
 	aiClient := &mockAIClient{
 		responses: []collector.AIResponse{
-			{OutputText: integrationKeywordsJSON, RawJSON: `{"raw":"keywords"}`},
 			{OutputText: validJSON, RawJSON: `{"raw":"data"}`},
 		},
 	}
 	collectorRepo := storage.NewCollectorRepository(db.Pool)
+	sc := &mockSourceCollector{name: "test_source", items: testTrendingItems}
+	agg := collector.NewAggregator([]collector.SourceCollector{sc})
 	collectorService := collector.NewService(aiClient, collectorRepo)
+	collectorService.WithAggregator(agg)
 
 	adminHandler := handler.NewAdminHandler(collectorService, "") // no Slack webhook in tests
 

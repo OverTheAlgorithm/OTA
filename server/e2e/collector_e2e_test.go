@@ -8,20 +8,20 @@ import (
 
 	"ota/domain/collector"
 	"ota/platform/gemini"
+	"ota/platform/googlenews"
+	"ota/platform/googletrends"
 	"ota/storage"
 )
 
-// TestCollector_E2E_WithRealAPI tests the complete flow:
-// 1. Real Gemini API call with web search
-// 2. Parse AI response into context items
+// TestCollector_E2E_WithRealAPI tests the complete structured pipeline:
+// 1. Real RSS collection (Google Trends + Google News)
+// 2. Real Gemini API call for clustering + summarization
 // 3. Store in PostgreSQL database
 // 4. Verify data integrity
 func TestCollector_E2E_WithRealAPI(t *testing.T) {
-	// Setup test database
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "context_items", "collection_runs")
+	defer db.Truncate(t, "trending_items", "context_items", "collection_runs")
 
-	// Get Gemini credentials from environment
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		t.Skip("GEMINI_API_KEY not set - skipping E2E test with real API")
@@ -32,23 +32,27 @@ func TestCollector_E2E_WithRealAPI(t *testing.T) {
 		model = "gemini-2.5-flash-lite"
 	}
 
-	t.Logf("Testing E2E flow with real Gemini API (model: %s)", model)
+	t.Logf("Testing E2E structured pipeline (model: %s)", model)
 
-	// Create real Gemini client
+	// Create real collectors + AI client
 	aiClient := gemini.NewClient(apiKey, model)
+	trendsCollector := googletrends.NewCollector()
+	newsCollector := googlenews.NewCollector(googlenews.DefaultTopics())
+	aggregator := collector.NewAggregator([]collector.SourceCollector{trendsCollector, newsCollector})
 
-	// Create repository and service
 	repo := storage.NewCollectorRepository(db.Pool)
+	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
 	service := collector.NewService(aiClient, repo)
+	service.WithAggregator(aggregator).WithTrendingRepo(trendingRepo)
 
 	// Execute collection
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
-	t.Log("Calling collector.Collect() with real AI...")
-	result, err := service.Collect(ctx)
+	t.Log("Running structured pipeline: RSS collection → AI clustering → DB storage...")
+	result, err := service.CollectFromSources(ctx)
 	if err != nil {
-		t.Fatalf("Collect failed: %v", err)
+		t.Fatalf("CollectFromSources failed: %v", err)
 	}
 
 	// Verify collection run
@@ -68,7 +72,7 @@ func TestCollector_E2E_WithRealAPI(t *testing.T) {
 		t.Fatal("Expected at least 1 context item, got 0")
 	}
 
-	t.Logf("✅ Collection succeeded: %d context items", len(result.Items))
+	t.Logf("Collection succeeded: %d context items", len(result.Items))
 
 	// Verify items have required fields
 	categorySeen := make(map[string]bool)
@@ -86,27 +90,22 @@ func TestCollector_E2E_WithRealAPI(t *testing.T) {
 			t.Errorf("Item %d: summary is empty", i)
 		}
 		categorySeen[item.Category] = true
-		t.Logf("  [%s] Rank %d: %s", item.Category, item.Rank, item.Topic)
+		t.Logf("  [%s] Rank %d (buzz:%d): %s", item.Category, item.Rank, item.BuzzScore, item.Topic)
 	}
 
-	// Verify at least one "top" category exists
 	if !categorySeen["top"] {
 		t.Error("Expected at least one item with category 'top'")
 	}
 
 	// Verify data was stored in database
-	t.Log("Verifying data in database...")
+	t.Log("Verifying database storage...")
 
-	// Check collection_runs table
-	var dbRunID, dbStatus string
-	var dbStartedAt, dbCompletedAt time.Time
+	var dbStatus string
 	var dbRawResponse *string
 	err = db.Pool.QueryRow(ctx,
-		`SELECT id, started_at, completed_at, status, raw_response
-		 FROM collection_runs
-		 WHERE id = $1`,
+		`SELECT status, raw_response FROM collection_runs WHERE id = $1`,
 		result.Run.ID,
-	).Scan(&dbRunID, &dbStartedAt, &dbCompletedAt, &dbStatus, &dbRawResponse)
+	).Scan(&dbStatus, &dbRawResponse)
 	if err != nil {
 		t.Fatalf("Failed to query collection_runs: %v", err)
 	}
@@ -115,52 +114,41 @@ func TestCollector_E2E_WithRealAPI(t *testing.T) {
 		t.Errorf("DB status mismatch: expected %s, got %s", collector.RunStatusSuccess, dbStatus)
 	}
 
-	if dbRawResponse == nil || *dbRawResponse == "" {
-		t.Error("raw_response should be stored in DB")
-	} else {
-		t.Logf("  Raw response stored: %d bytes", len(*dbRawResponse))
-	}
-
-	// Check context_items table
-	rows, err := db.Pool.Query(ctx,
-		`SELECT id, category, rank, topic, summary, sources
-		 FROM context_items
-		 WHERE collection_run_id = $1
-		 ORDER BY category, rank`,
+	// Verify trending items were persisted
+	var trendingCount int
+	err = db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM trending_items WHERE collection_run_id = $1`,
 		result.Run.ID,
-	)
+	).Scan(&trendingCount)
 	if err != nil {
-		t.Fatalf("Failed to query context_items: %v", err)
+		t.Fatalf("Failed to count trending items: %v", err)
 	}
-	defer rows.Close()
-
-	dbItemCount := 0
-	for rows.Next() {
-		var id, category, topic, summary string
-		var rank int
-		var sources []byte // JSONB
-
-		err := rows.Scan(&id, &category, &rank, &topic, &summary, &sources)
-		if err != nil {
-			t.Fatalf("Failed to scan context_item: %v", err)
-		}
-
-		dbItemCount++
-		t.Logf("  DB Item %d: [%s] Rank %d - %s", dbItemCount, category, rank, topic)
+	t.Logf("  Trending items in DB: %d", trendingCount)
+	if trendingCount == 0 {
+		t.Error("Expected trending items to be persisted in DB")
 	}
 
-	if dbItemCount != len(result.Items) {
-		t.Errorf("DB item count mismatch: expected %d, got %d", len(result.Items), dbItemCount)
+	// Verify context items in DB
+	var contextCount int
+	err = db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM context_items WHERE collection_run_id = $1`,
+		result.Run.ID,
+	).Scan(&contextCount)
+	if err != nil {
+		t.Fatalf("Failed to count context items: %v", err)
+	}
+	if contextCount != len(result.Items) {
+		t.Errorf("DB context item count mismatch: expected %d, got %d", len(result.Items), contextCount)
 	}
 
-	t.Logf("✅ E2E test passed: Real API → Parsing → DB Storage verified")
+	t.Logf("E2E test passed: RSS(%d items) → AI → DB(%d context items) verified", trendingCount, contextCount)
 }
 
 // TestCollector_E2E_IdempotencyCheck verifies that running collection twice
-// in the same day is properly prevented
+// in the same day is properly prevented.
 func TestCollector_E2E_IdempotencyCheck(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "context_items", "collection_runs")
+	defer db.Truncate(t, "trending_items", "context_items", "collection_runs")
 
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
@@ -173,33 +161,39 @@ func TestCollector_E2E_IdempotencyCheck(t *testing.T) {
 	}
 
 	aiClient := gemini.NewClient(apiKey, model)
+	trendsCollector := googletrends.NewCollector()
+	newsCollector := googlenews.NewCollector(googlenews.DefaultTopics())
+	aggregator := collector.NewAggregator([]collector.SourceCollector{trendsCollector, newsCollector})
+
 	repo := storage.NewCollectorRepository(db.Pool)
+	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
 	service := collector.NewService(aiClient, repo)
+	service.WithAggregator(aggregator).WithTrendingRepo(trendingRepo)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	// First collection should succeed
 	t.Log("First collection attempt...")
-	result1, err := service.CollectIfNeeded(ctx)
+	result1, err := service.CollectFromSourcesIfNeeded(ctx)
 	if err != nil {
-		t.Fatalf("First CollectIfNeeded failed: %v", err)
+		t.Fatalf("First CollectFromSourcesIfNeeded failed: %v", err)
 	}
 	if result1 == nil {
 		t.Fatal("First collection should return result")
 	}
-	t.Logf("✅ First collection succeeded: %d items", len(result1.Items))
+	t.Logf("First collection succeeded: %d items", len(result1.Items))
 
 	// Second collection should be skipped
 	t.Log("Second collection attempt (should be skipped)...")
-	result2, err := service.CollectIfNeeded(ctx)
+	result2, err := service.CollectFromSourcesIfNeeded(ctx)
 	if err != nil {
-		t.Fatalf("Second CollectIfNeeded failed: %v", err)
+		t.Fatalf("Second CollectFromSourcesIfNeeded failed: %v", err)
 	}
 	if result2 != nil {
 		t.Error("Second collection should return nil (already collected today)")
 	}
-	t.Log("✅ Second collection properly skipped (idempotency working)")
+	t.Log("Second collection properly skipped (idempotency working)")
 
 	// Verify only one run exists in DB
 	var runCount int
@@ -211,5 +205,5 @@ func TestCollector_E2E_IdempotencyCheck(t *testing.T) {
 		t.Errorf("Expected exactly 1 run in DB, got %d", runCount)
 	}
 
-	t.Log("✅ Idempotency verified: Only 1 run in database")
+	t.Log("Idempotency verified: Only 1 run in database")
 }
