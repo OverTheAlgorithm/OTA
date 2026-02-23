@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -55,7 +54,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 		if err := rows.Scan(&deliveredAt, &item.ID, &item.Category, &item.BrainCategory, &item.Rank, &item.Topic, &item.Summary, &item.Detail, &detailsJSON, &item.BuzzScore); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(detailsJSON, &item.Details)
+		item.Details = collector.UnmarshalDetails(detailsJSON)
 		date := deliveredAt.UTC().Format("2006-01-02")
 		if _, ok := entryMap[date]; !ok {
 			entryMap[date] = &collector.HistoryEntry{
@@ -91,6 +90,6 @@ func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID
 		}
 		return nil, err
 	}
-	_ = json.Unmarshal(detailsJSON, &item.Details)
+	item.Details = collector.UnmarshalDetails(detailsJSON)
 	return &item, nil
 }

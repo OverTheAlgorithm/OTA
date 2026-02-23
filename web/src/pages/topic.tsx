@@ -68,16 +68,26 @@ export function TopicPage() {
           </h1>
           {topic.details && topic.details.length > 0 ? (
             <div className="space-y-5">
-              {topic.details.map((detail, i) => (
-                <div key={i} className="border-l-2 pl-4" style={{ borderColor: "#2d1f42" }}>
-                  <h3 className="text-base font-semibold leading-snug mb-1.5" style={{ color: "#f5f0ff" }}>
-                    {detail.title}
-                  </h3>
-                  <p className="text-sm leading-relaxed" style={{ color: "#9b8bb4" }}>
-                    {detail.content}
-                  </p>
-                </div>
-              ))}
+              {topic.details.map((detail, i) => {
+                // Backward compat: old data may have plain strings converted to {title, content:""}
+                const title = typeof detail === "string" ? detail : detail?.title;
+                const content = typeof detail === "string" ? "" : detail?.content;
+                if (!title && !content) return null;
+                return (
+                  <div key={i} className="border-l-2 pl-4" style={{ borderColor: "#2d1f42" }}>
+                    {title && (
+                      <h3 className="text-base font-semibold leading-snug mb-1.5" style={{ color: "#f5f0ff" }}>
+                        {title}
+                      </h3>
+                    )}
+                    {content && (
+                      <p className="text-sm leading-relaxed" style={{ color: "#9b8bb4" }}>
+                        {content}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : topic.detail ? (
             <p className="text-base leading-relaxed" style={{ color: "#d4cee0" }}>

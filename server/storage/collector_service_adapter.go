@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -113,7 +112,7 @@ func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uui
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan context item: %w", err)
 		}
-		_ = json.Unmarshal(detailsJSON, &item.Details)
+		item.Details = collector.UnmarshalDetails(detailsJSON)
 		items = append(items, item)
 	}
 

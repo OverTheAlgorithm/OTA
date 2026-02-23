@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,4 +47,24 @@ type ContextItem struct {
 type CollectionResult struct {
 	Run   CollectionRun
 	Items []ContextItem
+}
+
+// UnmarshalDetails decodes a JSON blob into []DetailItem with backward
+// compatibility: old data stored as ["string", ...] is converted to
+// [{Title: "string", Content: ""}].
+func UnmarshalDetails(data []byte) []DetailItem {
+	var items []DetailItem
+	if err := json.Unmarshal(data, &items); err == nil {
+		return items
+	}
+	// Fallback: old format was a plain string array.
+	var strings []string
+	if err := json.Unmarshal(data, &strings); err == nil && len(strings) > 0 {
+		items = make([]DetailItem, len(strings))
+		for i, s := range strings {
+			items[i] = DetailItem{Title: s, Content: ""}
+		}
+		return items
+	}
+	return nil
 }
