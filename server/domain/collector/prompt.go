@@ -126,22 +126,24 @@ func BuildSourceReviewPrompt(items []ContextItem, invalid []InvalidSource) strin
 	}
 
 	type entry struct {
-		Topic  string
-		URL    string
-		Reason string
+		Topic   string
+		Summary string
+		URL     string
+		Reason  string
 	}
 	var entries []entry
 	for _, inv := range invalid {
-		topic := ""
+		var topic, summary string
 		if inv.ItemIndex < len(items) {
 			topic = items[inv.ItemIndex].Topic
+			summary = items[inv.ItemIndex].Summary
 		}
-		entries = append(entries, entry{Topic: topic, URL: inv.URL, Reason: inv.Reason})
+		entries = append(entries, entry{Topic: topic, Summary: summary, URL: inv.URL, Reason: inv.Reason})
 	}
 
 	var list strings.Builder
 	for i, e := range entries {
-		list.WriteString(fmt.Sprintf("%d. Topic: %q / Failed URL: %s / Reason: %s\n", i+1, e.Topic, e.URL, e.Reason))
+		list.WriteString(fmt.Sprintf("%d. Topic: %q / Summary: %q / Failed URL: %s / Reason: %s\n", i+1, e.Topic, e.Summary, e.URL, e.Reason))
 	}
 
 	return fmt.Sprintf(`The following source URLs were found to be invalid when accessed via HTTP (404, page not found, etc.).

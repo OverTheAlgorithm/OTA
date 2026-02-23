@@ -310,13 +310,15 @@ func (s *Service) validateAndFixSources(ctx context.Context, items []ContextItem
 		return removeInvalidSources(items, invalid)
 	}
 
-	items = applySourceCorrections(items, reviewResp.OutputText, invalid)
+	items, replacedURLs := applySourceCorrections(items, reviewResp.OutputText, invalid)
 
-	// Validate the corrected URLs.
-	stillInvalid := validator.ValidateSources(ctx, items)
-	if len(stillInvalid) > 0 {
-		log.Printf("source validation: %d URL(s) still invalid after re-review — removing", len(stillInvalid))
-		items = removeInvalidSources(items, stillInvalid)
+	// Only validate the newly replaced URLs (skip already-validated ones).
+	if len(replacedURLs) > 0 {
+		stillInvalid := validator.ValidateSpecificURLs(ctx, items, replacedURLs)
+		if len(stillInvalid) > 0 {
+			log.Printf("source validation: %d URL(s) still invalid after re-review — removing", len(stillInvalid))
+			items = removeInvalidSources(items, stillInvalid)
+		}
 	}
 
 	return items
@@ -329,8 +331,9 @@ type sourceCorrection struct {
 }
 
 // applySourceCorrections parses the AI's correction response and replaces
-// old URLs with new ones in the items. Returns a new slice.
-func applySourceCorrections(items []ContextItem, responseText string, invalid []InvalidSource) []ContextItem {
+// old URLs with new ones in the items. Returns a new slice and the set of
+// newly introduced URLs (for targeted re-validation).
+func applySourceCorrections(items []ContextItem, responseText string, invalid []InvalidSource) ([]ContextItem, map[string]bool) {
 	clean := stripMarkdownCodeFence(responseText)
 
 	var payload struct {
@@ -338,7 +341,7 @@ func applySourceCorrections(items []ContextItem, responseText string, invalid []
 	}
 	if err := json.Unmarshal([]byte(clean), &payload); err != nil {
 		log.Printf("failed to parse source corrections JSON: %v — removing invalid URLs", err)
-		return removeInvalidSources(items, invalid)
+		return removeInvalidSources(items, invalid), nil
 	}
 
 	// Build lookup: old_url → new_url
@@ -353,6 +356,7 @@ func applySourceCorrections(items []ContextItem, responseText string, invalid []
 		invalidSet[inv.URL] = true
 	}
 
+	replacedURLs := make(map[string]bool)
 	result := make([]ContextItem, len(items))
 	for i, item := range items {
 		result[i] = item
@@ -361,6 +365,7 @@ func applySourceCorrections(items []ContextItem, responseText string, invalid []
 			if newURL, ok := corrections[src]; ok {
 				if newURL != "" {
 					newSources = append(newSources, newURL)
+					replacedURLs[newURL] = true
 				}
 				// empty newURL means AI couldn't find replacement — drop it
 			} else if invalidSet[src] {
@@ -371,7 +376,7 @@ func applySourceCorrections(items []ContextItem, responseText string, invalid []
 		}
 		result[i].Sources = newSources
 	}
-	return result
+	return result, replacedURLs
 }
 
 // removeInvalidSources strips all invalid URLs from items. Returns a new slice.
