@@ -12,6 +12,7 @@ import (
 	"ota/config"
 	"ota/domain/collector"
 	"ota/domain/delivery"
+	"ota/domain/level"
 	"ota/domain/user"
 	"ota/platform/email"
 	"ota/platform/gemini"
@@ -22,6 +23,24 @@ import (
 	"ota/scheduler"
 	"ota/storage"
 )
+
+// levelServiceAdapter bridges level.Service to delivery.LevelProvider.
+type levelServiceAdapter struct {
+	svc *level.Service
+}
+
+func (a *levelServiceAdapter) GetLevel(ctx context.Context, userID string) (delivery.UserLevelInfo, error) {
+	info, err := a.svc.GetLevel(ctx, userID)
+	if err != nil {
+		return delivery.UserLevelInfo{}, err
+	}
+	return delivery.UserLevelInfo{
+		Level:           info.Level,
+		CurrentProgress: info.CurrentProgress,
+		PointsToNext:    info.PointsToNext,
+		Description:     info.Description,
+	}, nil
+}
 
 func main() {
 	cfg, err := config.Load()
@@ -109,7 +128,6 @@ func main() {
 	stateStore := auth.NewStateStore()
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, cfg.FrontendURL)
 	brainCategoryHandler := handler.NewBrainCategoryHandler(brainCategoryRepo)
-	adminHandler := handler.NewAdminHandler(collectorService, cfg.SlackWebhookURL, brainCategoryHandler)
 	deliveryHandler := api.NewDeliveryHandler(deliveryService, api.AuthMiddleware(jwtManager))
 	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo, deliveryService)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionRepo, api.AuthMiddleware(jwtManager))
@@ -122,6 +140,17 @@ func main() {
 	// Context history
 	historyRepo := storage.NewHistoryRepository(pool)
 	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
+
+	// Level
+	levelRepo := storage.NewLevelRepository(pool)
+	levelService := level.NewService(levelRepo)
+	levelHandler := handler.NewLevelHandler(levelService, api.AuthMiddleware(jwtManager))
+	deliveryService.WithLevelProvider(&levelServiceAdapter{svc: levelService})
+
+	adminHandler := handler.NewAdminHandler(collectorService, cfg.SlackWebhookURL, brainCategoryHandler).
+		WithLevelService(levelService).
+		WithMockItemCreator(levelRepo).
+		WithDeliveryService(deliveryService)
 
 	// Router
 	r := api.NewRouter("api", "v1", cfg.FrontendURL, jwtManager, []api.RouteModule{
@@ -163,6 +192,11 @@ func main() {
 		{
 			GroupName:   "brain-categories",
 			Handler:     brainCategoryHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "level",
+			Handler:     levelHandler,
 			Middlewares: []gin.HandlerFunc{},
 		},
 	})

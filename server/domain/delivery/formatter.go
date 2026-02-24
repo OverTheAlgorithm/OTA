@@ -17,7 +17,7 @@ import (
 // - brainCategories provides the display metadata (emoji, label, color, order)
 // - frontendURL is used to generate detail links per item.
 //   Pass empty string to omit links (e.g. in tests or when URL is unavailable).
-func FormatMessage(items []collector.ContextItem, subscriptions []string, brainCategories []collector.BrainCategory, frontendURL string) FormattedMessage {
+func FormatMessage(items []collector.ContextItem, subscriptions []string, brainCategories []collector.BrainCategory, frontendURL string, levelInfo *UserLevelInfo) FormattedMessage {
 	if len(items) == 0 {
 		return FormattedMessage{
 			Subject:  "오늘의 맥락",
@@ -32,10 +32,10 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, brainC
 		subSet[sub] = true
 	}
 
-	// Filter items: always include "top" and "brief", plus subscribed categories
+	// Filter items: always include "top", "brief", "over_the_algorithm", plus subscribed categories
 	var selectedItems []collector.ContextItem
 	for _, item := range items {
-		if item.Category == "top" || item.Category == "brief" || subSet[item.Category] {
+		if item.Category == "top" || item.Category == "brief" || item.BrainCategory == "over_the_algorithm" || subSet[item.Category] {
 			selectedItems = append(selectedItems, item)
 		}
 	}
@@ -50,7 +50,7 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, brainC
 
 	subject := generateSubject(selectedItems)
 	textBody := generateTextBody(selectedItems, brainCategories, frontendURL)
-	htmlBody := generateHTMLBody(selectedItems, brainCategories, frontendURL)
+	htmlBody := generateHTMLBody(selectedItems, brainCategories, frontendURL, levelInfo)
 
 	return FormattedMessage{
 		Subject:  subject,
@@ -78,6 +78,7 @@ func generateTextBody(items []collector.ContextItem, brainCategories []collector
 	var sections []string
 
 	bcGroups := groupByBrainCategory(items)
+
 	// Render in brain category display_order
 	for _, bc := range brainCategories {
 		if groupItems, ok := bcGroups[bc.Key]; ok {
@@ -94,7 +95,7 @@ func generateTextBody(items []collector.ContextItem, brainCategories []collector
 	return strings.Join(sections, "\n\n")
 }
 
-func generateHTMLBody(items []collector.ContextItem, brainCategories []collector.BrainCategory, frontendURL string) string {
+func generateHTMLBody(items []collector.ContextItem, brainCategories []collector.BrainCategory, frontendURL string, levelInfo *UserLevelInfo) string {
 	bcGroups := groupByBrainCategory(items)
 
 	var body strings.Builder
@@ -112,10 +113,12 @@ func generateHTMLBody(items []collector.ContextItem, brainCategories []collector
 		body.WriteString(renderEmailSection("📌 기타", "#9b8bb4", ungrouped, frontendURL))
 	}
 
-	return wrapEmailTemplate(body.String())
+	return wrapEmailTemplate(body.String(), frontendURL, levelInfo)
 }
 
-func wrapEmailTemplate(content string) string {
+func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) string {
+	logoURL := frontendURL + "/OTA_logo.png"
+	headerLevelCell := renderHeaderLevelCell(levelInfo, frontendURL)
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -127,10 +130,18 @@ func wrapEmailTemplate(content string) string {
   <tr><td align="center" style="padding:32px 16px 48px;">
     <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
 
-      <!-- Header -->
-      <tr><td style="padding-bottom:28px;">
-        <p style="margin:0;font-size:22px;font-weight:700;color:#f5f0ff;letter-spacing:-0.03em;">OTA</p>
-        <p style="margin:4px 0 0;font-size:13px;color:#9b8bb4;letter-spacing:0.01em;">오늘의 맥락 브리핑</p>
+      <!-- Header: Logo + Level Card -->
+      <tr><td style="padding-bottom:24px;">
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <!-- Logo -->
+            <td width="160" style="vertical-align:middle;text-align:center;">
+              <img src="%s" alt="OTA" width="150" style="display:block;margin:0 auto;max-width:150px;">
+              <p style="margin:6px 0 0;font-size:12px;color:#9b8bb4;">오늘의 맥락 브리핑</p>
+            </td>
+            %s
+          </tr>
+        </table>
       </td></tr>
 
       <!-- Sections -->
@@ -138,8 +149,7 @@ func wrapEmailTemplate(content string) string {
 
       <!-- Footer -->
       <tr><td style="padding-top:32px;border-top:1px solid #2d1f42;text-align:center;">
-        <p style="margin:0;font-size:12px;color:#9b8bb4;">Over the Algorithm</p>
-        <p style="margin:6px 0 0;font-size:11px;color:#4a3d5c;line-height:1.6;">
+        <p style="margin:0;font-size:11px;color:#4a3d5c;line-height:1.6;">
           알고리즘 너머의 맥락을 전달합니다.<br>
           이 메일은 OTA 브리핑 서비스를 통해 발송되었습니다.
         </p>
@@ -149,7 +159,64 @@ func wrapEmailTemplate(content string) string {
   </td></tr>
 </table>
 </body>
-</html>`, content)
+</html>`, logoURL, headerLevelCell, content)
+}
+
+// renderHeaderLevelCell returns the <td> for the level card in the header row.
+// Returns an empty <td> if levelInfo is nil (logo takes full width).
+func renderHeaderLevelCell(info *UserLevelInfo, frontendURL string) string {
+	if info == nil {
+		return ""
+	}
+
+	lv := info.Level
+	if lv < 1 || lv > 5 {
+		lv = 1
+	}
+	imgURL := fmt.Sprintf("%s/rainbow_lv%d.png", frontendURL, lv)
+
+	var progressText string
+	var progressPercent int
+	if info.PointsToNext == 0 {
+		progressText = `<p style="margin:0 0 5px;font-size:11px;color:#f0923b;font-weight:700;">MAX</p>`
+		progressPercent = 100
+	} else {
+		progressText = fmt.Sprintf(
+			`<p style="margin:0 0 5px;font-size:11px;color:#9b8bb4;">%d / %d</p>`,
+			info.CurrentProgress, info.PointsToNext,
+		)
+		progressPercent = int(float64(info.CurrentProgress) / float64(info.PointsToNext) * 100)
+	}
+
+	return fmt.Sprintf(`
+            <!-- Level Card -->
+            <td style="padding-left:12px;vertical-align:middle;">
+              <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1a1229;border-radius:16px;border:1px solid #2d1f42;">
+                <tr><td style="padding:10px 16px;border-bottom:1px solid #2d1f42;">
+                  <p style="margin:0;font-size:10px;font-weight:700;color:#5ba4d9;letter-spacing:0.08em;">🌈 나의 레벨</p>
+                </td></tr>
+                <tr><td style="padding:12px 16px;">
+                  <table width="100%%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td width="72" style="vertical-align:middle;">
+                        <img src="%s" alt="Lv.%d" width="72" style="display:block;">
+                      </td>
+                      <td style="padding-left:10px;vertical-align:middle;">
+                        <p style="margin:0 0 2px;font-size:17px;font-weight:700;color:#f5f0ff;">Lv.%d</p>
+                        %s
+                        <div style="width:100%%;height:5px;background-color:#2d1f42;border-radius:3px;overflow:hidden;margin-bottom:6px;">
+                          <div style="width:%d%%;height:100%%;background:linear-gradient(to right,#5ba4d9,#7bc67e);border-radius:3px;"></div>
+                        </div>
+                        <p style="margin:0;font-size:11px;color:#9b8bb4;">%s</p>
+                        <p style="margin:4px 0 0;font-size:10px;color:#4a3d5c;">🌈 토픽을 읽으면 포인트가 쌓여요</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </td>`,
+		imgURL, lv, lv, progressText, progressPercent, info.Description,
+	)
 }
 
 func renderEmailSection(title, accentColor string, items []collector.ContextItem, frontendURL string) string {
@@ -218,14 +285,6 @@ func groupByBrainCategory(items []collector.ContextItem) map[string][]collector.
 	return groups
 }
 
-// buildBrainCategoryLookup creates a key→BrainCategory map for quick access.
-func buildBrainCategoryLookup(categories []collector.BrainCategory) map[string]collector.BrainCategory {
-	m := make(map[string]collector.BrainCategory, len(categories))
-	for _, bc := range categories {
-		m[bc.Key] = bc
-	}
-	return m
-}
 
 func formatItemsAsText(items []collector.ContextItem, frontendURL string) string {
 	var lines []string

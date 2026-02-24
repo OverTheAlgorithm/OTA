@@ -11,13 +11,19 @@ import (
 	"ota/platform/email"
 )
 
+// LevelProvider fetches level info per user for email rendering.
+type LevelProvider interface {
+	GetLevel(ctx context.Context, userID string) (UserLevelInfo, error)
+}
+
 // Service orchestrates message delivery
 type Service struct {
-	repo         Repository
-	emailSender  email.Sender
-	collectorSvc CollectorService
-	brainCatRepo collector.BrainCategoryRepository
-	frontendURL  string
+	repo          Repository
+	emailSender   email.Sender
+	collectorSvc  CollectorService
+	brainCatRepo  collector.BrainCategoryRepository
+	frontendURL   string
+	levelProvider LevelProvider
 }
 
 // CollectorService defines the interface for fetching context items
@@ -41,6 +47,24 @@ func NewService(repo Repository, emailSender email.Sender, collectorSvc Collecto
 		brainCatRepo: brainCatRepo,
 		frontendURL:  frontendURL,
 	}
+}
+
+// WithLevelProvider sets the optional level provider for per-user level cards in email.
+func (s *Service) WithLevelProvider(lp LevelProvider) *Service {
+	s.levelProvider = lp
+	return s
+}
+
+// loadUserLevel fetches level info for a user. Returns nil if provider not set or on error.
+func (s *Service) loadUserLevel(ctx context.Context, userID string) *UserLevelInfo {
+	if s.levelProvider == nil {
+		return nil
+	}
+	info, err := s.levelProvider.GetLevel(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	return &info
 }
 
 // loadBrainCategories fetches brain categories from the repository.
@@ -138,8 +162,9 @@ func (s *Service) DeliverToTargets(ctx context.Context, runID string, items []co
 			continue
 		}
 
-		// Format message per user (uses their subscriptions)
-		message := FormatMessage(items, target.User.Subscriptions, brainCats, s.frontendURL)
+		// Format message per user (uses their subscriptions + level)
+		levelInfo := s.loadUserLevel(ctx, target.User.UserID)
+		message := FormatMessage(items, target.User.Subscriptions, brainCats, s.frontendURL, levelInfo)
 
 		// Send via appropriate channel
 		err = s.sendViaChannel(ctx, target.Channel, target.User, message)
@@ -195,6 +220,59 @@ func (s *Service) DeliverToUser(ctx context.Context, userID string) (*DeliveryRe
 	}
 
 	return s.DeliverToTargets(ctx, run.ID.String(), items, targets), nil
+}
+
+// ForceDeliverToUser sends the latest briefing to a single user, bypassing idempotency.
+// Used for admin testing — always sends regardless of prior delivery logs.
+func (s *Service) ForceDeliverToUser(ctx context.Context, userID string) (*DeliveryResult, error) {
+	run, err := s.collectorSvc.GetLatestRun(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest run: %w", err)
+	}
+	if run.Status != collector.RunStatusSuccess {
+		return nil, fmt.Errorf("latest run is not completed (status: %s)", run.Status)
+	}
+
+	items, err := s.collectorSvc.GetContextItems(ctx, run.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get context items: %w", err)
+	}
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no context items available")
+	}
+
+	user, err := s.repo.GetEligibleUserByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+	if user == nil {
+		return nil, fmt.Errorf("no enabled delivery channels — please set up a channel first")
+	}
+
+	result := &DeliveryResult{
+		TotalUsers:     len(user.EnabledChannels),
+		FailedUsers:    []string{},
+		DeliveryErrors: make(map[string]string),
+	}
+
+	brainCats := s.loadBrainCategories(ctx)
+	levelInfo := s.loadUserLevel(ctx, userID)
+	message := FormatMessage(items, user.Subscriptions, brainCats, s.frontendURL, levelInfo)
+
+	for _, channel := range user.EnabledChannels {
+		sendErr := s.sendViaChannel(ctx, channel, *user, message)
+		if sendErr != nil {
+			result.FailureCount++
+			result.FailedUsers = append(result.FailedUsers, user.UserID)
+			result.DeliveryErrors[fmt.Sprintf("%s_%s", user.UserID, channel)] = sendErr.Error()
+			s.logDelivery(ctx, run.ID.String(), user.UserID, channel, 0, StatusFailed, sendErr.Error())
+		} else {
+			result.SuccessCount++
+			s.logDelivery(ctx, run.ID.String(), user.UserID, channel, 0, StatusSent, "")
+		}
+	}
+
+	return result, nil
 }
 
 // DeliverAll sends messages to all eligible users.
@@ -285,7 +363,7 @@ func (s *Service) DeliverToNewUser(ctx context.Context, userID string, userEmail
 	}
 
 	brainCats := s.loadBrainCategories(ctx)
-	message := FormatMessage(items, []string{}, brainCats, s.frontendURL)
+	message := FormatMessage(items, []string{}, brainCats, s.frontendURL, nil)
 
 	if err := s.emailSender.Send(userEmail, message.Subject, message.TextBody, message.HTMLBody); err != nil {
 		s.logDelivery(ctx, run.ID.String(), userID, ChannelEmail, 0, StatusFailed, err.Error())

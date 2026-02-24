@@ -8,6 +8,9 @@
 .env
 *.env.local
 
+# Local dev overrides (not for production)
+docker-compose.override.yml
+
 # Go
 server/tmp/
 

@@ -4,8 +4,9 @@ import { useAuth } from "@/contexts/auth-context";
 import { InterestSection } from "@/components/interest-section";
 import { ChannelPreferencesSection } from "@/components/channel-preferences-section";
 import { HistorySection } from "@/components/history-section";
-import { getSubscriptions, getContextHistory, type HistoryEntry } from "@/lib/api";
+import { getSubscriptions, getContextHistory, getUserLevel, type HistoryEntry, type LevelInfo } from "@/lib/api";
 import { SendBriefingButton } from "@/components/send-briefing-button";
+import { LevelCard } from "@/components/level-card";
 
 export function HomePage() {
   const { user, loading, logout } = useAuth();
@@ -14,6 +15,7 @@ export function HomePage() {
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/", { replace: true });
@@ -26,6 +28,7 @@ export function HomePage() {
       .then(setHistory)
       .catch(() => {})
       .finally(() => setHistoryLoading(false));
+    getUserLevel().then(setLevelInfo).catch(() => {});
   }, [user]);
 
   if (loading || !user) {
@@ -94,16 +97,20 @@ export function HomePage() {
       </header>
 
       <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 space-y-6">
-        <div className="rounded-2xl bg-gradient-to-br from-[#1a1229] to-[#1e1530] border border-[#2d1f42] px-6 py-5 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-[#9b8bb4]">안녕하세요</p>
-            <h1 className="text-lg font-bold text-[#f5f0ff] mt-0.5">{displayName}님</h1>
+        {levelInfo ? (
+          <LevelCard level={levelInfo} />
+        ) : (
+          <div className="rounded-2xl bg-gradient-to-br from-[#1a1229] to-[#1e1530] border border-[#2d1f42] px-6 py-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-[#9b8bb4]">안녕하세요</p>
+              <h1 className="text-lg font-bold text-[#f5f0ff] mt-0.5">{displayName}님</h1>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-[#9b8bb4]">다음 브리핑</p>
+              <p className="text-sm font-semibold text-[#e84d3d] mt-0.5">{nextBriefing()}</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-[#9b8bb4]">다음 브리핑</p>
-            <p className="text-sm font-semibold text-[#e84d3d] mt-0.5">{nextBriefing()}</p>
-          </div>
-        </div>
+        )}
 
         <InterestSection selected={subscriptions} onChange={setSubscriptions} />
         <ChannelPreferencesSection />

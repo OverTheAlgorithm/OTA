@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import {
   triggerCollection,
+  sendTestEmail,
   getBrainCategories,
   createBrainCategory,
   updateBrainCategory,
   deleteBrainCategory,
   type BrainCategory,
+  type TestEmailResult,
 } from "@/lib/api";
 
 type CollectState =
@@ -225,6 +227,23 @@ export function AdminPage() {
   const navigate = useNavigate();
   const [collectState, setCollectState] = useState<CollectState>({ status: "idle" });
 
+  type TestEmailState =
+    | { status: "idle" }
+    | { status: "sending" }
+    | { status: "done"; result: TestEmailResult }
+    | { status: "error"; message: string };
+  const [testEmailState, setTestEmailState] = useState<TestEmailState>({ status: "idle" });
+
+  const handleTestEmail = async () => {
+    setTestEmailState({ status: "sending" });
+    try {
+      const result = await sendTestEmail();
+      setTestEmailState({ status: "done", result });
+    } catch (e) {
+      setTestEmailState({ status: "error", message: e instanceof Error ? e.message : "알 수 없는 오류" });
+    }
+  };
+
   useEffect(() => {
     if (loading) return;
     if (!user) { navigate("/", { replace: true }); return; }
@@ -289,6 +308,43 @@ export function AdminPage() {
             <div className="rounded-xl border border-red-900 bg-[#0f0a19] p-4 text-sm">
               <p className="text-red-400 font-semibold">수집 실패</p>
               <p className="text-[#9b8bb4] mt-1">{collectState.message}</p>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-[#2d1f42] bg-[#1a1229] p-6 space-y-4">
+          <h2 className="text-lg font-semibold">테스트 이메일</h2>
+          <p className="text-sm text-[#9b8bb4]">
+            최신 브리핑을 내 이메일로 즉시 전송합니다. 이메일 채널이 활성화되어 있어야 합니다.
+          </p>
+
+          <button
+            onClick={handleTestEmail}
+            disabled={testEmailState.status === "sending"}
+            className="w-full py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "#2d1f42", color: "#f5f0ff" }}
+          >
+            {testEmailState.status === "sending" ? "전송 중..." : "테스트 이메일 전송하기"}
+          </button>
+
+          {testEmailState.status === "done" && (
+            <div className="rounded-xl border border-[#2d4a2d] bg-[#1a2e1a] p-4 text-sm space-y-1">
+              {testEmailState.result.success_count > 0 && (
+                <p className="text-[#7bc67e] font-semibold">✓ 이메일이 전송됐습니다</p>
+              )}
+              {testEmailState.result.skipped_count > 0 && (
+                <p className="text-[#9b8bb4]">이미 전송된 브리핑입니다 (중복 방지)</p>
+              )}
+              {testEmailState.result.failure_count > 0 && (
+                <p className="text-red-400">전송 실패 — {Object.values(testEmailState.result.errors).join(", ")}</p>
+              )}
+            </div>
+          )}
+
+          {testEmailState.status === "error" && (
+            <div className="rounded-xl border border-red-900 bg-[#0f0a19] p-4 text-sm">
+              <p className="text-red-400 font-semibold">전송 실패</p>
+              <p className="text-[#9b8bb4] mt-1">{testEmailState.message}</p>
             </div>
           )}
         </section>

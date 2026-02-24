@@ -12,13 +12,14 @@ var testBrainCategories = []collector.BrainCategory{
 	{Key: "must_know", Emoji: "🔥", Label: "모르면 나만 모르는 이야기예요", AccentColor: "#e84d3d", DisplayOrder: 1},
 	{Key: "conversation", Emoji: "💬", Label: "대화할 때 꺼내보세요", AccentColor: "#9b8bb4", DisplayOrder: 3},
 	{Key: "result", Emoji: "🏆", Label: "결과만 알면 충분해요", AccentColor: "#7bc67e", DisplayOrder: 5},
+	{Key: "over_the_algorithm", Emoji: "🌈", Label: "Over the Algorithm", AccentColor: "#5ba4d9", DisplayOrder: 10},
 }
 
 func TestFormatMessage_EmptyItems(t *testing.T) {
 	items := []collector.ContextItem{}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, nil, "")
+	result := FormatMessage(items, subscriptions, nil, "", nil)
 
 	if result.Subject != "오늘의 맥락" {
 		t.Errorf("expected subject '오늘의 맥락', got '%s'", result.Subject)
@@ -52,7 +53,7 @@ func TestFormatMessage_BrainCategoryGrouping(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "")
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
 
 	if !strings.Contains(result.Subject, "오늘의 맥락 2가지") {
 		t.Errorf("expected subject to contain '오늘의 맥락 2가지', got '%s'", result.Subject)
@@ -102,7 +103,7 @@ func TestFormatMessage_WithSubscriptions(t *testing.T) {
 	}
 	subscriptions := []string{"entertainment"}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "")
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
 
 	// Should include top + entertainment, exclude sports
 	if !strings.Contains(result.TextBody, "주요 이슈") {
@@ -134,7 +135,7 @@ func TestFormatMessage_NoMatchingSubscriptions(t *testing.T) {
 	}
 	subscriptions := []string{"sports"}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "")
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
 
 	// No "top" items and subscription doesn't match
 	if !strings.Contains(result.TextBody, "구독하신 주제에 대한 맥락이 없습니다") {
@@ -168,7 +169,7 @@ func TestFormatMessage_MultipleBrainCategories(t *testing.T) {
 	}
 	subscriptions := []string{"entertainment", "economy"}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "")
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
 
 	// All three brain category labels should appear
 	if !strings.Contains(result.TextBody, "모르면 나만 모르는 이야기예요") {
@@ -200,13 +201,109 @@ func TestFormatMessage_UngroupedFallback(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "")
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
 
 	if !strings.Contains(result.TextBody, "기타") {
 		t.Error("expected text body to contain '기타' fallback section")
 	}
 	if !strings.Contains(result.TextBody, "기타 주제") {
 		t.Error("expected text body to contain the item topic")
+	}
+}
+
+// TestFormatMessage_OverTheAlgorithmAlwaysIncluded verifies that items with
+// brain_category="over_the_algorithm" appear in the email regardless of their
+// category and regardless of user subscriptions.
+func TestFormatMessage_OverTheAlgorithmAlwaysIncluded(t *testing.T) {
+	items := []collector.ContextItem{
+		{
+			Category:      "entertainment", // 구독 안 한 카테고리
+			BrainCategory: "over_the_algorithm",
+			Rank:          1,
+			Topic:         "OTA 특별 토픽",
+			Summary:       "알고리즘 너머의 이야기예요.",
+			BuzzScore:     92,
+		},
+		{
+			Category:      "sports", // 구독 안 한 카테고리
+			BrainCategory: "result",
+			Rank:          1,
+			Topic:         "스포츠 소식",
+			Summary:       "구독하지 않은 스포츠 소식입니다.",
+		},
+	}
+	subscriptions := []string{} // 아무것도 구독 안 함
+
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+
+	if !strings.Contains(result.TextBody, "OTA 특별 토픽") {
+		t.Error("over_the_algorithm 아이템은 구독 여부와 무관하게 항상 포함되어야 합니다")
+	}
+	if strings.Contains(result.TextBody, "스포츠 소식") {
+		t.Error("구독하지 않은 일반 카테고리 아이템은 포함되면 안 됩니다")
+	}
+}
+
+// TestFormatMessage_OverTheAlgorithmSection verifies the OTA section header
+// and buzz_score are rendered correctly in the email body.
+func TestFormatMessage_OverTheAlgorithmSection(t *testing.T) {
+	items := []collector.ContextItem{
+		{
+			Category:      "top",
+			BrainCategory: "must_know",
+			Rank:          1,
+			Topic:         "일반 주요 이슈",
+			Summary:       "일반 주요 이슈 요약입니다.",
+			BuzzScore:     75,
+		},
+		{
+			Category:      "entertainment",
+			BrainCategory: "over_the_algorithm",
+			Rank:          1,
+			Topic:         "OTA 토픽",
+			Summary:       "OTA 토픽 요약입니다.",
+			BuzzScore:     92,
+		},
+	}
+	subscriptions := []string{}
+
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+
+	// OTA 섹션 헤더가 있어야 함
+	if !strings.Contains(result.HTMLBody, "Over the Algorithm") {
+		t.Error("OTA 섹션 헤더가 HTML에 포함되어야 합니다")
+	}
+	// OTA 아이템 내용이 있어야 함
+	if !strings.Contains(result.HTMLBody, "OTA 토픽") {
+		t.Error("OTA 아이템이 HTML에 포함되어야 합니다")
+	}
+	// buzz_score가 렌더링되어야 함
+	if !strings.Contains(result.HTMLBody, "92") {
+		t.Error("buzz_score 92가 HTML에 표시되어야 합니다")
+	}
+	if !strings.Contains(result.HTMLBody, "75") {
+		t.Error("buzz_score 75가 HTML에 표시되어야 합니다")
+	}
+}
+
+// TestFormatMessage_BuzzScoreZeroHidden verifies that buzz_score=0 is not rendered.
+func TestFormatMessage_BuzzScoreZeroHidden(t *testing.T) {
+	items := []collector.ContextItem{
+		{
+			Category:      "top",
+			BrainCategory: "must_know",
+			Rank:          1,
+			Topic:         "buzz 없는 주제",
+			Summary:       "buzz_score가 0인 주제입니다.",
+			BuzzScore:     0,
+		},
+	}
+	subscriptions := []string{}
+
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+
+	if strings.Contains(result.HTMLBody, "화제도") {
+		t.Error("buzz_score가 0이면 화제도 표시가 없어야 합니다")
 	}
 }
 
@@ -222,7 +319,7 @@ func TestFormatMessage_HTMLEscaping(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "")
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
 
 	if !strings.Contains(result.HTMLBody, "테스트") {
 		t.Error("expected HTML body to contain topic")

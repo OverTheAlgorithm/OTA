@@ -173,6 +173,7 @@ export interface TopicDetail {
   details: DetailItem[];
   buzz_score: number;
   sources: string[];
+  brain_category: string;
   created_at: string;
 }
 
@@ -280,4 +281,65 @@ export async function triggerCollection(): Promise<void> {
     throw new Error(err.error || "수집 실행에 실패했습니다");
   }
   // 202 Accepted: collection runs in background, result sent via Slack
+}
+
+export interface TestEmailResult {
+  success_count: number;
+  skipped_count: number;
+  failure_count: number;
+  errors: Record<string, string>;
+}
+
+export async function sendTestEmail(): Promise<TestEmailResult> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/delivery/send-test`, {
+    method: "POST",
+    credentials: "include",
+  });
+  let body: Record<string, unknown>;
+  try {
+    body = await res.json();
+  } catch {
+    throw new Error("서버 응답을 파싱할 수 없습니다");
+  }
+  if (!res.ok) throw new Error((body.error as string) || "테스트 이메일 전송에 실패했습니다");
+  return body as unknown as TestEmailResult;
+}
+
+// ── 레벨 시스템 ─────────────────────────────────────
+export interface LevelInfo {
+  level: number;
+  total_points: number;
+  current_progress: number;
+  points_to_next: number;
+  description: string;
+}
+
+export interface EarnResult {
+  earned: boolean;
+  level: number;
+  total_points: number;
+  current_progress: number;
+  points_to_next: number;
+  leveled_up: boolean;
+}
+
+export async function getUserLevel(): Promise<LevelInfo> {
+  const res = await fetch(`${API_BASE}/api/v1/level`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to fetch level");
+  const body: ApiResponse<LevelInfo> = await res.json();
+  return body.data;
+}
+
+export async function earnPoint(contextItemId: string): Promise<EarnResult> {
+  const res = await fetch(`${API_BASE}/api/v1/level/earn`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ context_item_id: contextItemId }),
+  });
+  if (!res.ok) throw new Error("Failed to earn point");
+  const body: ApiResponse<EarnResult> = await res.json();
+  return body.data;
 }

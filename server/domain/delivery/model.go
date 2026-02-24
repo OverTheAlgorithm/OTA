@@ -98,3 +98,11 @@ type EligibleUser struct {
 	Subscriptions   []string
 	EnabledChannels []DeliveryChannel // Channels user has enabled (email, kakao, etc.)
 }
+
+// UserLevelInfo holds per-user level data for email rendering. Nil = no level card.
+type UserLevelInfo struct {
+	Level           int
+	CurrentProgress int
+	PointsToNext    int
+	Description     string
+}

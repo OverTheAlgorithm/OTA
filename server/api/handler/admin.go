@@ -10,14 +10,25 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"ota/domain/collector"
+	"ota/domain/delivery"
+	"ota/domain/level"
 )
+
+// MockItemCreator creates a mock over_the_algorithm context item for testing.
+type MockItemCreator interface {
+	CreateMockOTAItem(ctx context.Context) (uuid.UUID, error)
+}
 
 type AdminHandler struct {
 	collectorService     *collector.Service
 	slackWebhookURL      string
 	brainCategoryHandler *BrainCategoryHandler
+	levelService         *level.Service
+	mockItemCreator      MockItemCreator
+	deliveryService      *delivery.Service
 }
 
 func NewAdminHandler(collectorService *collector.Service, slackWebhookURL string, brainCatHandler *BrainCategoryHandler) *AdminHandler {
@@ -26,6 +37,21 @@ func NewAdminHandler(collectorService *collector.Service, slackWebhookURL string
 		slackWebhookURL:      slackWebhookURL,
 		brainCategoryHandler: brainCatHandler,
 	}
+}
+
+func (h *AdminHandler) WithLevelService(svc *level.Service) *AdminHandler {
+	h.levelService = svc
+	return h
+}
+
+func (h *AdminHandler) WithMockItemCreator(c MockItemCreator) *AdminHandler {
+	h.mockItemCreator = c
+	return h
+}
+
+func (h *AdminHandler) WithDeliveryService(svc *delivery.Service) *AdminHandler {
+	h.deliveryService = svc
+	return h
 }
 
 // TriggerCollection returns 202 immediately and runs collection in the background.
@@ -71,8 +97,84 @@ func (h *AdminHandler) notifySlack(text string) {
 	}
 }
 
+// SetLevelPoints handles POST /api/v1/admin/level/set-points
+// Directly sets the authenticated user's points for testing purposes.
+func (h *AdminHandler) SetLevelPoints(c *gin.Context) {
+	if h.levelService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "level service not available"})
+		return
+	}
+
+	userID := c.GetString("userID")
+
+	var req struct {
+		Points int `json:"points" binding:"min=0"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "points must be >= 0"})
+		return
+	}
+
+	info, err := h.levelService.SetPoints(c.Request.Context(), userID, req.Points)
+	if err != nil {
+		log.Printf("set level points error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": info})
+}
+
+// CreateMockOTAItem handles POST /api/v1/admin/level/create-mock-item
+// Creates a fake over_the_algorithm context item for testing level progression.
+// Visit /topic/:id with the returned item_id to earn a point.
+func (h *AdminHandler) CreateMockOTAItem(c *gin.Context) {
+	if h.mockItemCreator == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "mock item creator not available"})
+		return
+	}
+
+	itemID, err := h.mockItemCreator.CreateMockOTAItem(c.Request.Context())
+	if err != nil {
+		log.Printf("create mock OTA item error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"item_id": itemID.String(),
+		"url":     "/topic/" + itemID.String(),
+	})
+}
+
+// SendTestEmail handles POST /api/v1/admin/delivery/send-test
+// Sends the latest briefing email to the authenticated admin for testing.
+func (h *AdminHandler) SendTestEmail(c *gin.Context) {
+	if h.deliveryService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "delivery service not available"})
+		return
+	}
+
+	userID := c.GetString("userID")
+	result, err := h.deliveryService.ForceDeliverToUser(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success_count": result.SuccessCount,
+		"skipped_count": result.SkippedCount,
+		"failure_count": result.FailureCount,
+		"errors":        result.DeliveryErrors,
+	})
+}
+
 func (h *AdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/collect", h.TriggerCollection)
+	group.POST("/delivery/send-test", h.SendTestEmail)
+	group.POST("/level/set-points", h.SetLevelPoints)
+	group.POST("/level/create-mock-item", h.CreateMockOTAItem)
 
 	if h.brainCategoryHandler != nil {
 		bcGroup := group.Group("/brain-categories")

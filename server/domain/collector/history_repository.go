@@ -27,13 +27,14 @@ type HistoryEntry struct {
 
 // TopicDetail holds the full detail for a single context item, served on the public detail page.
 type TopicDetail struct {
-	ID        uuid.UUID    `json:"id"`
-	Topic     string       `json:"topic"`
-	Detail    string       `json:"detail"`
-	Details   []DetailItem `json:"details"`
-	BuzzScore int          `json:"buzz_score"`
-	Sources   []string     `json:"sources"`
-	CreatedAt time.Time    `json:"created_at"`
+	ID            uuid.UUID    `json:"id"`
+	Topic         string       `json:"topic"`
+	Detail        string       `json:"detail"`
+	Details       []DetailItem `json:"details"`
+	BuzzScore     int          `json:"buzz_score"`
+	Sources       []string     `json:"sources"`
+	BrainCategory string       `json:"brain_category"`
+	CreatedAt     time.Time    `json:"created_at"`
 }
 
 type HistoryRepository interface {
