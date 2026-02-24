@@ -84,7 +84,6 @@ function HistoryCard({
   );
 
   const bcGroups = groupByBrainCategory(selectedItems);
-  const bcLookup = new Map(brainCategories.map(bc => [bc.key, bc]));
 
   return (
     <div className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] overflow-hidden">
