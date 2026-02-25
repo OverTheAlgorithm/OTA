@@ -189,8 +189,9 @@ func TestCollector_Collect(t *testing.T) {
 		{Category: "general", URL: server.URL},
 	}
 	c := &Collector{
-		topics: topics,
-		client: server.Client(),
+		topics:     topics,
+		client:     server.Client(),
+		decodeURLs: nil, // skip URL decoding in unit tests
 	}
 
 	items, err := c.Collect(context.Background())
@@ -215,8 +216,9 @@ func TestCollector_MultipleFeedsDedup(t *testing.T) {
 		{Category: "business", URL: server.URL},
 	}
 	c := &Collector{
-		topics: topics,
-		client: server.Client(),
+		topics:     topics,
+		client:     server.Client(),
+		decodeURLs: nil, // skip URL decoding in unit tests
 	}
 
 	items, err := c.Collect(context.Background())
@@ -266,8 +268,9 @@ func TestCollector_PartialFailure(t *testing.T) {
 		{Category: "business", URL: badServer.URL},
 	}
 	c := &Collector{
-		topics: topics,
-		client: &http.Client{Timeout: 5 * time.Second},
+		topics:     topics,
+		client:     &http.Client{Timeout: 5 * time.Second},
+		decodeURLs: nil, // skip URL decoding in unit tests
 	}
 
 	items, err := c.Collect(context.Background())
