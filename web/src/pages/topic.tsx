@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { fetchTopicDetail, earnPoint, type TopicDetail, type EarnResult } from "@/lib/api";
 
 function formatDate(iso: string): string {
@@ -58,8 +58,15 @@ export function TopicPage() {
   }
 
   return (
-    <div className="min-h-screen px-6 py-12" style={{ background: "#0f0a19" }}>
-      <div className="max-w-2xl mx-auto space-y-6">
+    <div className="min-h-screen" style={{ background: "#0f0a19" }}>
+      <header className="sticky top-0 z-10 border-b border-[#2d1f42] bg-[#0f0a19]/90 backdrop-blur-lg">
+        <div className="max-w-2xl mx-auto px-6 h-16 flex items-center">
+          <Link to="/">
+            <img src="/OTA_logo.png" alt="OTA" className="w-[63px] h-[42px]" />
+          </Link>
+        </div>
+      </header>
+      <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         {earnResult?.leveled_up && (
           <div
             className="rounded-xl px-4 py-3 text-center text-sm font-semibold"
@@ -147,3 +154,4 @@ export function TopicPage() {
     </div>
   );
 }
+

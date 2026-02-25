@@ -137,7 +137,8 @@ Types of content for each entry:
 - Related statistics or numbers + what they mean in context
 - Connection to previous events + how this changes things
 - Expected next developments + what experts/insiders are saying
-Empty array [] if no additional facts available. MUST NOT repeat summary or detail content.
+MUST include at least 1 entry for all non-"brief" items — users tap into the detail page to read these and access source links.
+Empty array [] is only allowed for "brief" category. MUST NOT repeat summary or detail content.
 
 ## Critical Rules
 1. Only use topics from the collected data. Do NOT add topics you found yourself.
@@ -246,7 +247,9 @@ func jsonFormatExample() string {
       "topic": "[프로그램명+인물명] 구체적 사건",
       "summary": "무슨 일이 있었고 사람들이 어떻게 반응하는지까지.",
       "detail": "이 이슈의 맥락을 설명합니다. 어떤 프로그램에서 어떤 장면이 있었고, SNS에서 어떤 반응이 나왔는지 등.",
-      "details": [],
+      "details": [
+        {"title": "방송 직후 실시간 검색어 1위에 올랐어요", "content": "해당 장면이 캡처돼 온라인 커뮤니티에 퍼지면서 '이게 말이 돼?'라는 반응이 쏟아졌어요. 제작진도 예상 못한 전개였다는 후문이에요."}
+      ],
       "buzz_score": 65,
       "sources": []
     }
