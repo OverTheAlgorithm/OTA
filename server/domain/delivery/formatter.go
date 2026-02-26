@@ -161,7 +161,7 @@ func renderNonPreferredDivider() string {
 
 func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) string {
 	logoURL := frontendURL + "/OTA_logo.png"
-	headerLevelCell := renderHeaderLevelCell(levelInfo, frontendURL)
+	levelCardRow := renderHeaderLevelRow(levelInfo, frontendURL)
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -173,19 +173,23 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
   <tr><td align="center" style="padding:32px 16px 48px;">
     <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
 
-      <!-- Header: Logo + Level Card -->
-      <tr><td style="padding-bottom:24px;">
-        <table width="100%%" cellpadding="0" cellspacing="0" border="0">
+      <!-- Header Row 1: Logo (small, left-aligned, ~60px) -->
+      <tr><td style="height:60px;vertical-align:middle;padding-bottom:16px;">
+        <table cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <!-- Logo -->
-            <td width="160" style="vertical-align:middle;text-align:center;">
-              <img src="%s" alt="OTA" width="150" style="display:block;margin:0 auto;max-width:150px;">
-              <p style="margin:6px 0 0;font-size:12px;color:#9b8bb4;">오늘의 맥락 브리핑</p>
+            <td style="vertical-align:middle;">
+              <img src="%s" alt="OTA" height="32" style="display:block;">
             </td>
-            %s
+            <td style="padding-left:10px;vertical-align:middle;">
+              <p style="margin:0;font-size:16px;font-weight:700;color:#f5f0ff;letter-spacing:-0.01em;">Over the Algorithm</p>
+              <p style="margin:2px 0 0;font-size:11px;color:#9b8bb4;">오늘의 맥락 브리핑</p>
+            </td>
           </tr>
         </table>
       </td></tr>
+
+      <!-- Header Row 2: Level Card -->
+      %s
 
       <!-- Sections -->
       %s
@@ -202,12 +206,12 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
   </td></tr>
 </table>
 </body>
-</html>`, logoURL, headerLevelCell, content)
+</html>`, logoURL, levelCardRow, content)
 }
 
-// renderHeaderLevelCell returns the <td> for the level card in the header row.
-// Returns an empty <td> if levelInfo is nil (logo takes full width).
-func renderHeaderLevelCell(info *UserLevelInfo, frontendURL string) string {
+// renderHeaderLevelRow returns a full <tr> for the level card placed below the logo row.
+// Returns an empty string if levelInfo is nil.
+func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 	if info == nil {
 		return ""
 	}
@@ -232,32 +236,32 @@ func renderHeaderLevelCell(info *UserLevelInfo, frontendURL string) string {
 	}
 
 	return fmt.Sprintf(`
-            <!-- Level Card -->
-            <td style="padding-left:12px;vertical-align:middle;">
-              <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1a1229;border-radius:16px;border:1px solid #2d1f42;">
-                <tr><td style="padding:10px 16px;border-bottom:1px solid #2d1f42;">
-                  <p style="margin:0;font-size:10px;font-weight:700;color:#5ba4d9;letter-spacing:0.08em;">🌈 나의 레벨</p>
-                </td></tr>
-                <tr><td style="padding:12px 16px;">
-                  <table width="100%%" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td width="72" style="vertical-align:middle;">
-                        <img src="%s" alt="Lv.%d" width="72" style="display:block;">
-                      </td>
-                      <td style="padding-left:10px;vertical-align:middle;">
-                        <p style="margin:0 0 2px;font-size:17px;font-weight:700;color:#f5f0ff;">Lv.%d</p>
-                        %s
-                        <div style="width:100%%;height:5px;background-color:#2d1f42;border-radius:3px;overflow:hidden;margin-bottom:6px;">
-                          <div style="width:%d%%;height:100%%;background:linear-gradient(to right,#5ba4d9,#7bc67e);border-radius:3px;"></div>
-                        </div>
-                        <p style="margin:0;font-size:11px;color:#9b8bb4;">%s</p>
-                        <p style="margin:4px 0 0;font-size:10px;color:#4a3d5c;">🌈 토픽을 읽으면 포인트가 쌓여요</p>
-                      </td>
-                    </tr>
-                  </table>
-                </td></tr>
-              </table>
-            </td>`,
+      <!-- Level Card -->
+      <tr><td style="padding-bottom:24px;">
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1a1229;border-radius:16px;border:1px solid #2d1f42;">
+          <tr><td style="padding:10px 16px;border-bottom:1px solid #2d1f42;">
+            <p style="margin:0;font-size:10px;font-weight:700;color:#5ba4d9;letter-spacing:0.08em;">🌈 나의 레벨</p>
+          </td></tr>
+          <tr><td style="padding:12px 16px;">
+            <table width="100%%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="72" style="vertical-align:middle;">
+                  <img src="%s" alt="Lv.%d" width="72" style="display:block;">
+                </td>
+                <td style="padding-left:10px;vertical-align:middle;">
+                  <p style="margin:0 0 2px;font-size:17px;font-weight:700;color:#f5f0ff;">Lv.%d</p>
+                  %s
+                  <div style="width:100%%;height:5px;background-color:#2d1f42;border-radius:3px;overflow:hidden;margin-bottom:6px;">
+                    <div style="width:%d%%;height:100%%;background:linear-gradient(to right,#5ba4d9,#7bc67e);border-radius:3px;"></div>
+                  </div>
+                  <p style="margin:0;font-size:11px;color:#9b8bb4;">%s</p>
+                  <p style="margin:4px 0 0;font-size:10px;color:#4a3d5c;">🌈 토픽을 읽으면 포인트가 쌓여요</p>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+      </td></tr>`,
 		imgURL, lv, lv, progressText, progressPercent, info.Description,
 	)
 }
