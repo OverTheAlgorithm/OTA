@@ -177,18 +177,30 @@ export interface TopicDetail {
   created_at: string;
 }
 
+export interface TopicEarnResult {
+  attempted: boolean;
+  earned: boolean;
+  points_earned: number;
+  leveled_up: boolean;
+  new_level: number;
+}
+
+export interface TopicDetailResponse {
+  data: TopicDetail;
+  earn_result: TopicEarnResult | null;
+}
+
 export async function fetchTopicDetail(
   id: string,
   params?: { uid?: string; rid?: string }
-): Promise<TopicDetail> {
+): Promise<TopicDetailResponse> {
   const url = new URL(`${API_BASE}/api/v1/context/topic/${id}`, window.location.origin);
   if (params?.uid) url.searchParams.set("uid", params.uid);
   if (params?.rid) url.searchParams.set("rid", params.rid);
   const res = await fetch(url.toString());
   if (res.status === 404) throw new Error("not_found");
   if (!res.ok) throw new Error("server_error");
-  const body: ApiResponse<TopicDetail> = await res.json();
-  return body.data;
+  return res.json() as Promise<TopicDetailResponse>;
 }
 
 // ── 이메일 인증 ───────────────────────────────────────

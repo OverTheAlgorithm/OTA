@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
-import { fetchTopicDetail, type TopicDetail } from "@/lib/api";
+import { fetchTopicDetail, type TopicDetail, type TopicEarnResult } from "@/lib/api";
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);  
+  const d = new Date(iso);
   return d.toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "long",
@@ -11,26 +11,100 @@ function formatDate(iso: string): string {
   });
 }
 
+// ── Toast ────────────────────────────────────────────────────────────────────
+interface ToastProps {
+  earn: TopicEarnResult;
+}
+
+function PointToast({ earn }: ToastProps) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // 마운트 직후 fade-in
+    const showTimer = setTimeout(() => setVisible(true), 50);
+    // 2.5초 뒤 fade-out 시작
+    const hideTimer = setTimeout(() => setVisible(false), 2500);
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, []);
+
+  let message: string;
+  if (earn.earned) {
+    if (earn.leveled_up) {
+      message = `🎉 +${earn.points_earned}pt 획득! Lv.${earn.new_level} 레벨 업!`;
+    } else {
+      message = `🌈 +${earn.points_earned}pt 획득!`;
+    }
+  } else {
+    // attempted but not earned (duplicate or old run)
+    message = "이미 이 주제의 포인트를 받았어요.";
+  }
+
+  const bgColor = earn.earned ? "#1a2e1a" : "#2a1f2e";
+  const textColor = earn.earned ? "#7bc67e" : "#9b8bb4";
+  const borderColor = earn.earned ? "#2d4a2d" : "#3d2d4a";
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: "28px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 50,
+        background: bgColor,
+        color: textColor,
+        border: `1px solid ${borderColor}`,
+        borderRadius: "12px",
+        padding: "10px 20px",
+        fontSize: "14px",
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+        opacity: visible ? 1 : 0,
+        transition: "opacity 0.4s ease",
+        pointerEvents: "none",
+      }}
+    >
+      {message}
+    </div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 export function TopicPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const [topic, setTopic] = useState<TopicDetail | null>(null);
+  const [earn, setEarn] = useState<TopicEarnResult | null>(null);
+  const [showToast, setShowToast] = useState(false);
   const [error, setError] = useState<"not_found" | "server_error" | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const uid = searchParams.get("uid") ?? undefined;
+  const rid = searchParams.get("rid") ?? undefined;
+  const hasTracking = Boolean(uid && rid);
+
   useEffect(() => {
     if (!id) return;
-    const uid = searchParams.get("uid") ?? undefined;
-    const rid = searchParams.get("rid") ?? undefined;
     fetchTopicDetail(id, { uid, rid })
-      .then((data) => {
-        setTopic(data);
+      .then((res) => {
+        setTopic(res.data);
+        if (hasTracking && res.earn_result) {
+          setEarn(res.earn_result);
+          setShowToast(true);
+          // 토스트 컴포넌트 자체 fade-out(2.5s) + 추가 400ms 뒤 언마운트
+          setTimeout(() => setShowToast(false), 3000);
+        }
       })
       .catch((e: Error) => {
         setError(e.message === "not_found" ? "not_found" : "server_error");
       })
       .finally(() => setLoading(false));
-  }, [id, searchParams]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (loading) {
     return (
@@ -65,6 +139,7 @@ export function TopicPage() {
           </Link>
         </div>
       </header>
+
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         <div>
           <p className="text-sm mb-3" style={{ color: "#9b8bb4" }}>
@@ -81,7 +156,6 @@ export function TopicPage() {
           {topic.details && topic.details.length > 0 ? (
             <div className="space-y-5">
               {topic.details.map((detail, i) => {
-                // Backward compat: old data may have plain strings converted to {title, content:""}
                 const title = typeof detail === "string" ? detail : detail?.title;
                 const content = typeof detail === "string" ? "" : detail?.content;
                 if (!title && !content) return null;
@@ -142,7 +216,9 @@ export function TopicPage() {
           </div>
         )}
       </div>
+
+      {/* 포인트 토스트 — uid+rid가 있을 때만 렌더링 */}
+      {showToast && earn && <PointToast earn={earn} />}
     </div>
   );
 }
-

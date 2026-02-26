@@ -40,6 +40,8 @@ func (h *ContextHistoryHandler) GetHistory(c *gin.Context) {
 
 // GetTopicByID returns the full detail for a single context item.
 // Public endpoint — no auth required (linked from email).
+// When uid+rid are provided, attempts to award points and returns earn_result
+// in the response. Topic data is always returned regardless of point earning outcome.
 func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -58,31 +60,48 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 		return
 	}
 
+	// earnResult is only set when uid+rid are provided (i.e. opened from email link).
+	// nil means no point earning was attempted.
+	type earnResult struct {
+		Attempted    bool `json:"attempted"`
+		Earned       bool `json:"earned"`
+		PointsEarned int  `json:"points_earned"`
+		LeveledUp    bool `json:"leveled_up"`
+		NewLevel     int  `json:"new_level"`
+	}
+	var earn *earnResult
+
 	rid, uid := c.Query("rid"), c.Query("uid")
 	if rid != "" && uid != "" {
+		earn = &earnResult{Attempted: true}
 		runID, errR := uuid.Parse(rid)
-		if errR == nil {
+		if errR != nil {
+			log.Printf("invalid rid format: %v", errR)
+		} else {
 			isToday, err := h.repo.IsRunCreatedToday(c.Request.Context(), runID)
-			if err == nil && isToday {
+			if err != nil {
+				log.Printf("failed to check run creation date: %v", err)
+			} else if isToday {
 				subs, err := h.subGetter.GetSubscriptions(c.Request.Context(), uid)
-				if err == nil {
+				if err != nil {
+					log.Printf("failed to get subscriptions: %v", err)
+				} else {
 					preferred := level.IsPreferredCategory(topic.Category, subs)
-					_, earnErr := h.levelService.EarnPoint(c.Request.Context(), uid, runID, topic.ID, preferred)
+					result, earnErr := h.levelService.EarnPoint(c.Request.Context(), uid, runID, topic.ID, preferred)
 					if earnErr != nil {
 						log.Printf("earn point error: %v", earnErr)
+					} else if result.Earned {
+						earn.Earned = true
+						earn.PointsEarned = result.PointsEarned
+						earn.LeveledUp = result.LeveledUp
+						earn.NewLevel = result.Level
 					}
-				} else {
-					log.Printf("failed to get subscriptions for point earning: %v", err)
 				}
-			} else if err != nil {
-				log.Printf("failed to check run creation date: %v", err)
 			}
-		} else {
-			log.Printf("invalid rid format for point earning: %v", errR)
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": topic})
+	c.JSON(http.StatusOK, gin.H{"data": topic, "earn_result": earn})
 }
 
 func (h *ContextHistoryHandler) RegisterRoutes(group *gin.RouterGroup) {
