@@ -177,8 +177,14 @@ export interface TopicDetail {
   created_at: string;
 }
 
-export async function fetchTopicDetail(id: string): Promise<TopicDetail> {
-  const res = await fetch(`${API_BASE}/api/v1/context/topic/${id}`);
+export async function fetchTopicDetail(
+  id: string,
+  params?: { uid?: string; rid?: string }
+): Promise<TopicDetail> {
+  const url = new URL(`${API_BASE}/api/v1/context/topic/${id}`, window.location.origin);
+  if (params?.uid) url.searchParams.set("uid", params.uid);
+  if (params?.rid) url.searchParams.set("rid", params.rid);
+  const res = await fetch(url.toString());
   if (res.status === 404) throw new Error("not_found");
   if (!res.ok) throw new Error("server_error");
   const body: ApiResponse<TopicDetail> = await res.json();

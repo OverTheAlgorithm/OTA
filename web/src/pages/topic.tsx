@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { fetchTopicDetail, earnPoint, type TopicDetail, type EarnResult } from "@/lib/api";
+import { useParams, useSearchParams, Link } from "react-router-dom";
+import { fetchTopicDetail, type TopicDetail } from "@/lib/api";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);  
@@ -13,25 +13,24 @@ function formatDate(iso: string): string {
 
 export function TopicPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [error, setError] = useState<"not_found" | "server_error" | null>(null);
   const [loading, setLoading] = useState(true);
-  const [earnResult, setEarnResult] = useState<EarnResult | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    fetchTopicDetail(id)
+    const uid = searchParams.get("uid") ?? undefined;
+    const rid = searchParams.get("rid") ?? undefined;
+    fetchTopicDetail(id, { uid, rid })
       .then((data) => {
         setTopic(data);
-        if (data.brain_category === "over_the_algorithm") {
-          earnPoint(id).then(setEarnResult).catch(() => {});
-        }
       })
       .catch((e: Error) => {
         setError(e.message === "not_found" ? "not_found" : "server_error");
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, searchParams]);
 
   if (loading) {
     return (
@@ -67,14 +66,6 @@ export function TopicPage() {
         </div>
       </header>
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
-        {earnResult?.leveled_up && (
-          <div
-            className="rounded-xl px-4 py-3 text-center text-sm font-semibold"
-            style={{ background: "#1a2e1a", color: "#7bc67e", border: "1px solid #2d4a2d" }}
-          >
-            🎉 레벨 업! Lv.{earnResult.level} 달성!
-          </div>
-        )}
         <div>
           <p className="text-sm mb-3" style={{ color: "#9b8bb4" }}>
             {formatDate(topic.created_at)}
