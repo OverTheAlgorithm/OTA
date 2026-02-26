@@ -298,9 +298,19 @@ func (s *Service) ForceDeliverToUser(ctx context.Context, userID string) (*Deliv
 		DeliveryErrors: make(map[string]string),
 	}
 
+	var msgCtx *MessageContext
+	if run.ID.String() != "" {
+		daysSince := 0
+
+		msgCtx = &MessageContext{
+			UserID:            userID,
+			RunID:             run.ID.String(),
+			DaysSinceLastEarn: daysSince,
+		}
+	}
 	brainCats := s.loadBrainCategories(ctx)
 	levelInfo := s.loadUserLevel(ctx, userID)
-	message := FormatMessage(items, user.Subscriptions, brainCats, s.frontendURL, levelInfo, nil)
+	message := FormatMessage(items, user.Subscriptions, brainCats, s.frontendURL, levelInfo, msgCtx)
 
 	for _, channel := range user.EnabledChannels {
 		sendErr := s.sendViaChannel(ctx, channel, *user, message)

@@ -13,6 +13,7 @@ const (
 	pointBasePreferred    = 5
 	pointBaseNonPreferred = 15
 	pointBonusPerDay      = 1
+	pointMaxEarn          = 50
 )
 
 // FormatMessage creates a personalized message from context items.
@@ -345,7 +346,7 @@ func buildPointsLabel(preferred bool, msgCtx *MessageContext) string {
 	if preferred {
 		base = pointBasePreferred
 	}
-	pts := base + msgCtx.DaysSinceLastEarn*pointBonusPerDay
+	pts := max(pointMaxEarn, base+msgCtx.DaysSinceLastEarn*pointBonusPerDay)
 	return fmt.Sprintf(`  <span style="font-size:11px;color:#7bc67e;font-weight:700;">+%dpt</span>`, pts)
 }
 
@@ -373,7 +374,7 @@ func formatItemsAsText(items []collector.ContextItem, frontendURL string, prefer
 				if preferred {
 					base = pointBasePreferred
 				}
-				pts = fmt.Sprintf(" +%dpt", base+msgCtx.DaysSinceLastEarn*pointBonusPerDay)
+				pts = fmt.Sprintf(" +%dpt", max(pointMaxEarn, base+msgCtx.DaysSinceLastEarn*pointBonusPerDay))
 			}
 			line += fmt.Sprintf("\n   👉 %d개의 추가 정보: %s%s", len(item.Details), href, pts)
 		}
