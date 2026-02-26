@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -35,36 +36,36 @@ func (r *LevelRepository) GetUserPoints(ctx context.Context, userID string) (lev
 	return up, nil
 }
 
-func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, contextItemID uuid.UUID) (bool, int, error) {
+func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, runID, contextItemID uuid.UUID, points int) (bool, int, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return false, 0, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	// 1. Insert point_log — UNIQUE(user_id, context_item_id) prevents duplicates
+	// 1. Insert point_log — UNIQUE(user_id, run_id, context_item_id) prevents duplicates within same run
 	_, err = tx.Exec(ctx,
-		`INSERT INTO point_logs (user_id, context_item_id, points_earned) VALUES ($1, $2, 1)`,
-		userID, contextItemID,
+		`INSERT INTO point_logs (user_id, run_id, context_item_id, points_earned) VALUES ($1, $2, $3, $4)`,
+		userID, runID, contextItemID, points,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return false, 0, nil // already earned
+			return false, 0, nil // already earned this topic in this run
 		}
 		return false, 0, fmt.Errorf("insert point log: %w", err)
 	}
 
-	// 2. Upsert user_points and increment total
+	// 2. Upsert user_points and add earned points
 	var newTotal int
 	err = tx.QueryRow(ctx, `
 		INSERT INTO user_points (user_id, level, points, updated_at)
-		VALUES ($1, 1, 1, NOW())
+		VALUES ($1, 1, $2, NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
-			points = user_points.points + 1,
+			points = user_points.points + $2,
 			updated_at = NOW()
 		RETURNING points
-	`, userID).Scan(&newTotal)
+	`, userID, points).Scan(&newTotal)
 	if err != nil {
 		return false, 0, fmt.Errorf("upsert user points: %w", err)
 	}
@@ -85,6 +86,123 @@ func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, contextI
 	return true, newTotal, nil
 }
 
+func (r *LevelRepository) GetLastEarnedAt(ctx context.Context, userID string) (time.Time, bool, error) {
+	var t time.Time
+	err := r.pool.QueryRow(ctx,
+		`SELECT created_at FROM point_logs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+		userID,
+	).Scan(&t)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("get last earned at: %w", err)
+	}
+	return t, true, nil
+}
+
+func (r *LevelRepository) GetLastEarnedAtBatch(ctx context.Context, userIDs []string) (map[string]time.Time, error) {
+	if len(userIDs) == 0 {
+		return make(map[string]time.Time), nil
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT user_id, MAX(created_at) FROM point_logs WHERE user_id = ANY($1) GROUP BY user_id`,
+		userIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get last earned at batch: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]time.Time, len(userIDs))
+	for rows.Next() {
+		var uid string
+		var t time.Time
+		if err := rows.Scan(&uid, &t); err != nil {
+			return nil, fmt.Errorf("scan last earned at: %w", err)
+		}
+		result[uid] = t
+	}
+	return result, rows.Err()
+}
+
+// DecayPoints subtracts 1 point from all users (minimum 0) using keyset pagination.
+// Level is recalculated after each batch.
+// Thresholds must match level.Thresholds: [0, 15, 45, 90, 165].
+func (r *LevelRepository) DecayPoints(ctx context.Context, batchSize int) (int, error) {
+	total := 0
+	cursor := "" // empty = start from beginning
+
+	for {
+		ids, err := r.fetchDecayBatch(ctx, cursor, batchSize)
+		if err != nil {
+			return total, err
+		}
+		if len(ids) == 0 {
+			break
+		}
+
+		if _, err = r.pool.Exec(ctx,
+			`UPDATE user_points SET points = GREATEST(0, points - 1), updated_at = NOW() WHERE user_id = ANY($1)`,
+			ids,
+		); err != nil {
+			return total, fmt.Errorf("decay batch: %w", err)
+		}
+
+		// Recalculate levels after decay (thresholds: Lv1:0, Lv2:15, Lv3:45, Lv4:90, Lv5:165)
+		if _, err = r.pool.Exec(ctx, `
+			UPDATE user_points SET level = CASE
+				WHEN points >= 165 THEN 5
+				WHEN points >= 90  THEN 4
+				WHEN points >= 45  THEN 3
+				WHEN points >= 15  THEN 2
+				ELSE 1
+			END
+			WHERE user_id = ANY($1)
+		`, ids); err != nil {
+			return total, fmt.Errorf("recalculate levels after decay: %w", err)
+		}
+
+		total += len(ids)
+		cursor = ids[len(ids)-1]
+		if len(ids) < batchSize {
+			break
+		}
+	}
+
+	return total, nil
+}
+
+func (r *LevelRepository) fetchDecayBatch(ctx context.Context, cursor string, batchSize int) ([]string, error) {
+	var rows pgx.Rows
+	var err error
+	if cursor == "" {
+		rows, err = r.pool.Query(ctx,
+			`SELECT user_id FROM user_points WHERE points > 0 ORDER BY user_id LIMIT $1`,
+			batchSize,
+		)
+	} else {
+		rows, err = r.pool.Query(ctx,
+			`SELECT user_id FROM user_points WHERE points > 0 AND user_id > $1 ORDER BY user_id LIMIT $2`,
+			cursor, batchSize,
+		)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("fetch decay batch: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if scanErr := rows.Scan(&id); scanErr != nil {
+			return nil, fmt.Errorf("scan user id: %w", scanErr)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (r *LevelRepository) SetPoints(ctx context.Context, userID string, points int) error {
 	newLevel := level.CalcLevel(points)
 	_, err := r.pool.Exec(ctx, `
@@ -101,9 +219,8 @@ func (r *LevelRepository) SetPoints(ctx context.Context, userID string, points i
 	return nil
 }
 
-// CreateMockOTAItem inserts a fake collection_run and a context_item with
-// brain_category = "over_the_algorithm" for testing level progression.
-// Returns the context_item UUID that can be visited at /topic/:id.
+// CreateMockOTAItem inserts a fake collection_run and a context_item for
+// testing level progression. Returns the context_item UUID.
 func (r *LevelRepository) CreateMockOTAItem(ctx context.Context) (uuid.UUID, error) {
 	runID := uuid.New()
 	itemID := uuid.New()
@@ -131,19 +248,4 @@ func (r *LevelRepository) CreateMockOTAItem(ctx context.Context) (uuid.UUID, err
 	}
 
 	return itemID, nil
-}
-
-func (r *LevelRepository) GetBrainCategory(ctx context.Context, contextItemID uuid.UUID) (string, error) {
-	var bc string
-	err := r.pool.QueryRow(ctx,
-		`SELECT COALESCE(brain_category, '') FROM context_items WHERE id = $1`,
-		contextItemID,
-	).Scan(&bc)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("context item not found: %s", contextItemID)
-	}
-	if err != nil {
-		return "", fmt.Errorf("get brain category: %w", err)
-	}
-	return bc, nil
 }

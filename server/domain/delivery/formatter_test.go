@@ -19,7 +19,7 @@ func TestFormatMessage_EmptyItems(t *testing.T) {
 	items := []collector.ContextItem{}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, nil, "", nil)
+	result := FormatMessage(items, subscriptions, nil, "", nil, nil)
 
 	if result.Subject != "오늘의 맥락" {
 		t.Errorf("expected subject '오늘의 맥락', got '%s'", result.Subject)
@@ -53,7 +53,7 @@ func TestFormatMessage_BrainCategoryGrouping(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
 	if !strings.Contains(result.Subject, "오늘의 맥락 2가지") {
 		t.Errorf("expected subject to contain '오늘의 맥락 2가지', got '%s'", result.Subject)
@@ -103,28 +103,36 @@ func TestFormatMessage_WithSubscriptions(t *testing.T) {
 	}
 	subscriptions := []string{"entertainment"}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
-	// Should include top + entertainment, exclude sports
+	// All items are included (preferred + non-preferred sections)
 	if !strings.Contains(result.TextBody, "주요 이슈") {
 		t.Error("expected text body to contain '주요 이슈'")
 	}
-
 	if !strings.Contains(result.TextBody, "연예 소식") {
 		t.Error("expected text body to contain '연예 소식'")
 	}
-
-	if strings.Contains(result.TextBody, "스포츠 소식") {
-		t.Error("expected text body to NOT contain '스포츠 소식'")
+	// Sports is in non-preferred section but still present
+	if !strings.Contains(result.TextBody, "스포츠 소식") {
+		t.Error("expected text body to contain '스포츠 소식' in non-preferred section")
 	}
 
-	if !strings.Contains(result.Subject, "구독 주제 포함") {
-		t.Errorf("expected subject to contain '구독 주제 포함', got '%s'", result.Subject)
+	// Non-preferred divider should appear
+	if !strings.Contains(result.TextBody, "시야를 넓힐 기회에요") {
+		t.Error("expected non-preferred divider '시야를 넓힐 기회에요'")
 	}
 }
 
-func TestFormatMessage_NoMatchingSubscriptions(t *testing.T) {
+func TestFormatMessage_NonPreferredItems(t *testing.T) {
+	// Item with no matching subscription → should appear in non-preferred section
 	items := []collector.ContextItem{
+		{
+			Category:      "top",
+			BrainCategory: "must_know",
+			Rank:          1,
+			Topic:         "주요 이슈",
+			Summary:       "주요 이슈입니다.",
+		},
 		{
 			Category:      "entertainment",
 			BrainCategory: "conversation",
@@ -133,13 +141,20 @@ func TestFormatMessage_NoMatchingSubscriptions(t *testing.T) {
 			Summary:       "연예 관련 소식입니다.",
 		},
 	}
-	subscriptions := []string{"sports"}
+	subscriptions := []string{"sports"} // doesn't match entertainment
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
-	// No "top" items and subscription doesn't match
-	if !strings.Contains(result.TextBody, "구독하신 주제에 대한 맥락이 없습니다") {
-		t.Errorf("expected text body to contain '구독하신 주제에 대한 맥락이 없습니다', got '%s'", result.TextBody)
+	// Both items should be present
+	if !strings.Contains(result.TextBody, "주요 이슈") {
+		t.Error("expected preferred item in text body")
+	}
+	if !strings.Contains(result.TextBody, "연예 소식") {
+		t.Error("expected non-preferred item in text body")
+	}
+	// Divider should appear since there are non-preferred items
+	if !strings.Contains(result.TextBody, "시야를 넓힐 기회에요") {
+		t.Error("expected non-preferred divider when there are non-preferred items")
 	}
 }
 
@@ -169,7 +184,7 @@ func TestFormatMessage_MultipleBrainCategories(t *testing.T) {
 	}
 	subscriptions := []string{"entertainment", "economy"}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
 	// All three brain category labels should appear
 	if !strings.Contains(result.TextBody, "모르면 나만 모르는 이야기예요") {
@@ -201,7 +216,7 @@ func TestFormatMessage_UngroupedFallback(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
 	if !strings.Contains(result.TextBody, "기타") {
 		t.Error("expected text body to contain '기타' fallback section")
@@ -211,42 +226,42 @@ func TestFormatMessage_UngroupedFallback(t *testing.T) {
 	}
 }
 
-// TestFormatMessage_OverTheAlgorithmAlwaysIncluded verifies that items with
-// brain_category="over_the_algorithm" appear in the email regardless of their
-// category and regardless of user subscriptions.
-func TestFormatMessage_OverTheAlgorithmAlwaysIncluded(t *testing.T) {
+// TestFormatMessage_AllItemsIncluded verifies that all items appear in the email
+// regardless of subscription status (no filtering).
+func TestFormatMessage_AllItemsIncluded(t *testing.T) {
 	items := []collector.ContextItem{
 		{
-			Category:      "entertainment", // 구독 안 한 카테고리
-			BrainCategory: "over_the_algorithm",
+			Category:      "entertainment",
+			BrainCategory: "conversation",
 			Rank:          1,
 			Topic:         "OTA 특별 토픽",
 			Summary:       "알고리즘 너머의 이야기예요.",
 			BuzzScore:     92,
 		},
 		{
-			Category:      "sports", // 구독 안 한 카테고리
+			Category:      "sports",
 			BrainCategory: "result",
 			Rank:          1,
 			Topic:         "스포츠 소식",
-			Summary:       "구독하지 않은 스포츠 소식입니다.",
+			Summary:       "스포츠 소식입니다.",
 		},
 	}
 	subscriptions := []string{} // 아무것도 구독 안 함
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
+	// Both items should be present (all items included as preferred since no preferred items exist)
 	if !strings.Contains(result.TextBody, "OTA 특별 토픽") {
-		t.Error("over_the_algorithm 아이템은 구독 여부와 무관하게 항상 포함되어야 합니다")
+		t.Error("모든 아이템이 포함되어야 합니다 (OTA 특별 토픽)")
 	}
-	if strings.Contains(result.TextBody, "스포츠 소식") {
-		t.Error("구독하지 않은 일반 카테고리 아이템은 포함되면 안 됩니다")
+	if !strings.Contains(result.TextBody, "스포츠 소식") {
+		t.Error("모든 아이템이 포함되어야 합니다 (스포츠 소식)")
 	}
 }
 
-// TestFormatMessage_OverTheAlgorithmSection verifies the OTA section header
+// TestFormatMessage_OTASection verifies the OTA section header
 // and buzz_score are rendered correctly in the email body.
-func TestFormatMessage_OverTheAlgorithmSection(t *testing.T) {
+func TestFormatMessage_OTASection(t *testing.T) {
 	items := []collector.ContextItem{
 		{
 			Category:      "top",
@@ -267,7 +282,7 @@ func TestFormatMessage_OverTheAlgorithmSection(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
 	// OTA 섹션 헤더가 있어야 함
 	if !strings.Contains(result.HTMLBody, "Over the Algorithm") {
@@ -300,7 +315,7 @@ func TestFormatMessage_BuzzScoreZeroHidden(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
 	if strings.Contains(result.HTMLBody, "화제도") {
 		t.Error("buzz_score가 0이면 화제도 표시가 없어야 합니다")
@@ -319,9 +334,50 @@ func TestFormatMessage_HTMLEscaping(t *testing.T) {
 	}
 	subscriptions := []string{}
 
-	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil)
+	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
 	if !strings.Contains(result.HTMLBody, "테스트") {
 		t.Error("expected HTML body to contain topic")
+	}
+}
+
+func TestFormatMessage_PointsLabel(t *testing.T) {
+	items := []collector.ContextItem{
+		{
+			Category:      "top",
+			BrainCategory: "must_know",
+			Rank:          1,
+			Topic:         "주요 이슈",
+			Summary:       "요약",
+			Details:       []collector.DetailItem{{Title: "detail1"}},
+		},
+		{
+			Category:      "sports",
+			BrainCategory: "result",
+			Rank:          1,
+			Topic:         "스포츠 소식",
+			Summary:       "요약",
+			Details:       []collector.DetailItem{{Title: "detail1"}},
+		},
+	}
+	subscriptions := []string{} // top is preferred, sports is non-preferred
+	msgCtx := &MessageContext{UserID: "uid1", RunID: "rid1", DaysSinceLastEarn: 2}
+
+	result := FormatMessage(items, subscriptions, testBrainCategories, "https://example.com", nil, msgCtx)
+
+	// Preferred item: +5pt + 2*5 = +15pt
+	if !strings.Contains(result.HTMLBody, "+15pt") {
+		t.Errorf("expected preferred item to show +15pt, HTML: %s", result.HTMLBody)
+	}
+	// Non-preferred item: +15pt + 2*5 = +25pt
+	if !strings.Contains(result.HTMLBody, "+25pt") {
+		t.Errorf("expected non-preferred item to show +25pt, HTML: %s", result.HTMLBody)
+	}
+	// uid/rid tracking params in links
+	if !strings.Contains(result.HTMLBody, "uid=uid1") {
+		t.Error("expected uid tracking param in HTML link")
+	}
+	if !strings.Contains(result.HTMLBody, "rid=rid1") {
+		t.Error("expected rid tracking param in HTML link")
 	}
 }

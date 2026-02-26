@@ -7,17 +7,26 @@ import (
 	"ota/domain/collector"
 )
 
+// Point constants for display in email links.
+// These match the values in domain/level/model.go.
+const (
+	pointBasePreferred    = 5
+	pointBaseNonPreferred = 15
+	pointBonusPerDay      = 5
+)
+
 // FormatMessage creates a personalized message from context items.
 // This is a pure function - no side effects, completely testable.
 //
 // Rules:
-// - Always include items from "top" and "brief" categories (universal topics)
-// - Append items from subscribed categories
-// - Groups items by brain_category (action-oriented labels) instead of raw category
+// - "preferred" items: category is "top", "brief", or in user's subscriptions
+// - "non-preferred" items: everything else (shown in a separate section below)
+// - All items are always included — preferred section first, then non-preferred
 // - brainCategories provides the display metadata (emoji, label, color, order)
 // - frontendURL is used to generate detail links per item.
-//   Pass empty string to omit links (e.g. in tests or when URL is unavailable).
-func FormatMessage(items []collector.ContextItem, subscriptions []string, brainCategories []collector.BrainCategory, frontendURL string, levelInfo *UserLevelInfo) FormattedMessage {
+// - msgCtx carries uid/rid for link tracking and days-since-earn for point display.
+//   Pass nil for msgCtx to omit personalized links (e.g. welcome emails).
+func FormatMessage(items []collector.ContextItem, subscriptions []string, brainCategories []collector.BrainCategory, frontendURL string, levelInfo *UserLevelInfo, msgCtx *MessageContext) FormattedMessage {
 	if len(items) == 0 {
 		return FormattedMessage{
 			Subject:  "오늘의 맥락",
@@ -32,25 +41,27 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, brainC
 		subSet[sub] = true
 	}
 
-	// Filter items: always include "top", "brief", "over_the_algorithm", plus subscribed categories
-	var selectedItems []collector.ContextItem
+	// Split into preferred and non-preferred sections
+	var preferredItems []collector.ContextItem
+	var nonPreferredItems []collector.ContextItem
 	for _, item := range items {
-		if item.Category == "top" || item.Category == "brief" || item.BrainCategory == "over_the_algorithm" || subSet[item.Category] {
-			selectedItems = append(selectedItems, item)
+		if isPreferred(item, subSet) {
+			preferredItems = append(preferredItems, item)
+		} else {
+			nonPreferredItems = append(nonPreferredItems, item)
 		}
 	}
 
-	if len(selectedItems) == 0 {
-		return FormattedMessage{
-			Subject:  "오늘의 맥락",
-			TextBody: "구독하신 주제에 대한 맥락이 없습니다.",
-			HTMLBody: "<p>구독하신 주제에 대한 맥락이 없습니다.</p>",
-		}
+	// If nothing is preferred (edge case: no top/brief items and no subscriptions),
+	// treat all items as preferred to avoid an empty first section.
+	if len(preferredItems) == 0 {
+		preferredItems = items
+		nonPreferredItems = nil
 	}
 
-	subject := generateSubject(selectedItems)
-	textBody := generateTextBody(selectedItems, brainCategories, frontendURL)
-	htmlBody := generateHTMLBody(selectedItems, brainCategories, frontendURL, levelInfo)
+	subject := generateSubject(items)
+	textBody := generateTextBody(preferredItems, nonPreferredItems, brainCategories, frontendURL, msgCtx)
+	htmlBody := generateHTMLBody(preferredItems, nonPreferredItems, brainCategories, frontendURL, levelInfo, msgCtx)
 
 	return FormattedMessage{
 		Subject:  subject,
@@ -59,61 +70,93 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, brainC
 	}
 }
 
-func generateSubject(items []collector.ContextItem) string {
-	universalCount := 0
-	for _, item := range items {
-		if item.Category == "top" || item.Category == "brief" {
-			universalCount++
-		}
-	}
-
-	if universalCount == len(items) {
-		return fmt.Sprintf("오늘의 맥락 %d가지", len(items))
-	}
-
-	return fmt.Sprintf("오늘의 맥락 %d가지 (구독 주제 포함)", len(items))
+// isPreferred returns true if the item belongs to a universally-shown category or the user's subscriptions.
+func isPreferred(item collector.ContextItem, subSet map[string]bool) bool {
+	return item.Category == "top" || item.Category == "brief" || subSet[item.Category]
 }
 
-func generateTextBody(items []collector.ContextItem, brainCategories []collector.BrainCategory, frontendURL string) string {
+func generateSubject(items []collector.ContextItem) string {
+	return fmt.Sprintf("오늘의 맥락 %d가지", len(items))
+}
+
+func generateTextBody(preferred, nonPreferred []collector.ContextItem, brainCategories []collector.BrainCategory, frontendURL string, msgCtx *MessageContext) string {
 	var sections []string
 
-	bcGroups := groupByBrainCategory(items)
-
-	// Render in brain category display_order
+	// Preferred section
+	bcGroups := groupByBrainCategory(preferred)
 	for _, bc := range brainCategories {
 		if groupItems, ok := bcGroups[bc.Key]; ok {
 			header := fmt.Sprintf("%s %s", bc.Emoji, bc.Label)
-			sections = append(sections, header+"\n"+formatItemsAsText(groupItems, frontendURL))
+			sections = append(sections, header+"\n"+formatItemsAsText(groupItems, frontendURL, true, msgCtx))
 		}
 	}
-
-	// Items without brain_category (legacy/unmapped)
 	if ungrouped, ok := bcGroups[""]; ok {
-		sections = append(sections, "📌 기타\n"+formatItemsAsText(ungrouped, frontendURL))
+		sections = append(sections, "📌 기타\n"+formatItemsAsText(ungrouped, frontendURL, true, msgCtx))
+	}
+
+	// Non-preferred section
+	if len(nonPreferred) > 0 {
+		sections = append(sections, "🌱 시야를 넓힐 기회에요")
+		bcGroupsNP := groupByBrainCategory(nonPreferred)
+		for _, bc := range brainCategories {
+			if groupItems, ok := bcGroupsNP[bc.Key]; ok {
+				header := fmt.Sprintf("%s %s", bc.Emoji, bc.Label)
+				sections = append(sections, header+"\n"+formatItemsAsText(groupItems, frontendURL, false, msgCtx))
+			}
+		}
+		if ungrouped, ok := bcGroupsNP[""]; ok {
+			sections = append(sections, "📌 기타\n"+formatItemsAsText(ungrouped, frontendURL, false, msgCtx))
+		}
 	}
 
 	return strings.Join(sections, "\n\n")
 }
 
-func generateHTMLBody(items []collector.ContextItem, brainCategories []collector.BrainCategory, frontendURL string, levelInfo *UserLevelInfo) string {
-	bcGroups := groupByBrainCategory(items)
-
+func generateHTMLBody(preferred, nonPreferred []collector.ContextItem, brainCategories []collector.BrainCategory, frontendURL string, levelInfo *UserLevelInfo, msgCtx *MessageContext) string {
 	var body strings.Builder
 
-	// Render in brain category display_order
+	// Preferred sections
+	bcGroups := groupByBrainCategory(preferred)
 	for _, bc := range brainCategories {
 		if groupItems, ok := bcGroups[bc.Key]; ok {
 			sectionTitle := fmt.Sprintf("%s %s", bc.Emoji, bc.Label)
-			body.WriteString(renderEmailSection(sectionTitle, bc.AccentColor, groupItems, frontendURL))
+			body.WriteString(renderEmailSection(sectionTitle, bc.AccentColor, groupItems, frontendURL, true, msgCtx))
+		}
+	}
+	if ungrouped, ok := bcGroups[""]; ok {
+		body.WriteString(renderEmailSection("📌 기타", "#9b8bb4", ungrouped, frontendURL, true, msgCtx))
+	}
+
+	// Non-preferred sections with divider
+	if len(nonPreferred) > 0 {
+		body.WriteString(renderNonPreferredDivider())
+		bcGroupsNP := groupByBrainCategory(nonPreferred)
+		for _, bc := range brainCategories {
+			if groupItems, ok := bcGroupsNP[bc.Key]; ok {
+				sectionTitle := fmt.Sprintf("%s %s", bc.Emoji, bc.Label)
+				body.WriteString(renderEmailSection(sectionTitle, bc.AccentColor, groupItems, frontendURL, false, msgCtx))
+			}
+		}
+		if ungrouped, ok := bcGroupsNP[""]; ok {
+			body.WriteString(renderEmailSection("📌 기타", "#9b8bb4", ungrouped, frontendURL, false, msgCtx))
 		}
 	}
 
-	// Items without brain_category (legacy/unmapped)
-	if ungrouped, ok := bcGroups[""]; ok {
-		body.WriteString(renderEmailSection("📌 기타", "#9b8bb4", ungrouped, frontendURL))
-	}
-
 	return wrapEmailTemplate(body.String(), frontendURL, levelInfo)
+}
+
+// renderNonPreferredDivider returns the HTML row separating preferred and non-preferred sections.
+func renderNonPreferredDivider() string {
+	return `
+      <tr><td style="padding-bottom:16px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1a1229;border-radius:16px;border:1px solid #7bc67e;">
+          <tr><td style="padding:16px 24px;">
+            <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#7bc67e;">🌱 시야를 넓힐 기회에요</p>
+            <p style="margin:0;font-size:12px;color:#9b8bb4;">구독하지 않은 주제예요. 읽으면 더 많은 포인트를 얻어요!</p>
+          </td></tr>
+        </table>
+      </td></tr>
+`
 }
 
 func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) string {
@@ -219,7 +262,7 @@ func renderHeaderLevelCell(info *UserLevelInfo, frontendURL string) string {
 	)
 }
 
-func renderEmailSection(title, accentColor string, items []collector.ContextItem, frontendURL string) string {
+func renderEmailSection(title, accentColor string, items []collector.ContextItem, frontendURL string, preferred bool, msgCtx *MessageContext) string {
 	var rows strings.Builder
 	for i, item := range items {
 		borderBottom := "border-bottom:1px solid #2d1f42;"
@@ -237,9 +280,11 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 
 		linkHTML := ""
 		if frontendURL != "" && len(item.Details) > 0 {
+			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx)
+			pointsLabel := buildPointsLabel(preferred, msgCtx)
 			linkHTML = fmt.Sprintf(
-				`<p style="margin:10px 0 0;"><a href="%s/topic/%s" style="font-size:12px;color:#9b8bb4;text-decoration:none;letter-spacing:0.01em;">%d개의 추가 정보가 있어요 →</a></p>`,
-				frontendURL, item.ID, len(item.Details),
+				`<p style="margin:10px 0 0;"><a href="%s" style="font-size:12px;color:#9b8bb4;text-decoration:none;letter-spacing:0.01em;">%d개의 추가 정보가 있어요 →%s</a></p>`,
+				href, len(item.Details), pointsLabel,
 			)
 		}
 
@@ -277,6 +322,29 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 `, accentColor, title, rows.String())
 }
 
+// buildTopicLink constructs the topic detail URL with optional uid/rid tracking params.
+func buildTopicLink(frontendURL, itemID string, msgCtx *MessageContext) string {
+	base := fmt.Sprintf("%s/topic/%s", frontendURL, itemID)
+	if msgCtx == nil || msgCtx.UserID == "" {
+		return base
+	}
+	return fmt.Sprintf("%s?uid=%s&rid=%s", base, msgCtx.UserID, msgCtx.RunID)
+}
+
+// buildPointsLabel returns the " +Xpt" HTML span shown next to the detail link.
+// Returns empty string if msgCtx is nil.
+func buildPointsLabel(preferred bool, msgCtx *MessageContext) string {
+	if msgCtx == nil {
+		return ""
+	}
+	base := pointBaseNonPreferred
+	if preferred {
+		base = pointBasePreferred
+	}
+	pts := base + msgCtx.DaysSinceLastEarn*pointBonusPerDay
+	return fmt.Sprintf(`  <span style="font-size:11px;color:#7bc67e;font-weight:700;">+%dpt</span>`, pts)
+}
+
 func groupByBrainCategory(items []collector.ContextItem) map[string][]collector.ContextItem {
 	groups := make(map[string][]collector.ContextItem)
 	for _, item := range items {
@@ -285,8 +353,7 @@ func groupByBrainCategory(items []collector.ContextItem) map[string][]collector.
 	return groups
 }
 
-
-func formatItemsAsText(items []collector.ContextItem, frontendURL string) string {
+func formatItemsAsText(items []collector.ContextItem, frontendURL string, preferred bool, msgCtx *MessageContext) string {
 	var lines []string
 	for i, item := range items {
 		buzzStr := ""
@@ -295,11 +362,18 @@ func formatItemsAsText(items []collector.ContextItem, frontendURL string) string
 		}
 		line := fmt.Sprintf("%d. %s%s: %s", i+1, item.Topic, buzzStr, item.Summary)
 		if frontendURL != "" && len(item.Details) > 0 {
-			line += fmt.Sprintf("\n   👉 %d개의 추가 정보: %s/topic/%s", len(item.Details), frontendURL, item.ID)
+			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx)
+			pts := ""
+			if msgCtx != nil {
+				base := pointBaseNonPreferred
+				if preferred {
+					base = pointBasePreferred
+				}
+				pts = fmt.Sprintf(" +%dpt", base+msgCtx.DaysSinceLastEarn*pointBonusPerDay)
+			}
+			line += fmt.Sprintf("\n   👉 %d개의 추가 정보: %s%s", len(item.Details), href, pts)
 		}
 		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
 }
-
-

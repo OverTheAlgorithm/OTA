@@ -7,8 +7,8 @@ import (
 )
 
 // Thresholds는 레벨별 누적 포인트 기준 (인덱스 = 레벨-1)
-// Lv1: 0pt~, Lv2: 5pt~, Lv3: 15pt~, Lv4: 30pt~, Lv5: 55pt~
-var Thresholds = []int{0, 5, 15, 30, 55}
+// Lv1: 0pt~, Lv2: 15pt~, Lv3: 45pt~, Lv4: 90pt~, Lv5: 165pt~
+var Thresholds = []int{0, 15, 45, 90, 165}
 
 // Descriptions는 레벨별 설명
 var Descriptions = []string{
@@ -21,8 +21,12 @@ var Descriptions = []string{
 
 const MaxLevel = 5
 
-// BrainCategoryKey is the key for the "Over the Algorithm" brain category
-const BrainCategoryKey = "over_the_algorithm"
+// Point constants for earn calculation.
+const (
+	BasePointPreferred    = 5  // points for visiting a topic in a subscribed category
+	BasePointNonPreferred = 15 // points for visiting a topic outside subscribed categories
+	BonusPointPerDay      = 5  // additional points per calendar day since last earn
+)
 
 type UserPoints struct {
 	UserID    string
@@ -35,6 +39,7 @@ type UserPoints struct {
 type PointLog struct {
 	ID            uuid.UUID
 	UserID        string
+	RunID         uuid.UUID
 	ContextItemID uuid.UUID
 	PointsEarned  int
 	CreatedAt     time.Time
@@ -55,6 +60,7 @@ type EarnResult struct {
 	CurrentProgress int  `json:"current_progress"`
 	PointsToNext    int  `json:"points_to_next"`
 	LeveledUp       bool `json:"leveled_up"`
+	PointsEarned    int  `json:"points_earned"`
 }
 
 // CalcLevel returns the level (1-5) for the given total accumulated points.
@@ -95,4 +101,15 @@ func CalcLevelInfo(totalPoints int) LevelInfo {
 		PointsToNext:    needed,
 		Description:     desc,
 	}
+}
+
+// CalcPoints returns the points to award for visiting a topic.
+// preferred=true means the topic belongs to a category the user subscribes to.
+// daysSinceLastEarn is the number of calendar days (KST) since the user last earned any points.
+func CalcPoints(preferred bool, daysSinceLastEarn int) int {
+	base := BasePointNonPreferred
+	if preferred {
+		base = BasePointPreferred
+	}
+	return base + daysSinceLastEarn*BonusPointPerDay
 }

@@ -36,9 +36,11 @@ func (h *LevelHandler) EarnPoint(c *gin.Context) {
 
 	var req struct {
 		ContextItemID string `json:"context_item_id" binding:"required"`
+		RunID         string `json:"run_id" binding:"required"`
+		Preferred     bool   `json:"preferred"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "context_item_id is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "context_item_id and run_id are required"})
 		return
 	}
 
@@ -48,7 +50,13 @@ func (h *LevelHandler) EarnPoint(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.EarnPoint(c.Request.Context(), userID, itemID)
+	runID, err := uuid.Parse(req.RunID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid run_id"})
+		return
+	}
+
+	result, err := h.service.EarnPoint(c.Request.Context(), userID, runID, itemID, req.Preferred)
 	if err != nil {
 		log.Printf("earn point error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})

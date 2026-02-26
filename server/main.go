@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -40,6 +41,10 @@ func (a *levelServiceAdapter) GetLevel(ctx context.Context, userID string) (deli
 		PointsToNext:    info.PointsToNext,
 		Description:     info.Description,
 	}, nil
+}
+
+func (a *levelServiceAdapter) GetLastEarnedAtBatch(ctx context.Context, userIDs []string) (map[string]time.Time, error) {
+	return a.svc.GetLastEarnedAtBatch(ctx, userIDs)
 }
 
 func main() {
@@ -112,13 +117,17 @@ func main() {
 	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter, brainCategoryRepo, cfg.FrontendURL)
 	log.Println("delivery service initialized")
 
+	// Level
+	levelRepo := storage.NewLevelRepository(pool)
+	levelService := level.NewService(levelRepo)
+
 	// Scheduler
-	sched := scheduler.New(collectorService, deliveryService)
+	sched := scheduler.New(collectorService, deliveryService, levelService)
 	if err := sched.Start(); err != nil {
 		log.Fatalf("failed to start scheduler: %v", err)
 	}
 	defer sched.Stop()
-	log.Println("scheduler started (collection 4-6 AM, delivery 7:00-7:15 AM, retry 7:30-8:30 AM KST)")
+	log.Println("scheduler started (collection 4-6 AM, delivery 7:00-7:15 AM, retry 7:30-8:30 AM KST, decay 00:00 KST)")
 
 	// Handlers
 	userRepo := storage.NewUserRepository(pool)
@@ -142,8 +151,6 @@ func main() {
 	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
 
 	// Level
-	levelRepo := storage.NewLevelRepository(pool)
-	levelService := level.NewService(levelRepo)
 	levelHandler := handler.NewLevelHandler(levelService, api.AuthMiddleware(jwtManager))
 	deliveryService.WithLevelProvider(&levelServiceAdapter{svc: levelService})
 
