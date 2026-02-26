@@ -24,7 +24,7 @@ Google Trends 웹사이트(trends.google.com/trending?geo=KR&hours=24)에서는 
 | Google Trends 내부 API 호출 | 비공식, 안정성 리스크 | 미조사 |
 | RSS 결과 + 네이버 API 보완 | 현재 채택한 방식 | 진행 중 |
 
----
+--- 
 
 ## [Data Collection] Google News RSS 상업적 사용 제한
 

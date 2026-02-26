@@ -12,20 +12,20 @@ import (
 const (
 	pointBasePreferred    = 5
 	pointBaseNonPreferred = 15
-	pointBonusPerDay      = 5
+	pointBonusPerDay      = 1
 )
 
 // FormatMessage creates a personalized message from context items.
 // This is a pure function - no side effects, completely testable.
 //
 // Rules:
-// - "preferred" items: category is "top", "brief", or in user's subscriptions
-// - "non-preferred" items: everything else (shown in a separate section below)
-// - All items are always included — preferred section first, then non-preferred
-// - brainCategories provides the display metadata (emoji, label, color, order)
-// - frontendURL is used to generate detail links per item.
-// - msgCtx carries uid/rid for link tracking and days-since-earn for point display.
-//   Pass nil for msgCtx to omit personalized links (e.g. welcome emails).
+//   - "preferred" items: category is "top", "brief", or in user's subscriptions
+//   - "non-preferred" items: everything else (shown in a separate section below)
+//   - All items are always included — preferred section first, then non-preferred
+//   - brainCategories provides the display metadata (emoji, label, color, order)
+//   - frontendURL is used to generate detail links per item.
+//   - msgCtx carries uid/rid for link tracking and days-since-earn for point display.
+//     Pass nil for msgCtx to omit personalized links (e.g. welcome emails).
 func FormatMessage(items []collector.ContextItem, subscriptions []string, brainCategories []collector.BrainCategory, frontendURL string, levelInfo *UserLevelInfo, msgCtx *MessageContext) FormattedMessage {
 	if len(items) == 0 {
 		return FormattedMessage{

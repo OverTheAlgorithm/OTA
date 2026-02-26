@@ -82,7 +82,17 @@
       "WebFetch(domain:junpyopark.github.io)",
       "WebFetch(domain:w3devlabs.net)",
       "Bash(__NEW_LINE_48201c5f5975b6e5__ echo \"=== Entertainment sources ===\")",
-      "Bash(__NEW_LINE_05f7bdfc96f331a7__ echo \"=== Business sources ===\")"
+      "Bash(__NEW_LINE_05f7bdfc96f331a7__ echo \"=== Business sources ===\")",
+      "Bash(docker exec:*)",
+      "Bash(ss:*)",
+      "Bash(netstat.exe:*)",
+      "WebFetch(domain:www.fivefilters.org)",
+      "WebFetch(domain:www.newscatcherapi.com)",
+      "WebFetch(domain:news.google.com)",
+      "WebFetch(domain:support.google.com)",
+      "WebFetch(domain:www.google.com)",
+      "WebFetch(domain:community.n8n.io)",
+      "WebFetch(domain:valentin.app)"
     ]
   }
 }
