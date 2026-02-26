@@ -214,10 +214,17 @@ const scenarios = [
 ];
 
 export function LandingPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const loginError = searchParams.get("error");
+
+  // auth/me가 성공한 경우 이미 로그인된 유저 → 랜딩 불필요, /home으로 이동
+  useEffect(() => {
+    if (!loading && user) {
+      navigate("/home", { replace: true });
+    }
+  }, [loading, user, navigate]);
 
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
