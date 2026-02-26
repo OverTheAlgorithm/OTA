@@ -2,21 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { fetchTopicDetail, type TopicDetail, type TopicEarnResult } from "@/lib/api";
 
-// 토픽 페이지 진입 시 AdSense 스크립트 삽입, 이탈 시 제거
-function useAdSense() {
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8601715660780205";
-    script.async = true;
-    script.crossOrigin = "anonymous";
-    script.id = "adsense-script";
-    document.head.appendChild(script);
-    return () => {
-      document.getElementById("adsense-script")?.remove();
-    };
-  }, []);
-}
-
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -91,7 +76,6 @@ function PointToast({ earn }: ToastProps) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export function TopicPage() {
-  useAdSense();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const [topic, setTopic] = useState<TopicDetail | null>(null);
