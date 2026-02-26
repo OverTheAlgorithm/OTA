@@ -24,11 +24,11 @@ func NewLevelRepository(pool *pgxpool.Pool) *LevelRepository {
 func (r *LevelRepository) GetUserPoints(ctx context.Context, userID string) (level.UserPoints, error) {
 	var up level.UserPoints
 	err := r.pool.QueryRow(ctx,
-		`SELECT user_id, level, points, created_at, updated_at FROM user_points WHERE user_id = $1`,
+		`SELECT user_id, points, created_at, updated_at FROM user_points WHERE user_id = $1`,
 		userID,
-	).Scan(&up.UserID, &up.Level, &up.Points, &up.CreatedAt, &up.UpdatedAt)
+	).Scan(&up.UserID, &up.Points, &up.CreatedAt, &up.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return level.UserPoints{UserID: userID, Level: 1, Points: 0}, nil
+		return level.UserPoints{UserID: userID, Points: 0}, nil
 	}
 	if err != nil {
 		return level.UserPoints{}, fmt.Errorf("get user points: %w", err)
@@ -59,8 +59,8 @@ func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, runID, c
 	// 2. Upsert user_points and add earned points
 	var newTotal int
 	err = tx.QueryRow(ctx, `
-		INSERT INTO user_points (user_id, level, points, updated_at)
-		VALUES ($1, 1, $2, NOW())
+		INSERT INTO user_points (user_id, points, updated_at)
+		VALUES ($1, $2, NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
 			points = user_points.points + $2,
 			updated_at = NOW()
@@ -68,16 +68,6 @@ func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, runID, c
 	`, userID, points).Scan(&newTotal)
 	if err != nil {
 		return false, 0, fmt.Errorf("upsert user points: %w", err)
-	}
-
-	// 3. Recalculate level
-	newLevel := level.CalcLevel(newTotal)
-	_, err = tx.Exec(ctx,
-		`UPDATE user_points SET level = $1 WHERE user_id = $2`,
-		newLevel, userID,
-	)
-	if err != nil {
-		return false, 0, fmt.Errorf("update level: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -149,20 +139,6 @@ func (r *LevelRepository) DecayPoints(ctx context.Context, batchSize int) (int, 
 			return total, fmt.Errorf("decay batch: %w", err)
 		}
 
-		// Recalculate levels after decay (thresholds: Lv1:0, Lv2:15, Lv3:45, Lv4:90, Lv5:165)
-		if _, err = r.pool.Exec(ctx, `
-			UPDATE user_points SET level = CASE
-				WHEN points >= 165 THEN 5
-				WHEN points >= 90  THEN 4
-				WHEN points >= 45  THEN 3
-				WHEN points >= 15  THEN 2
-				ELSE 1
-			END
-			WHERE user_id = ANY($1)
-		`, ids); err != nil {
-			return total, fmt.Errorf("recalculate levels after decay: %w", err)
-		}
-
 		total += len(ids)
 		cursor = ids[len(ids)-1]
 		if len(ids) < batchSize {
@@ -204,15 +180,13 @@ func (r *LevelRepository) fetchDecayBatch(ctx context.Context, cursor string, ba
 }
 
 func (r *LevelRepository) SetPoints(ctx context.Context, userID string, points int) error {
-	newLevel := level.CalcLevel(points)
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO user_points (user_id, level, points, updated_at)
-		VALUES ($1, $2, $3, NOW())
+		INSERT INTO user_points (user_id, points, updated_at)
+		VALUES ($1, $2, NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
-			points     = $3,
-			level      = $2,
+			points     = $2,
 			updated_at = NOW()
-	`, userID, newLevel, points)
+	`, userID, points)
 	if err != nil {
 		return fmt.Errorf("set points: %w", err)
 	}

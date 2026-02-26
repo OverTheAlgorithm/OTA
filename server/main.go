@@ -148,7 +148,7 @@ func main() {
 
 	// Context history
 	historyRepo := storage.NewHistoryRepository(pool)
-	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
+	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, levelService, subscriptionRepo, api.AuthMiddleware(jwtManager))
 
 	// Level
 	levelHandler := handler.NewLevelHandler(levelService, api.AuthMiddleware(jwtManager))

@@ -5,16 +5,9 @@ import (
 	"strings"
 
 	"ota/domain/collector"
+	"ota/domain/level"
 )
 
-// Point constants for display in email links.
-// These match the values in domain/level/model.go.
-const (
-	pointBasePreferred    = 5
-	pointBaseNonPreferred = 15
-	pointBonusPerDay      = 1
-	pointMaxEarn          = 50
-)
 
 // FormatMessage creates a personalized message from context items.
 // This is a pure function - no side effects, completely testable.
@@ -36,17 +29,13 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, brainC
 		}
 	}
 
-	// Build subscription set for fast lookup
-	subSet := make(map[string]bool)
-	for _, sub := range subscriptions {
-		subSet[sub] = true
-	}
+	// Build subscription set for fast lookup - NOT NEEDED ANYMORE BUT WE PASS SLICE DIRECTLY
 
 	// Split into preferred and non-preferred sections
 	var preferredItems []collector.ContextItem
 	var nonPreferredItems []collector.ContextItem
 	for _, item := range items {
-		if isPreferred(item, subSet) {
+		if level.IsPreferredCategory(item.Category, subscriptions) {
 			preferredItems = append(preferredItems, item)
 		} else {
 			nonPreferredItems = append(nonPreferredItems, item)
@@ -71,10 +60,7 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, brainC
 	}
 }
 
-// isPreferred returns true if the item belongs to a universally-shown category or the user's subscriptions.
-func isPreferred(item collector.ContextItem, subSet map[string]bool) bool {
-	return item.Category == "top" || item.Category == "brief" || subSet[item.Category]
-}
+
 
 func generateSubject(items []collector.ContextItem) string {
 	return fmt.Sprintf("오늘의 맥락 %d가지", len(items))
@@ -342,11 +328,7 @@ func buildPointsLabel(preferred bool, msgCtx *MessageContext) string {
 	if msgCtx == nil {
 		return ""
 	}
-	base := pointBaseNonPreferred
-	if preferred {
-		base = pointBasePreferred
-	}
-	pts := max(pointMaxEarn, base+msgCtx.DaysSinceLastEarn*pointBonusPerDay)
+	pts := level.CalcPoints(preferred, msgCtx.DaysSinceLastEarn)
 	return fmt.Sprintf(`  <span style="font-size:11px;color:#7bc67e;font-weight:700;">+%dpt</span>`, pts)
 }
 
@@ -370,11 +352,7 @@ func formatItemsAsText(items []collector.ContextItem, frontendURL string, prefer
 			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx)
 			pts := ""
 			if msgCtx != nil {
-				base := pointBaseNonPreferred
-				if preferred {
-					base = pointBasePreferred
-				}
-				pts = fmt.Sprintf(" +%dpt", max(pointMaxEarn, base+msgCtx.DaysSinceLastEarn*pointBonusPerDay))
+				pts = fmt.Sprintf(" +%dpt", level.CalcPoints(preferred, msgCtx.DaysSinceLastEarn))
 			}
 			line += fmt.Sprintf("\n   👉 %d개의 추가 정보: %s%s", len(item.Details), href, pts)
 		}

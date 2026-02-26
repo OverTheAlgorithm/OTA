@@ -80,10 +80,10 @@ func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID
 	var item collector.TopicDetail
 	var detailsJSON []byte
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'), COALESCE(brain_category, ''), created_at
+		SELECT id, category, topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'), COALESCE(brain_category, ''), created_at
 		FROM context_items
 		WHERE id = $1
-	`, id).Scan(&item.ID, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt)
+	`, id).Scan(&item.ID, &item.Category, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -92,4 +92,22 @@ func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID
 	}
 	item.Details = collector.UnmarshalDetails(detailsJSON)
 	return &item, nil
+}
+
+// IsRunCreatedToday returns true if the run was started today (KST).
+func (r *HistoryRepository) IsRunCreatedToday(ctx context.Context, runID uuid.UUID) (bool, error) {
+	query := `
+		SELECT DATE(started_at AT TIME ZONE 'Asia/Seoul') = DATE(NOW() AT TIME ZONE 'Asia/Seoul')
+		FROM collection_runs
+		WHERE id = $1
+	`
+	var isToday bool
+	err := r.pool.QueryRow(ctx, query, runID).Scan(&isToday)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return isToday, nil
 }

@@ -1,0 +1,1 @@
+ALTER TABLE user_points ADD COLUMN level INT NOT NULL DEFAULT 1;

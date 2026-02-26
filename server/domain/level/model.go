@@ -26,11 +26,11 @@ const (
 	BasePointPreferred    = 5  // points for visiting a topic in a subscribed category
 	BasePointNonPreferred = 15 // points for visiting a topic outside subscribed categories
 	BonusPointPerDay      = 5  // additional points per calendar day since last earn
+	MaxPointEarn          = 50 // maximum points a user can earn per click
 )
 
 type UserPoints struct {
 	UserID    string
-	Level     int
 	Points    int
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -111,5 +111,22 @@ func CalcPoints(preferred bool, daysSinceLastEarn int) int {
 	if preferred {
 		base = BasePointPreferred
 	}
-	return base + daysSinceLastEarn*BonusPointPerDay
+	pts := base + daysSinceLastEarn*BonusPointPerDay
+	if pts > MaxPointEarn {
+		return MaxPointEarn
+	}
+	return pts
+}
+
+// IsPreferredCategory returns true if the category is always shown (top/brief) or is in the user's subscriptions.
+func IsPreferredCategory(category string, subscriptions []string) bool {
+	if category == "top" || category == "brief" {
+		return true
+	}
+	for _, sub := range subscriptions {
+		if category == sub {
+			return true
+		}
+	}
+	return false
 }
