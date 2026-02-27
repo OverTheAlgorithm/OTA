@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { addSubscription, deleteSubscription } from "@/lib/api";
 
-const PRESET_TAGS = [
-  "연예/오락", "경제", "스포츠", "정치", "IT/기술",
-  "패션/뷰티", "음식/맛집", "여행", "건강/의학",
-  "게임", "사회/이슈", "문화/예술",
+const CATEGORIES: { key: string; label: string; emoji: string }[] = [
+  { key: "entertainment", label: "연예/오락", emoji: "🎬" },
+  { key: "business", label: "경제/비즈니스", emoji: "💰" },
+  { key: "sports", label: "스포츠", emoji: "⚽" },
+  { key: "technology", label: "IT/기술", emoji: "💻" },
+  { key: "science", label: "과학", emoji: "🔬" },
+  { key: "health", label: "건강/의학", emoji: "🏥" },
 ];
 
 interface Props {
@@ -13,43 +16,41 @@ interface Props {
 }
 
 export function InterestSection({ selected, onChange }: Props) {
-  const [customInput, setCustomInput] = useState("");
-  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleAdd = async (category: string) => {
-    const trimmed = category.trim();
-    if (!trimmed || selected.includes(trimmed)) return;
-    setAdding(true);
+  const handleToggle = async (key: string) => {
+    if (saving) return;
+
+    setSaving(true);
     setErrorMsg(null);
     const prev = selected;
-    onChange([...selected, trimmed]);
-    try {
-      await addSubscription(trimmed);
-      setCustomInput("");
-    } catch (err) {
-      console.error("관심사 추가 실패:", err);
-      onChange(prev);
-      setErrorMsg("저장에 실패했습니다. 다시 시도해주세요.");
-    } finally {
-      setAdding(false);
+    const isSelected = selected.includes(key);
+
+    if (isSelected) {
+      onChange(selected.filter((s) => s !== key));
+      try {
+        await deleteSubscription(key);
+      } catch (err) {
+        console.error("관심사 삭제 실패:", err);
+        onChange(prev);
+        setErrorMsg("저장에 실패했습니다. 다시 시도해주세요.");
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      onChange([...selected, key]);
+      try {
+        await addSubscription(key);
+      } catch (err) {
+        console.error("관심사 추가 실패:", err);
+        onChange(prev);
+        setErrorMsg("저장에 실패했습니다. 다시 시도해주세요.");
+      } finally {
+        setSaving(false);
+      }
     }
   };
-
-  const handleRemove = async (category: string) => {
-    setErrorMsg(null);
-    const prev = selected;
-    onChange(selected.filter((s) => s !== category));
-    try {
-      await deleteSubscription(category);
-    } catch (err) {
-      console.error("관심사 삭제 실패:", err);
-      onChange(prev);
-      setErrorMsg("저장에 실패했습니다. 다시 시도해주세요.");
-    }
-  };
-
-  const unselected = PRESET_TAGS.filter((t) => !selected.includes(t));
 
   return (
     <section className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] p-6">
@@ -67,66 +68,33 @@ export function InterestSection({ selected, onChange }: Props) {
         </span>
       </div>
 
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {selected.map((tag) => (
+      <div className="grid grid-cols-2 gap-2">
+        {CATEGORIES.map((cat) => {
+          const isActive = selected.includes(cat.key);
+          return (
             <button
-              key={tag}
-              onClick={() => handleRemove(tag)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
-                         bg-[#5ba4d9]/20 text-[#5ba4d9] border border-[#5ba4d9]/30
-                         hover:bg-[#5ba4d9]/30 transition-colors"
+              key={cat.key}
+              onClick={() => handleToggle(cat.key)}
+              disabled={saving}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium transition-colors
+                ${isActive
+                  ? "bg-[#5ba4d9]/20 text-[#5ba4d9] border border-[#5ba4d9]/30"
+                  : "bg-[#0f0a19] text-[#9b8bb4] border border-[#2d1f42] hover:border-[#5ba4d9]/30 hover:text-[#f5f0ff]"
+                }
+                ${saving ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+              `}
             >
-              {tag}
-              <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none"
-                stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <path d="M9 3L3 9M3 3l6 6"/>
-              </svg>
+              <span className="text-lg">{cat.emoji}</span>
+              <span>{cat.label}</span>
+              {isActive && (
+                <svg className="w-3.5 h-3.5 ml-auto" viewBox="0 0 14 14" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11.5 3.5L5.5 10.5L2.5 7.5"/>
+                </svg>
+              )}
             </button>
-          ))}
-        </div>
-      )}
-
-      {unselected.length > 0 && (
-        <>
-          <p className="text-xs text-[#9b8bb4] mb-3">추가할 수 있는 관심사</p>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {unselected.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => handleAdd(tag)}
-                disabled={adding}
-                className="px-3 py-1.5 rounded-full text-sm text-[#9b8bb4]
-                           border border-[#2d1f42] hover:border-[#5ba4d9]/50
-                           hover:text-[#f5f0ff] transition-colors disabled:opacity-50"
-              >
-                + {tag}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="flex gap-2 mt-2">
-        <input
-          type="text"
-          value={customInput}
-          onChange={(e) => setCustomInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAdd(customInput)}
-          placeholder="직접 입력..."
-          className="flex-1 bg-[#0f0a19] border border-[#2d1f42] rounded-xl px-4 py-2
-                     text-sm text-[#f5f0ff] placeholder:text-[#9b8bb4]/50
-                     focus:outline-none focus:border-[#5ba4d9]/50 transition-colors"
-        />
-        <button
-          onClick={() => handleAdd(customInput)}
-          disabled={!customInput.trim() || adding}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-[#5ba4d9]/20 text-[#5ba4d9]
-                     border border-[#5ba4d9]/30 hover:bg-[#5ba4d9]/30 transition-colors
-                     disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          추가
-        </button>
+          );
+        })}
       </div>
 
       {errorMsg && (
