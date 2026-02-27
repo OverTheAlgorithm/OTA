@@ -4,6 +4,7 @@ export interface User {
   id: string;
   kakao_id: number;
   email?: string;
+  email_verified: boolean;
   nickname?: string;
   profile_image?: string;
   role: string;

@@ -25,6 +25,8 @@ export function ChannelPreferencesSection() {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const emailVerified = user?.email_verified ?? false;
+
   useEffect(() => {
     getDeliveryChannels()
       .then((data) => {
@@ -49,6 +51,12 @@ export function ChannelPreferencesSection() {
   const handleToggle = async (targetChannel: string) => {
     if (saving) return;
 
+    // Block email toggle activation when not verified
+    if (targetChannel === "email" && !emailVerified) {
+      const current = channels.find((ch) => ch.channel === "email");
+      if (!current?.enabled) return; // trying to enable — blocked
+    }
+
     setErrorMsg(null);
     const previous = channels;
 
@@ -60,10 +68,11 @@ export function ChannelPreferencesSection() {
 
     try {
       await updateDeliveryChannels(updated);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("채널 설정 저장 실패:", err);
       setChannels(previous);
-      setErrorMsg("저장에 실패했습니다. 다시 시도해주세요.");
+      const message = err instanceof Error ? err.message : "저장에 실패했습니다.";
+      setErrorMsg(message);
     } finally {
       setSaving(false);
     }
@@ -103,14 +112,17 @@ export function ChannelPreferencesSection() {
           const info = CHANNEL_INFO[ch.channel as keyof typeof CHANNEL_INFO];
           if (!info) return null;
 
-          const isEmailChannel = ch.channel === "email";
-          const hasEmail = user?.email;
-          const showEmailWarning = isEmailChannel && (!hasEmail || ch.enabled);
+          const isEmail = ch.channel === "email";
+          const needsVerification = isEmail && !emailVerified;
           const failure = getChannelFailure(ch.channel);
 
           return (
             <div key={ch.channel}>
-              <div className="flex items-center justify-between p-4 rounded-xl bg-[#0f0a19] border border-[#2d1f42]">
+              <div
+                className={`flex items-center justify-between p-4 rounded-xl bg-[#0f0a19] border transition-colors ${
+                  needsVerification ? "border-[#e84d3d]/40" : "border-[#2d1f42]"
+                }`}
+              >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{info.icon}</span>
                   <div>
@@ -121,22 +133,25 @@ export function ChannelPreferencesSection() {
 
                 <button
                   onClick={() => handleToggle(ch.channel)}
-                  disabled={saving}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors
-                    ${ch.enabled ? "bg-[#5ba4d9]" : "bg-[#2d1f42]"}
-                    ${saving ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-                  `}
+                  disabled={saving || needsVerification}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    needsVerification
+                      ? "bg-[#e84d3d]/30 cursor-not-allowed"
+                      : ch.enabled
+                        ? "bg-[#5ba4d9]"
+                        : "bg-[#2d1f42]"
+                  } ${saving ? "opacity-50 cursor-not-allowed" : !needsVerification ? "cursor-pointer" : ""}`}
                   aria-label={`${info.label} ${ch.enabled ? "비활성화" : "활성화"}`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-                      ${ch.enabled ? "translate-x-6" : "translate-x-1"}
-                    `}
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      ch.enabled && !needsVerification ? "translate-x-6" : "translate-x-1"
+                    }`}
                   />
                 </button>
               </div>
 
-              {/* Per-channel delivery failure warning */}
+              {/* Delivery failure warning */}
               {failure && ch.enabled && (
                 <div className="mt-2 ml-4 text-xs text-[#e84d3d] bg-[#e84d3d]/10 rounded-lg px-3 py-2 border border-[#e84d3d]/20">
                   {failure.retry_count >= MAX_RETRIES ? (
@@ -147,24 +162,30 @@ export function ChannelPreferencesSection() {
                 </div>
               )}
 
-              {/* Email warning/link */}
-              {showEmailWarning && (
-                <div className="mt-2 ml-4 text-xs">
-                  {!hasEmail ? (
-                    <p className="text-[#e84d3d]">
-                      이메일 주소가 등록되지 않았습니다.{" "}
-                      <Link to="/email-verification" className="underline hover:text-[#f56b5d] transition-colors">
-                        이메일 추가하기
-                      </Link>
-                    </p>
-                  ) : (
-                    <p className="text-[#9b8bb4]">
-                      현재 등록된 이메일: {user.email}{" "}
-                      <Link to="/email-verification" className="underline hover:text-white transition-colors">
-                        변경하기
-                      </Link>
-                    </p>
-                  )}
+              {/* Email verification required */}
+              {needsVerification && (
+                <div className="mt-2 ml-4 text-xs text-[#e84d3d] bg-[#e84d3d]/10 rounded-lg px-3 py-2 border border-[#e84d3d]/20">
+                  <p>
+                    이메일 수신을 활성화하려면 이메일 인증이 필요합니다.{" "}
+                    <Link
+                      to="/email-verification"
+                      className="underline font-medium hover:text-[#f56b5d] transition-colors"
+                    >
+                      여기를 클릭하여 이메일을 설정하세요
+                    </Link>
+                  </p>
+                </div>
+              )}
+
+              {/* Verified email info */}
+              {isEmail && emailVerified && ch.enabled && (
+                <div className="mt-2 ml-4 text-xs text-[#9b8bb4]">
+                  <p>
+                    현재 등록된 이메일: {user?.email}{" "}
+                    <Link to="/email-verification" className="underline hover:text-white transition-colors">
+                      변경하기
+                    </Link>
+                  </p>
                 </div>
               )}
             </div>

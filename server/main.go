@@ -97,7 +97,7 @@ func main() {
 	newsCollector := googlenews.NewCollector(googlenews.DefaultTopics())
 	aggregator := collector.NewAggregator([]collector.SourceCollector{trendsCollector, newsCollector})
 	trendingRepo := storage.NewTrendingItemRepository(pool)
-	collectorService.WithAggregator(aggregator).WithTrendingRepo(trendingRepo)
+	collectorService.WithAggregator(aggregator).WithTrendingRepo(trendingRepo).WithURLDecoder(googlenews.ReplaceArticleURLs)
 	log.Println("structured source pipeline initialized (google_trends + google_news)")
 
 	// Brain categories (for AI prompt + admin management)
@@ -138,7 +138,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, cfg.FrontendURL)
 	brainCategoryHandler := handler.NewBrainCategoryHandler(brainCategoryRepo)
 	deliveryHandler := api.NewDeliveryHandler(deliveryService, api.AuthMiddleware(jwtManager))
-	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo, deliveryService)
+	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo, deliveryService, userRepo)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionRepo, api.AuthMiddleware(jwtManager))
 
 	// Email verification

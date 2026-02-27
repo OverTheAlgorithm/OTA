@@ -8,17 +8,19 @@ import (
 	"github.com/google/uuid"
 
 	"ota/domain/delivery"
+	userDomain "ota/domain/user"
 )
 
 // UserDeliveryChannelsHandler handles user delivery channel preferences and status
 type UserDeliveryChannelsHandler struct {
 	repo            delivery.Repository
 	deliveryService *delivery.Service
+	userRepo        userDomain.Repository
 }
 
 // NewUserDeliveryChannelsHandler creates a new handler
-func NewUserDeliveryChannelsHandler(repo delivery.Repository, deliveryService *delivery.Service) *UserDeliveryChannelsHandler {
-	return &UserDeliveryChannelsHandler{repo: repo, deliveryService: deliveryService}
+func NewUserDeliveryChannelsHandler(repo delivery.Repository, deliveryService *delivery.Service, userRepo userDomain.Repository) *UserDeliveryChannelsHandler {
+	return &UserDeliveryChannelsHandler{repo: repo, deliveryService: deliveryService, userRepo: userRepo}
 }
 
 // ChannelDeliveryStatusResponse represents per-channel delivery status
@@ -142,6 +144,21 @@ func (h *UserDeliveryChannelsHandler) UpdateChannelPreferences(c *gin.Context) {
 				"valid_channels": []string{"email", "kakao", "telegram", "sms", "push"},
 			})
 			return
+		}
+	}
+
+	// Require email verification before enabling email channel.
+	for _, ch := range req.Channels {
+		if ch.Channel == "email" && ch.Enabled {
+			u, err := h.userRepo.FindByID(c.Request.Context(), userID.(string))
+			if err != nil || !u.EmailVerified {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "이메일 인증이 필요합니다. 이메일을 먼저 인증해주세요.",
+					"code":  "EMAIL_NOT_VERIFIED",
+				})
+				return
+			}
+			break
 		}
 	}
 
