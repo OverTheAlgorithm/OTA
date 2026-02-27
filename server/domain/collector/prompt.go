@@ -100,10 +100,11 @@ Calculate buzz_score (1-100) based on CONCRETE DATA, not gut feeling:
 - Cap at 100. The #1 "top" item must score >= 70.
 
 ## sources Rules
-- ONLY use URLs from the collected data above. These are verified, real URLs.
+- ONLY use URLs that appear EXACTLY in the collected data above. Copy-paste them verbatim.
+- Do NOT modify, shorten, or reconstruct any URL.
 - Do NOT generate, guess, or hallucinate any URLs.
 - If a topic has no article URLs in the collected data, use an empty array [].
-- Google News redirect URLs (news.google.com/rss/articles/...) are acceptable.
+- Google News redirect URLs (news.google.com/rss/articles/...) are acceptable — they will be resolved later.
 
 ## Output Format
 Output ONLY pure JSON. No markdown code fences, no explanations.
@@ -145,55 +146,6 @@ Empty array [] is only allowed for "brief" category. MUST NOT repeat summary or 
 2. Every source URL must come from the collected data. No invented URLs.
 3. Write in Korean. Instructions are in English for precision, but all topic/summary/detail/details must be Korean.
 4. Pure JSON only. No markdown fences.`, dateStr, collectedData, formatBrainCategoryList(brainCategories), jsonFormatExample())
-}
-
-// BuildSourceReviewPrompt asks the AI to find replacement URLs for invalid sources.
-// The AI searches the web for actual source pages matching each topic.
-func BuildSourceReviewPrompt(items []ContextItem, invalid []InvalidSource) string {
-	if len(invalid) == 0 {
-		return ""
-	}
-
-	type entry struct {
-		Topic   string
-		Summary string
-		URL     string
-		Reason  string
-	}
-	var entries []entry
-	for _, inv := range invalid {
-		var topic, summary string
-		if inv.ItemIndex < len(items) {
-			topic = items[inv.ItemIndex].Topic
-			summary = items[inv.ItemIndex].Summary
-		}
-		entries = append(entries, entry{Topic: topic, Summary: summary, URL: inv.URL, Reason: inv.Reason})
-	}
-
-	var list strings.Builder
-	for i, e := range entries {
-		list.WriteString(fmt.Sprintf("%d. Topic: %q / Summary: %q / Failed URL: %s / Reason: %s\n", i+1, e.Topic, e.Summary, e.URL, e.Reason))
-	}
-
-	return fmt.Sprintf(`The following source URLs were found to be invalid when accessed via HTTP (404, page not found, etc.).
-For each item, search the web to find the actual source URL for the given topic.
-
-## Invalid URL List
-%s
-## Output Format
-Output ONLY pure JSON. No markdown code fences.
-
-{
-  "corrections": [
-    {"old_url": "failed URL", "new_url": "replacement URL or empty string"}
-  ]
-}
-
-## Rules
-- If no replacement can be found, set new_url to an empty string ""
-- Replacement URLs must point to actually existing pages
-- Only provide URLs relevant to the topic
-- When in doubt, an empty string is better than a wrong URL`, list.String())
 }
 
 // jsonFormatExample returns the JSON schema example used in the AI prompt.

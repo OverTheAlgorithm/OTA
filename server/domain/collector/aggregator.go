@@ -36,12 +36,10 @@ func (a *Aggregator) Collect(ctx context.Context) (CollectedData, error) {
 	results := make([]result, len(a.collectors))
 
 	for i, c := range a.collectors {
-		wg.Add(1)
-		go func(idx int, sc SourceCollector) {
-			defer wg.Done()
-			items, err := sc.Collect(ctx)
-			results[idx] = result{items: items, err: err}
-		}(i, c)
+		wg.Go(func() {
+			items, err := c.Collect(ctx)
+			results[i] = result{items: items, err: err}
+		})
 	}
 	wg.Wait()
 

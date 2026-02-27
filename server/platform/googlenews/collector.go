@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -37,22 +36,17 @@ func DefaultTopics() []FeedTopic {
 	}
 }
 
-// URLDecoder is a function that decodes Google News redirect URLs in-place.
-type URLDecoder func(ctx context.Context, items []collector.TrendingItem)
-
 // Collector fetches news topics from Google News Korea RSS feeds.
 type Collector struct {
-	topics    []FeedTopic
-	client    *http.Client
-	decodeURLs URLDecoder
+	topics []FeedTopic
+	client *http.Client
 }
 
-// NewCollector creates a Google News RSS collector with URL decoding enabled.
+// NewCollector creates a Google News RSS collector.
 func NewCollector(topics []FeedTopic) *Collector {
 	return &Collector{
-		topics:    topics,
-		client:    &http.Client{Timeout: 15 * time.Second},
-		decodeURLs: decodeArticleURLs,
+		topics: topics,
+		client: &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
@@ -71,12 +65,10 @@ func (c *Collector) Collect(ctx context.Context) ([]collector.TrendingItem, erro
 	results := make([]feedResult, len(c.topics))
 
 	for i, topic := range c.topics {
-		wg.Add(1)
-		go func(idx int, t FeedTopic) {
-			defer wg.Done()
-			items, err := c.fetchFeed(ctx, t)
-			results[idx] = feedResult{items: items, err: err}
-		}(i, topic)
+		wg.Go(func() {
+			items, err := c.fetchFeed(ctx, topic)
+			results[i] = feedResult{items: items, err: err}
+		})
 	}
 	wg.Wait()
 
@@ -95,12 +87,6 @@ func (c *Collector) Collect(ctx context.Context) ([]collector.TrendingItem, erro
 	}
 
 	deduped := dedup(allItems)
-
-	// Decode Google News redirect URLs to original article URLs
-	if c.decodeURLs != nil {
-		c.decodeURLs(ctx, deduped)
-	}
-
 	return deduped, nil
 }
 
@@ -235,21 +221,6 @@ func dedup(items []collector.TrendingItem) []collector.TrendingItem {
 		unique = append(unique, item)
 	}
 	return unique
-}
-
-// decodeArticleURLs resolves Google News redirect URLs to original article URLs.
-// Mutates items in-place. On failure, original Google redirect URLs are kept.
-func decodeArticleURLs(ctx context.Context, items []collector.TrendingItem) {
-	// Collect all URL slices for batch decoding
-	var allSlices [][]string
-	for i := range items {
-		allSlices = append(allSlices, items[i].ArticleURLs)
-	}
-
-	replaced := ReplaceArticleURLs(ctx, allSlices...)
-	if replaced > 0 {
-		log.Printf("[google-news] decoded %d article URLs to original sources", replaced)
-	}
 }
 
 func parseRSSDate(s string) time.Time {

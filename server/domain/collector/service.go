@@ -11,6 +11,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// URLDecoder decodes redirect URLs in-place across the given string slices.
+// Returns the number of URLs successfully decoded.
+type URLDecoder func(ctx context.Context, urlSlices ...[]string) int
+
 type Service struct {
 	ai              AIClient
 	fallbackAI      AIClient // optional: used when primary fails with 5xx after all retries
@@ -18,6 +22,7 @@ type Service struct {
 	aggregator      *Aggregator
 	trendingRepo    TrendingItemRepository    // optional: persists raw trending data
 	brainCatRepo    BrainCategoryRepository   // optional: loads brain categories for AI prompt
+	urlDecoder      URLDecoder                // optional: decodes redirect URLs (e.g. Google News)
 }
 
 func NewService(aiClient AIClient, repo Repository) *Service {
@@ -45,6 +50,12 @@ func (s *Service) WithBrainCategoryRepo(repo BrainCategoryRepository) *Service {
 	return s
 }
 
+// WithURLDecoder sets the URL decoder for resolving redirect URLs (e.g. Google News).
+func (s *Service) WithURLDecoder(decoder URLDecoder) *Service {
+	s.urlDecoder = decoder
+	return s
+}
+
 // WithFallback sets a fallback AI client to use when the primary model returns
 // infrastructure errors (HTTP 5xx) after exhausting all retries.
 // The fallback itself also gets the same number of retries.
@@ -56,7 +67,8 @@ func (s *Service) WithFallback(fallbackAI AIClient) *Service {
 // CollectFromSources runs the structured source collection pipeline:
 // Stage 0: Collect from structured sources (Google Trends, Google News, etc.)
 // Stage 1: AI clusters, ranks, and summarizes the collected data
-// Stage 2: Validate source URLs (reused from existing pipeline)
+// Stage 2: Decode redirect URLs (e.g. Google News) to original article URLs
+// Stage 3: Validate source URLs — remove invalid ones
 func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, error) {
 	if s.aggregator == nil {
 		return CollectionResult{}, fmt.Errorf("aggregator not configured — call WithAggregator()")
@@ -118,8 +130,11 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 		return CollectionResult{}, fmt.Errorf("parsing AI response: %w", err)
 	}
 
-	// Stage 2: validate source URLs (reuse existing logic).
-	items = s.validateAndFixSources(ctx, items)
+	// Stage 2: decode redirect URLs to original article URLs.
+	items = s.decodeSourceURLs(ctx, run.ID, items)
+
+	// Stage 3: validate source URLs — remove invalid ones.
+	items = s.validateAndRemoveSources(ctx, run.ID, items)
 
 	if err := s.repo.SaveContextItems(ctx, items); err != nil {
 		errMsg := err.Error()
@@ -308,94 +323,44 @@ func parseContextItems(outputText string, runID uuid.UUID) ([]ContextItem, error
 	return items, nil
 }
 
-// validateAndFixSources checks all source URLs, asks the AI for replacements,
-// and strips any URLs that are still invalid after one re-review attempt.
-// Returns a new slice — the input is not mutated.
-func (s *Service) validateAndFixSources(ctx context.Context, items []ContextItem) []ContextItem {
-	validator := NewSourceValidator()
-
-	invalid := validator.ValidateSources(ctx, items)
-	if len(invalid) == 0 {
+// decodeSourceURLs resolves redirect URLs (e.g. Google News) in ContextItem.Sources
+// to their original article URLs. Only decodes the URLs selected by the AI, not all collected URLs.
+func (s *Service) decodeSourceURLs(ctx context.Context, runID uuid.UUID, items []ContextItem) []ContextItem {
+	if s.urlDecoder == nil {
 		return items
 	}
 
-	log.Printf("source validation: %d invalid URL(s) found, requesting AI re-review", len(invalid))
+	log.Printf("collection run %s: stage 2 — decoding redirect URLs", runID)
 
-	// Ask the AI to find replacement URLs (single attempt, no retry).
-	prompt := BuildSourceReviewPrompt(items, invalid)
-	reviewResp, err := s.ai.SearchAndAnalyze(ctx, prompt)
-	if err != nil {
-		log.Printf("source re-review request failed: %v — removing invalid URLs", err)
-		return removeInvalidSources(items, invalid)
-	}
-
-	items, replacedURLs := applySourceCorrections(items, reviewResp.OutputText, invalid)
-
-	// Only validate the newly replaced URLs (skip already-validated ones).
-	if len(replacedURLs) > 0 {
-		stillInvalid := validator.ValidateSpecificURLs(ctx, items, replacedURLs)
-		if len(stillInvalid) > 0 {
-			log.Printf("source validation: %d URL(s) still invalid after re-review — removing", len(stillInvalid))
-			items = removeInvalidSources(items, stillInvalid)
-		}
-	}
-
-	return items
-}
-
-// sourceCorrection represents a single URL replacement from AI re-review.
-type sourceCorrection struct {
-	OldURL string `json:"old_url"`
-	NewURL string `json:"new_url"`
-}
-
-// applySourceCorrections parses the AI's correction response and replaces
-// old URLs with new ones in the items. Returns a new slice and the set of
-// newly introduced URLs (for targeted re-validation).
-func applySourceCorrections(items []ContextItem, responseText string, invalid []InvalidSource) ([]ContextItem, map[string]bool) {
-	clean := stripMarkdownCodeFence(responseText)
-
-	var payload struct {
-		Corrections []sourceCorrection `json:"corrections"`
-	}
-	if err := json.Unmarshal([]byte(clean), &payload); err != nil {
-		log.Printf("failed to parse source corrections JSON: %v — removing invalid URLs", err)
-		return removeInvalidSources(items, invalid), nil
-	}
-
-	// Build lookup: old_url → new_url
-	corrections := make(map[string]string)
-	for _, c := range payload.Corrections {
-		corrections[c.OldURL] = c.NewURL
-	}
-
-	// Build set of invalid URLs for quick removal if no correction found.
-	invalidSet := make(map[string]bool)
-	for _, inv := range invalid {
-		invalidSet[inv.URL] = true
-	}
-
-	replacedURLs := make(map[string]bool)
 	result := make([]ContextItem, len(items))
+	var slices [][]string
 	for i, item := range items {
 		result[i] = item
-		var newSources []string
-		for _, src := range item.Sources {
-			if newURL, ok := corrections[src]; ok {
-				if newURL != "" {
-					newSources = append(newSources, newURL)
-					replacedURLs[newURL] = true
-				}
-				// empty newURL means AI couldn't find replacement — drop it
-			} else if invalidSet[src] {
-				// invalid with no correction — drop
-			} else {
-				newSources = append(newSources, src)
-			}
-		}
-		result[i].Sources = newSources
+		srcCopy := make([]string, len(item.Sources))
+		copy(srcCopy, item.Sources)
+		result[i].Sources = srcCopy
+		slices = append(slices, result[i].Sources)
 	}
-	return result, replacedURLs
+
+	decoded := s.urlDecoder(ctx, slices...)
+	log.Printf("collection run %s: stage 2 done — decoded %d URLs across %d items", runID, decoded, len(items))
+	return result
+}
+
+// validateAndRemoveSources checks all source URLs and removes invalid ones.
+// Returns a new slice — the input is not mutated.
+func (s *Service) validateAndRemoveSources(ctx context.Context, runID uuid.UUID, items []ContextItem) []ContextItem {
+	log.Printf("collection run %s: stage 3 — validating source URLs", runID)
+
+	validator := NewSourceValidator()
+	invalid := validator.ValidateSources(ctx, items)
+	if len(invalid) == 0 {
+		log.Printf("collection run %s: stage 3 done — all source URLs valid", runID)
+		return items
+	}
+
+	log.Printf("collection run %s: stage 3 done — removed %d invalid URL(s)", runID, len(invalid))
+	return removeInvalidSources(items, invalid)
 }
 
 // removeInvalidSources strips all invalid URLs from items. Returns a new slice.

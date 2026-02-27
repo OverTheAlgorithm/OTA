@@ -151,59 +151,6 @@ func (v *SourceValidator) ValidateSources(ctx context.Context, items []ContextIt
 	return invalid
 }
 
-// ValidateSpecificURLs checks only the URLs present in the targetURLs set.
-// This avoids re-checking already-validated URLs after AI corrections.
-func (v *SourceValidator) ValidateSpecificURLs(ctx context.Context, items []ContextItem, targetURLs map[string]bool) []InvalidSource {
-	type checkJob struct {
-		itemIndex int
-		url       string
-	}
-
-	var jobs []checkJob
-	for i, item := range items {
-		for _, u := range item.Sources {
-			if targetURLs[u] {
-				jobs = append(jobs, checkJob{itemIndex: i, url: u})
-			}
-		}
-	}
-
-	if len(jobs) == 0 {
-		return nil
-	}
-
-	var (
-		mu      sync.Mutex
-		invalid []InvalidSource
-		wg      sync.WaitGroup
-		sem     = make(chan struct{}, maxConcurrentChecks)
-	)
-
-	for _, job := range jobs {
-		wg.Add(1)
-		go func(j checkJob) {
-			defer wg.Done()
-
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			reason := v.checkURL(ctx, j.url)
-			if reason != "" {
-				mu.Lock()
-				invalid = append(invalid, InvalidSource{
-					ItemIndex: j.itemIndex,
-					URL:       j.url,
-					Reason:    reason,
-				})
-				mu.Unlock()
-			}
-		}(job)
-	}
-
-	wg.Wait()
-	return invalid
-}
-
 // checkURL performs a single URL check. Returns empty string if valid,
 // or a reason string if invalid.
 func (v *SourceValidator) checkURL(ctx context.Context, rawURL string) string {
