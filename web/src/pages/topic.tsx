@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useTheme } from "@/contexts/theme-context";
 import { fetchTopicDetail, type TopicDetail, type TopicEarnResult } from "@/lib/api";
 
 
@@ -80,6 +81,7 @@ function PointToast({ earn }: ToastProps) {
 export function TopicPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
+  const { toggleTheme } = useTheme();
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [earn, setEarn] = useState<TopicEarnResult | null>(null);
   const [showToast, setShowToast] = useState(false);
@@ -149,10 +151,17 @@ export function TopicPage() {
           backgroundColor: "var(--color-bg)"
         }}
       >
-        <div className="max-w-2xl mx-auto px-6 h-16 flex items-center">
+        <div className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/">
             <img src="/OTA_logo.png" alt="OTA" className="w-[63px] h-[42px]" />
           </Link>
+          <button
+            onClick={toggleTheme}
+            className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
+            title="테마 전환"
+          >
+            🌙
+          </button>
         </div>
       </header>
 

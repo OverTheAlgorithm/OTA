@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTheme } from "@/contexts/theme-context";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -215,6 +216,7 @@ const scenarios = [
 
 export function LandingPage() {
   const { user, loading } = useAuth();
+  const { toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const loginError = searchParams.get("error");
@@ -302,6 +304,13 @@ export function LandingPage() {
               왜 필요한가
             </a>
             <button
+              onClick={toggleTheme}
+              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
+              title="테마 전환"
+            >
+              🌙
+            </button>
+            <button
               onClick={handleStart}
               className="px-5 py-2 rounded-full text-sm font-medium bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
             >
@@ -352,6 +361,16 @@ export function LandingPage() {
             >
               왜 필요한가
             </a>
+            <button
+              onClick={() => {
+                toggleTheme();
+                setMenuOpen(false);
+              }}
+              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors text-left"
+              title="테마 전환"
+            >
+              🌙 테마 전환
+            </button>
             <button
               className="px-5 py-2 rounded-full text-sm font-medium text-center bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
               onClick={() => {

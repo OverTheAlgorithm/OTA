@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
+import { useTheme } from "@/contexts/theme-context";
 import { sendVerificationCode, verifyEmailCode } from "@/lib/api";
 
 export function EmailVerificationPage() {
   const { refreshUser } = useAuth();
+  const { toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<"email" | "code">("email");
@@ -65,6 +67,17 @@ export function EmailVerificationPage() {
       }}
     >
       <div className="w-full max-w-md space-y-6">
+        {/* Theme Toggle */}
+        <div className="flex justify-end">
+          <button
+            onClick={toggleTheme}
+            className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
+            title="테마 전환"
+          >
+            🌙
+          </button>
+        </div>
+
         {/* Header */}
         <div className="text-center">
           <h1 className="text-2xl font-bold text-[#1e3a5f] mb-2">이메일 인증</h1>
