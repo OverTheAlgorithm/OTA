@@ -53,17 +53,17 @@ export function InterestSection({ selected, onChange }: Props) {
   };
 
   return (
-    <section className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] p-6">
+    <section className="rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-6">
       <div className="flex items-center gap-2 mb-5">
-        <div className="w-8 h-8 rounded-lg bg-[#5ba4d9]/10 flex items-center justify-center">
-          <svg className="w-4 h-4 text-[#5ba4d9]" viewBox="0 0 24 24" fill="none"
+        <div className="w-8 h-8 rounded-lg bg-[#4a9fe5]/10 flex items-center justify-center">
+          <svg className="w-4 h-4 text-[#4a9fe5]" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
             <line x1="7" y1="7" x2="7.01" y2="7"/>
           </svg>
         </div>
-        <h2 className="font-semibold text-[#f5f0ff]">내 관심사</h2>
-        <span className="ml-auto text-xs text-[#9b8bb4]">
+        <h2 className="font-semibold text-[#1e3a5f]">내 관심사</h2>
+        <span className="ml-auto text-xs text-[#6b8db5]">
           {selected.length > 0 ? `${selected.length}개 선택됨` : "관심사를 선택하면 맞춤 맥락을 받아요"}
         </span>
       </div>
@@ -78,8 +78,8 @@ export function InterestSection({ selected, onChange }: Props) {
               disabled={saving}
               className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium transition-colors
                 ${isActive
-                  ? "bg-[#5ba4d9]/20 text-[#5ba4d9] border border-[#5ba4d9]/30"
-                  : "bg-[#0f0a19] text-[#9b8bb4] border border-[#2d1f42] hover:border-[#5ba4d9]/30 hover:text-[#f5f0ff]"
+                  ? "bg-[#4a9fe5]/20 text-[#4a9fe5] border border-[#4a9fe5]/30"
+                  : "bg-white text-[#6b8db5] border border-[#d4e6f5] hover:border-[#4a9fe5]/30 hover:text-[#1e3a5f]"
                 }
                 ${saving ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
               `}
@@ -98,7 +98,7 @@ export function InterestSection({ selected, onChange }: Props) {
       </div>
 
       {errorMsg && (
-        <p className="mt-3 text-xs text-[#e84d3d]">{errorMsg}</p>
+        <p className="mt-3 text-xs text-[#ff5442]">{errorMsg}</p>
       )}
     </section>
   );

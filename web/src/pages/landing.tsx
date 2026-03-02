@@ -266,12 +266,12 @@ export function LandingPage() {
   };
 
   return (
-    <div className="bg-[#0f0a19] text-[#f5f0ff] min-h-screen">
+    <div className="bg-white text-[#1e3a5f] min-h-screen">
       {/* Navbar */}
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled
-            ? "bg-[#0f0a19]/90 backdrop-blur-lg border-b border-[#2d1f42]"
+            ? "bg-white/90 backdrop-blur-lg border-b border-[#d4e6f5]"
             : "bg-transparent"
         }`}
       >
@@ -283,26 +283,26 @@ export function LandingPage() {
           <div className="hidden md:flex items-center gap-8">
             <a
               href="#features"
-              className="text-sm text-[#9b8bb4] hover:text-[#f5f0ff] transition-colors"
+              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
             >
               서비스 특징
             </a>
             <a
               href="#why"
-              className="text-sm text-[#9b8bb4] hover:text-[#f5f0ff] transition-colors"
+              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
             >
               왜 필요한가
             </a>
             <button
               onClick={handleStart}
-              className="px-5 py-2 rounded-full text-sm font-medium bg-[#e84d3d] text-white hover:bg-[#d4382a] transition-colors"
+              className="px-5 py-2 rounded-full text-sm font-medium bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
             >
               시작하기
             </button>
           </div>
 
           <button
-            className="md:hidden text-[#f5f0ff] p-2"
+            className="md:hidden text-[#1e3a5f] p-2"
             onClick={() => setMenuOpen(!menuOpen)}
           >
             <svg
@@ -323,23 +323,23 @@ export function LandingPage() {
         </div>
 
         {menuOpen && (
-          <div className="md:hidden bg-[#0f0a19]/95 backdrop-blur-lg border-b border-[#2d1f42] px-6 py-4 flex flex-col gap-4">
+          <div className="md:hidden bg-white/95 backdrop-blur-lg border-b border-[#d4e6f5] px-6 py-4 flex flex-col gap-4">
             <a
               href="#features"
-              className="text-sm text-[#9b8bb4] hover:text-[#f5f0ff]"
+              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f]"
               onClick={() => setMenuOpen(false)}
             >
               서비스 특징
             </a>
             <a
               href="#why"
-              className="text-sm text-[#9b8bb4] hover:text-[#f5f0ff]"
+              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f]"
               onClick={() => setMenuOpen(false)}
             >
               왜 필요한가
             </a>
             <button
-              className="px-5 py-2 rounded-full text-sm font-medium text-center bg-[#e84d3d] text-white hover:bg-[#d4382a] transition-colors"
+              className="px-5 py-2 rounded-full text-sm font-medium text-center bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
               onClick={() => {
                 setMenuOpen(false);
                 handleStart();
@@ -376,7 +376,7 @@ export function LandingPage() {
           </FadeIn>
 
           <FadeIn delay={200} className="mt-6">
-            <p className="font-dongle text-2xl md:text-3xl text-[#9b8bb4] max-w-2xl leading-relaxed">
+            <p className="font-dongle text-2xl md:text-3xl text-[#6b8db5] max-w-2xl leading-relaxed">
               매일 아침 7시, 개인화된 알고리즘에 갇히지 않은
               <br className="hidden md:block" />
               가장 뜨거운 이야기를 전해드립니다.
@@ -386,7 +386,7 @@ export function LandingPage() {
           <FadeIn delay={300} className="mt-10">
             <button
               onClick={handleStart}
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg font-medium bg-[#e84d3d] text-white hover:bg-[#d4382a] transition-colors"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg font-medium bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
             >
               무료로 시작하기
               <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
@@ -408,7 +408,7 @@ export function LandingPage() {
             <h2 className="font-dongle text-5xl md:text-6xl font-bold text-center mb-4">
               서비스 특징
             </h2>
-            <p className="text-[#9b8bb4] text-center mb-16 max-w-lg mx-auto">
+            <p className="text-[#6b8db5] text-center mb-16 max-w-lg mx-auto">
               Over the Algorithm이 매일 아침 전하는 가치
             </p>
           </FadeIn>
@@ -416,7 +416,7 @@ export function LandingPage() {
           <div className="grid md:grid-cols-3 gap-8">
             {features.map((feature, i) => (
               <FadeIn key={feature.title} delay={i * 150}>
-                <div className="group rounded-2xl bg-[#1a1229] border border-[#2d1f42] p-8 hover:border-[#3d2f55] transition-all duration-300 h-full">
+                <div className="group rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-8 hover:border-[#4a9fe5] transition-all duration-300 h-full">
                   <div
                     className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
                     style={{ backgroundColor: `${feature.color}15` }}
@@ -437,13 +437,13 @@ export function LandingPage() {
       </section>
 
       {/* Pain Point */}
-      <section id="why" className="py-24 px-6 bg-[#130e20]">
+      <section id="why" className="py-24 px-6 bg-[#f5f9fc]">
         <div className="max-w-[1200px] mx-auto">
           <FadeIn>
             <h2 className="text-3xl md:text-5xl font-bold text-center mb-4">
               이런 적, 있으시죠?
             </h2>
-            <p className="text-[#9b8bb4] text-center mb-16 max-w-lg mx-auto">
+            <p className="text-[#6b8db5] text-center mb-16 max-w-lg mx-auto">
               알고리즘은 내 취향만 보여줍니다. 세상의 맥락은 보여주지 않죠.
             </p>
           </FadeIn>
@@ -451,12 +451,12 @@ export function LandingPage() {
           <div className="grid md:grid-cols-3 gap-8">
             {scenarios.map((s, i) => (
               <FadeIn key={i} delay={i * 150}>
-                <div className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] p-8 hover:border-[#3d2f55] transition-all duration-300 h-full flex flex-col items-center text-center">
+                <div className="rounded-2xl bg-white border border-[#d4e6f5] p-8 hover:border-[#4a9fe5] transition-all duration-300 h-full flex flex-col items-center text-center">
                   <span className="text-5xl mb-5">{s.emoji}</span>
-                  <p className="text-lg font-semibold text-[#f5f0ff] mb-3">
+                  <p className="text-lg font-semibold text-[#1e3a5f] mb-3">
                     {s.situation}
                   </p>
-                  <p className="text-sm text-[#9b8bb4] leading-relaxed">
+                  <p className="text-sm text-[#6b8db5] leading-relaxed">
                     {s.feeling}
                   </p>
                 </div>
@@ -465,11 +465,11 @@ export function LandingPage() {
           </div>
 
           <FadeIn delay={500}>
-            <p className="text-center mt-12 text-lg text-[#9b8bb4]">
+            <p className="text-center mt-12 text-lg text-[#6b8db5]">
               관심 없는 분야까지 전부 챙길 순 없습니다.
               <br />
               하지만{" "}
-              <span className="text-[#f5f0ff] font-semibold">
+              <span className="text-[#1e3a5f] font-semibold">
                 핵심 맥락 한 줄
               </span>
               이면 충분합니다.
@@ -481,22 +481,22 @@ export function LandingPage() {
       {/* CTA */}
       <section className="py-24 px-6">
         <FadeIn>
-          <div className="max-w-[800px] mx-auto text-center rounded-3xl bg-gradient-to-br from-[#1a1229] to-[#231a35] border border-[#2d1f42] p-12 md:p-16 relative overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(232,77,61,0.05),transparent_50%),radial-gradient(circle_at_bottom_left,rgba(91,164,217,0.05),transparent_50%)] pointer-events-none" />
+          <div className="max-w-[800px] mx-auto text-center rounded-3xl bg-gradient-to-br from-[#f0f7ff] to-[#e8f4fd] border border-[#d4e6f5] p-12 md:p-16 relative overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,84,66,0.05),transparent_50%),radial-gradient(circle_at_bottom_left,rgba(74,159,229,0.05),transparent_50%)] pointer-events-none" />
             <div className="relative">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
                 오늘의{" "}
-                <span className="font-brush text-4xl md:text-5xl bg-gradient-to-r from-[#f0923b] to-[#e84d3d] bg-clip-text text-transparent">
+                <span className="font-brush text-4xl md:text-5xl bg-gradient-to-r from-[#f0923b] to-[#ff5442] bg-clip-text text-transparent">
                   맥락
                 </span>
                 , 놓치고 계신가요?
               </h2>
-              <p className="font-dongle text-2xl md:text-3xl text-[#9b8bb4] mb-8 max-w-md mx-auto">
+              <p className="font-dongle text-2xl md:text-3xl text-[#6b8db5] mb-8 max-w-md mx-auto">
                 지금 가입하고 내일 아침부터 받아보세요.
               </p>
               <button
                 onClick={handleStart}
-                className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg font-medium bg-[#e84d3d] text-white hover:bg-[#d4382a] transition-colors"
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg font-medium bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
               >
                 지금 시작하기
                 <svg
@@ -517,10 +517,10 @@ export function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-[#2d1f42] py-8 px-6">
+      <footer className="border-t border-[#d4e6f5] py-8 px-6">
         <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <img src="/OTA_logo.png" alt="OTA" className="h-6 opacity-50" />
-          <p className="text-sm text-[#9b8bb4]">
+          <p className="text-sm text-[#6b8db5]">
             &copy; 2026 Over the Algorithm. All rights reserved.
           </p>
         </div>
@@ -533,13 +533,13 @@ export function LandingPage() {
           onClick={handleCloseLogin}
         >
           <div
-            className="relative w-full max-w-sm bg-[#1a1229] border border-[#2d1f42] rounded-2xl p-8 flex flex-col items-center gap-6"
+            className="relative w-full max-w-sm bg-white border border-[#d4e6f5] rounded-2xl p-8 flex flex-col items-center gap-6"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 닫기 */}
             <button
               onClick={handleCloseLogin}
-              className="absolute top-4 right-4 text-[#9b8bb4] hover:text-[#f5f0ff] transition-colors"
+              className="absolute top-4 right-4 text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
             >
               <svg
                 width="20"
@@ -556,14 +556,14 @@ export function LandingPage() {
             <img src="/OTA_logo.png" alt="OTA" className="h-10" />
 
             <div className="text-center">
-              <h2 className="text-xl font-bold text-[#f5f0ff]">시작하기</h2>
-              <p className="mt-1 text-sm text-[#9b8bb4]">
+              <h2 className="text-xl font-bold text-[#1e3a5f]">시작하기</h2>
+              <p className="mt-1 text-sm text-[#6b8db5]">
                 알고리즘을 넘어, 지금 가장 뜨거운 맥락을 만나보세요
               </p>
             </div>
 
             {loginError && (
-              <p className="text-sm text-[#e84d3d] text-center">
+              <p className="text-sm text-[#ff5442] text-center">
                 로그인에 실패했습니다. 다시 시도해주세요.
               </p>
             )}

@@ -24,7 +24,7 @@ function BrainCategoryManager() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ emoji: "", label: "", accent_color: "", display_order: 0 });
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ key: "", emoji: "", label: "", accent_color: "#9b8bb4", display_order: 0 });
+  const [newForm, setNewForm] = useState({ key: "", emoji: "", label: "", accent_color: "#6b8db5", display_order: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -74,7 +74,7 @@ function BrainCategoryManager() {
     try {
       await createBrainCategory(newForm);
       setShowNew(false);
-      setNewForm({ key: "", emoji: "", label: "", accent_color: "#9b8bb4", display_order: 0 });
+      setNewForm({ key: "", emoji: "", label: "", accent_color: "#6b8db5", display_order: 0 });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "생성 실패");
@@ -82,32 +82,32 @@ function BrainCategoryManager() {
   };
 
   if (loading) {
-    return <p className="text-sm text-[#9b8bb4]">불러오는 중...</p>;
+    return <p className="text-sm text-[#6b8db5]">불러오는 중...</p>;
   }
 
   return (
     <div className="space-y-3">
       {error && (
-        <div className="rounded-xl border border-red-900 bg-[#0f0a19] p-3 text-sm text-red-400">
+        <div className="rounded-xl border border-[#ff5442]/30 bg-[#ff5442]/10 p-3 text-sm text-[#ff5442]">
           {error}
         </div>
       )}
 
       {categories.map((bc) => (
-        <div key={bc.key} className="rounded-xl border border-[#2d1f42] bg-[#0f0a19] p-4">
+        <div key={bc.key} className="rounded-xl border border-[#d4e6f5] bg-[#f0f7ff] p-4">
           {editingKey === bc.key ? (
             <div className="space-y-2">
               <div className="flex gap-2">
                 <input
                   value={editForm.emoji}
                   onChange={(e) => setEditForm({ ...editForm, emoji: e.target.value })}
-                  className="w-12 bg-[#1a1229] border border-[#2d1f42] rounded px-2 py-1 text-sm text-[#f5f0ff]"
+                  className="w-12 bg-white border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f]"
                   placeholder="emoji"
                 />
                 <input
                   value={editForm.label}
                   onChange={(e) => setEditForm({ ...editForm, label: e.target.value })}
-                  className="flex-1 bg-[#1a1229] border border-[#2d1f42] rounded px-2 py-1 text-sm text-[#f5f0ff]"
+                  className="flex-1 bg-white border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f]"
                   placeholder="label"
                 />
               </div>
@@ -115,20 +115,20 @@ function BrainCategoryManager() {
                 <input
                   value={editForm.accent_color}
                   onChange={(e) => setEditForm({ ...editForm, accent_color: e.target.value })}
-                  className="w-24 bg-[#1a1229] border border-[#2d1f42] rounded px-2 py-1 text-sm text-[#f5f0ff]"
+                  className="w-24 bg-white border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f]"
                   placeholder="color"
                 />
                 <input
                   type="number"
                   value={editForm.display_order}
                   onChange={(e) => setEditForm({ ...editForm, display_order: parseInt(e.target.value) || 0 })}
-                  className="w-16 bg-[#1a1229] border border-[#2d1f42] rounded px-2 py-1 text-sm text-[#f5f0ff]"
+                  className="w-16 bg-white border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f]"
                   placeholder="순서"
                 />
-                <button onClick={saveEdit} className="px-3 py-1 rounded bg-[#5ba4d9]/20 text-[#5ba4d9] text-xs font-semibold hover:bg-[#5ba4d9]/30 transition-colors">
+                <button onClick={saveEdit} className="px-3 py-1 rounded bg-[#4a9fe5]/20 text-[#4a9fe5] text-xs font-semibold hover:bg-[#4a9fe5]/30 transition-colors">
                   저장
                 </button>
-                <button onClick={() => setEditingKey(null)} className="px-3 py-1 rounded bg-[#2d1f42] text-[#9b8bb4] text-xs hover:text-[#f5f0ff] transition-colors">
+                <button onClick={() => setEditingKey(null)} className="px-3 py-1 rounded bg-[#d4e6f5] text-[#6b8db5] text-xs hover:text-[#1e3a5f] transition-colors">
                   취소
                 </button>
               </div>
@@ -138,9 +138,9 @@ function BrainCategoryManager() {
               <div className="flex items-center gap-3">
                 <span className="text-lg">{bc.emoji}</span>
                 <div>
-                  <p className="text-sm font-semibold text-[#f5f0ff]">{bc.label}</p>
-                  <p className="text-xs text-[#9b8bb4]">
-                    key: <code className="text-[#5ba4d9]">{bc.key}</code>
+                  <p className="text-sm font-semibold text-[#1e3a5f]">{bc.label}</p>
+                  <p className="text-xs text-[#6b8db5]">
+                    key: <code className="text-[#4a9fe5]">{bc.key}</code>
                     {" · "}순서: {bc.display_order}
                     {" · "}
                     <span style={{ color: bc.accent_color }}>■</span> {bc.accent_color}
@@ -150,13 +150,13 @@ function BrainCategoryManager() {
               <div className="flex gap-2">
                 <button
                   onClick={() => startEdit(bc)}
-                  className="px-2.5 py-1 rounded text-xs text-[#9b8bb4] hover:text-[#f5f0ff] hover:bg-[#2d1f42] transition-colors"
+                  className="px-2.5 py-1 rounded text-xs text-[#6b8db5] hover:text-[#1e3a5f] hover:bg-[#d4e6f5] transition-colors"
                 >
                   수정
                 </button>
                 <button
                   onClick={() => handleDelete(bc.key)}
-                  className="px-2.5 py-1 rounded text-xs text-red-400/60 hover:text-red-400 hover:bg-red-900/20 transition-colors"
+                  className="px-2.5 py-1 rounded text-xs text-[#ff5442]/60 hover:text-[#ff5442] hover:bg-[#ff5442]/10 transition-colors"
                 >
                   삭제
                 </button>
@@ -167,24 +167,24 @@ function BrainCategoryManager() {
       ))}
 
       {showNew ? (
-        <div className="rounded-xl border border-[#5ba4d9]/30 bg-[#0f0a19] p-4 space-y-2">
+        <div className="rounded-xl border border-[#4a9fe5]/30 bg-white p-4 space-y-2">
           <div className="flex gap-2">
             <input
               value={newForm.key}
               onChange={(e) => setNewForm({ ...newForm, key: e.target.value })}
-              className="w-28 bg-[#1a1229] border border-[#2d1f42] rounded px-2 py-1 text-sm text-[#f5f0ff]"
+              className="w-28 bg-[#f0f7ff] border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f]"
               placeholder="key"
             />
             <input
               value={newForm.emoji}
               onChange={(e) => setNewForm({ ...newForm, emoji: e.target.value })}
-              className="w-12 bg-[#1a1229] border border-[#2d1f42] rounded px-2 py-1 text-sm text-[#f5f0ff]"
+              className="w-12 bg-[#f0f7ff] border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f]"
               placeholder="emoji"
             />
             <input
               value={newForm.label}
               onChange={(e) => setNewForm({ ...newForm, label: e.target.value })}
-              className="flex-1 bg-[#1a1229] border border-[#2d1f42] rounded px-2 py-1 text-sm text-[#f5f0ff]"
+              className="flex-1 bg-[#f0f7ff] border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f]"
               placeholder="label"
             />
           </div>
@@ -192,20 +192,20 @@ function BrainCategoryManager() {
             <input
               value={newForm.accent_color}
               onChange={(e) => setNewForm({ ...newForm, accent_color: e.target.value })}
-              className="w-24 bg-[#1a1229] border border-[#2d1f42] rounded px-2 py-1 text-sm text-[#f5f0ff]"
+              className="w-24 bg-[#f0f7ff] border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f]"
               placeholder="color"
             />
             <input
               type="number"
               value={newForm.display_order}
               onChange={(e) => setNewForm({ ...newForm, display_order: parseInt(e.target.value) || 0 })}
-              className="w-16 bg-[#1a1229] border border-[#2d1f42] rounded px-2 py-1 text-sm text-[#f5f0ff]"
+              className="w-16 bg-[#f0f7ff] border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f]"
               placeholder="순서"
             />
-            <button onClick={handleCreate} className="px-3 py-1 rounded bg-[#5ba4d9]/20 text-[#5ba4d9] text-xs font-semibold hover:bg-[#5ba4d9]/30 transition-colors">
+            <button onClick={handleCreate} className="px-3 py-1 rounded bg-[#4a9fe5]/20 text-[#4a9fe5] text-xs font-semibold hover:bg-[#4a9fe5]/30 transition-colors">
               추가
             </button>
-            <button onClick={() => setShowNew(false)} className="px-3 py-1 rounded bg-[#2d1f42] text-[#9b8bb4] text-xs hover:text-[#f5f0ff] transition-colors">
+            <button onClick={() => setShowNew(false)} className="px-3 py-1 rounded bg-[#d4e6f5] text-[#6b8db5] text-xs hover:text-[#1e3a5f] transition-colors">
               취소
             </button>
           </div>
@@ -213,7 +213,7 @@ function BrainCategoryManager() {
       ) : (
         <button
           onClick={() => setShowNew(true)}
-          className="w-full py-2.5 rounded-xl border border-dashed border-[#2d1f42] text-sm text-[#9b8bb4] hover:text-[#f5f0ff] hover:border-[#9b8bb4] transition-colors"
+          className="w-full py-2.5 rounded-xl border border-dashed border-[#d4e6f5] text-sm text-[#6b8db5] hover:text-[#1e3a5f] hover:border-[#6b8db5] transition-colors"
         >
           + 새 카테고리 추가
         </button>
@@ -252,8 +252,8 @@ export function AdminPage() {
 
   if (loading || !user || user.role !== "admin") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f0a19]">
-        <p className="text-[#9b8bb4]">로딩 중...</p>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <p className="text-[#6b8db5]">로딩 중...</p>
       </div>
     );
   }
@@ -271,21 +271,21 @@ export function AdminPage() {
   const isDisabled = collectState.status === "running" || collectState.status === "requested";
 
   return (
-    <div className="min-h-screen bg-[#0f0a19] text-[#f5f0ff] p-8">
+    <div className="min-h-screen bg-white text-[#1e3a5f] p-8">
       <div className="max-w-xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">관리자 페이지</h1>
           <button
             onClick={() => navigate("/home")}
-            className="text-sm text-[#9b8bb4] hover:text-[#f5f0ff] transition-colors"
+            className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
           >
             ← 홈으로
           </button>
         </div>
 
-        <section className="rounded-2xl border border-[#2d1f42] bg-[#1a1229] p-6 space-y-4">
+        <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
           <h2 className="text-lg font-semibold">데이터 수집</h2>
-          <p className="text-sm text-[#9b8bb4]">
+          <p className="text-sm text-[#6b8db5]">
             AI를 통해 오늘의 한국 트렌드를 즉시 수집합니다. 이 작업은 1시간까지 소요될 수 있습니다.
           </p>
 
@@ -293,7 +293,7 @@ export function AdminPage() {
             onClick={handleCollect}
             disabled={isDisabled}
             className="w-full py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: "#2d1f42", color: "#f5f0ff" }}
+            style={{ background: "#26b0ff", color: "white" }}
           >
             {collectState.status === "running" && "수집 중..."}
             {collectState.status === "requested" && "수집 요청 완료"}
@@ -301,20 +301,20 @@ export function AdminPage() {
           </button>
 
           {collectState.status === "requested" && (
-            <p className="text-xs text-[#9b8bb4]">작업 완료시 슬랙으로 통지합니다.</p>
+            <p className="text-xs text-[#6b8db5]">작업 완료시 슬랙으로 통지합니다.</p>
           )}
 
           {collectState.status === "error" && (
-            <div className="rounded-xl border border-red-900 bg-[#0f0a19] p-4 text-sm">
-              <p className="text-red-400 font-semibold">수집 실패</p>
-              <p className="text-[#9b8bb4] mt-1">{collectState.message}</p>
+            <div className="rounded-xl border border-[#ff5442]/30 bg-[#ff5442]/10 p-4 text-sm">
+              <p className="text-[#ff5442] font-semibold">수집 실패</p>
+              <p className="text-[#6b8db5] mt-1">{collectState.message}</p>
             </div>
           )}
         </section>
 
-        <section className="rounded-2xl border border-[#2d1f42] bg-[#1a1229] p-6 space-y-4">
+        <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
           <h2 className="text-lg font-semibold">테스트 이메일</h2>
-          <p className="text-sm text-[#9b8bb4]">
+          <p className="text-sm text-[#6b8db5]">
             최신 브리핑을 내 이메일로 즉시 전송합니다. 이메일 채널이 활성화되어 있어야 합니다.
           </p>
 
@@ -322,36 +322,36 @@ export function AdminPage() {
             onClick={handleTestEmail}
             disabled={testEmailState.status === "sending"}
             className="w-full py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: "#2d1f42", color: "#f5f0ff" }}
+            style={{ background: "#26b0ff", color: "white" }}
           >
             {testEmailState.status === "sending" ? "전송 중..." : "테스트 이메일 전송하기"}
           </button>
 
           {testEmailState.status === "done" && (
-            <div className="rounded-xl border border-[#2d4a2d] bg-[#1a2e1a] p-4 text-sm space-y-1">
+            <div className="rounded-xl border border-green-300 bg-green-100 p-4 text-sm space-y-1">
               {testEmailState.result.success_count > 0 && (
-                <p className="text-[#7bc67e] font-semibold">✓ 이메일이 전송됐습니다</p>
+                <p className="text-green-700 font-semibold">✓ 이메일이 전송됐습니다</p>
               )}
               {testEmailState.result.skipped_count > 0 && (
-                <p className="text-[#9b8bb4]">이미 전송된 브리핑입니다 (중복 방지)</p>
+                <p className="text-[#6b8db5]">이미 전송된 브리핑입니다 (중복 방지)</p>
               )}
               {testEmailState.result.failure_count > 0 && (
-                <p className="text-red-400">전송 실패 — {Object.values(testEmailState.result.errors).join(", ")}</p>
+                <p className="text-[#ff5442]">전송 실패 — {Object.values(testEmailState.result.errors).join(", ")}</p>
               )}
             </div>
           )}
 
           {testEmailState.status === "error" && (
-            <div className="rounded-xl border border-red-900 bg-[#0f0a19] p-4 text-sm">
-              <p className="text-red-400 font-semibold">전송 실패</p>
-              <p className="text-[#9b8bb4] mt-1">{testEmailState.message}</p>
+            <div className="rounded-xl border border-[#ff5442]/30 bg-[#ff5442]/10 p-4 text-sm">
+              <p className="text-[#ff5442] font-semibold">전송 실패</p>
+              <p className="text-[#6b8db5] mt-1">{testEmailState.message}</p>
             </div>
           )}
         </section>
 
-        <section className="rounded-2xl border border-[#2d1f42] bg-[#1a1229] p-6 space-y-4">
+        <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
           <h2 className="text-lg font-semibold">Brain Category 관리</h2>
-          <p className="text-sm text-[#9b8bb4]">
+          <p className="text-sm text-[#6b8db5]">
             각 토픽에 부여되는 행동 지침 라벨입니다. AI가 수집 시 이 목록에서 선택합니다.
           </p>
           <BrainCategoryManager />

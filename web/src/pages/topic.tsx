@@ -45,9 +45,9 @@ function PointToast({ earn }: ToastProps) {
     message = "이미 이 주제의 포인트를 받았어요.";
   }
 
-  const bgColor = earn.earned ? "#1a2e1a" : "#2a1f2e";
-  const textColor = earn.earned ? "#7bc67e" : "#9b8bb4";
-  const borderColor = earn.earned ? "#2d4a2d" : "#3d2d4a";
+  const bgColor = earn.earned ? "#e8f5e9" : "#f3e5f5";
+  const textColor = earn.earned ? "#2e7d32" : "#6b8db5";
+  const borderColor = earn.earned ? "#81c784" : "#ce93d8";
 
   return (
     <div
@@ -112,31 +112,31 @@ export function TopicPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0f0a19" }}>
-        <p style={{ color: "#9b8bb4" }}>불러오는 중...</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "white" }}>
+        <p style={{ color: "#6b8db5" }}>불러오는 중...</p>
       </div>
     );
   }
 
   if (error === "not_found") {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0f0a19" }}>
-        <p style={{ color: "#9b8bb4" }}>존재하지 않는 주제입니다.</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "white" }}>
+        <p style={{ color: "#6b8db5" }}>존재하지 않는 주제입니다.</p>
       </div>
     );
   }
 
   if (error || !topic) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0f0a19" }}>
-        <p style={{ color: "#9b8bb4" }}>불러오기에 실패했습니다. 잠시 후 다시 시도해 주세요.</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "white" }}>
+        <p style={{ color: "#6b8db5" }}>불러오기에 실패했습니다. 잠시 후 다시 시도해 주세요.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ background: "#0f0a19" }}>
-      <header className="sticky top-0 z-10 border-b border-[#2d1f42] bg-[#0f0a19]/90 backdrop-blur-lg">
+    <div className="min-h-screen" style={{ background: "white" }}>
+      <header className="sticky top-0 z-10 border-b border-[#d4e6f5] bg-white/90 backdrop-blur-lg">
         <div className="max-w-2xl mx-auto px-6 h-16 flex items-center">
           <Link to="/">
             <img src="/OTA_logo.png" alt="OTA" className="w-[63px] h-[42px]" />
@@ -146,15 +146,15 @@ export function TopicPage() {
 
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         <div>
-          <p className="text-sm mb-3" style={{ color: "#9b8bb4" }}>
+          <p className="text-sm mb-3" style={{ color: "#6b8db5" }}>
             {formatDate(topic.created_at)}
           </p>
           {topic.buzz_score > 0 && (
-            <p className="text-sm font-bold mb-2" style={{ color: "#e84d3d" }}>
+            <p className="text-sm font-bold mb-2" style={{ color: "#ff5442" }}>
               🔥 화제도 {topic.buzz_score}
             </p>
           )}
-          <h1 className="text-2xl font-bold mb-6 leading-snug" style={{ color: "#f5f0ff" }}>
+          <h1 className="text-2xl font-bold mb-6 leading-snug" style={{ color: "#1e3a5f" }}>
             {topic.topic}
           </h1>
           {topic.details && topic.details.length > 0 ? (
@@ -164,14 +164,14 @@ export function TopicPage() {
                 const content = typeof detail === "string" ? "" : detail?.content;
                 if (!title && !content) return null;
                 return (
-                  <div key={i} className="border-l-2 pl-4" style={{ borderColor: "#2d1f42" }}>
+                  <div key={i} className="border-l-2 pl-4" style={{ borderColor: "#d4e6f5" }}>
                     {title && (
-                      <h3 className="text-base font-semibold leading-snug mb-1.5" style={{ color: "#f5f0ff" }}>
+                      <h3 className="text-base font-semibold leading-snug mb-1.5" style={{ color: "#1e3a5f" }}>
                         {title}
                       </h3>
                     )}
                     {content && (
-                      <p className="text-sm leading-relaxed" style={{ color: "#9b8bb4" }}>
+                      <p className="text-sm leading-relaxed" style={{ color: "#6b8db5" }}>
                         {content}
                       </p>
                     )}
@@ -180,19 +180,19 @@ export function TopicPage() {
               })}
             </div>
           ) : topic.detail ? (
-            <p className="text-base leading-relaxed" style={{ color: "#d4cee0" }}>
+            <p className="text-base leading-relaxed" style={{ color: "#335071" }}>
               {topic.detail}
             </p>
           ) : (
-            <p className="text-sm" style={{ color: "#9b8bb4" }}>
+            <p className="text-sm" style={{ color: "#6b8db5" }}>
               추가 정보가 없습니다.
             </p>
           )}
         </div>
 
         {topic.sources && topic.sources.length > 0 && (
-          <div className="rounded-xl border px-5 py-4 space-y-2" style={{ borderColor: "#2d1f42", background: "#1a1229" }}>
-            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9b8bb4" }}>
+          <div className="rounded-xl border px-5 py-4 space-y-2" style={{ borderColor: "#d4e6f5", background: "#f0f7ff" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b8db5" }}>
               출처
             </p>
             <div className="flex flex-wrap gap-2">
@@ -203,14 +203,14 @@ export function TopicPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm px-3 py-1 rounded-full transition-colors"
-                  style={{ color: "#9b8bb4", border: "1px solid #2d1f42" }}
+                  style={{ color: "#6b8db5", border: "1px solid #d4e6f5" }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.color = "#f5f0ff";
-                    e.currentTarget.style.borderColor = "#9b8bb4";
+                    e.currentTarget.style.color = "#1e3a5f";
+                    e.currentTarget.style.borderColor = "#6b8db5";
                   }}
                   onMouseLeave={e => {
-                    e.currentTarget.style.color = "#9b8bb4";
-                    e.currentTarget.style.borderColor = "#2d1f42";
+                    e.currentTarget.style.color = "#6b8db5";
+                    e.currentTarget.style.borderColor = "#d4e6f5";
                   }}
                 >
                   출처 {i + 1}

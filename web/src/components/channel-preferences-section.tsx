@@ -86,23 +86,23 @@ export function ChannelPreferencesSection() {
 
   if (loading) {
     return (
-      <section className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] p-6">
-        <p className="text-sm text-[#9b8bb4]">채널 정보를 불러오는 중...</p>
+      <section className="rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-6">
+        <p className="text-sm text-[#6b8db5]">채널 정보를 불러오는 중...</p>
       </section>
     );
   }
 
   return (
-    <section className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] p-6">
+    <section className="rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-6">
       <div className="flex items-center gap-2 mb-5">
-        <div className="w-8 h-8 rounded-lg bg-[#e84d3d]/10 flex items-center justify-center">
-          <svg className="w-4 h-4 text-[#e84d3d]" viewBox="0 0 24 24" fill="none"
+        <div className="w-8 h-8 rounded-lg bg-[#ff5442]/10 flex items-center justify-center">
+          <svg className="w-4 h-4 text-[#ff5442]" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
           </svg>
         </div>
-        <h2 className="font-semibold text-[#f5f0ff]">알림 수신 채널</h2>
-        <span className="ml-auto text-xs text-[#9b8bb4]">
+        <h2 className="font-semibold text-[#1e3a5f]">알림 수신 채널</h2>
+        <span className="ml-auto text-xs text-[#6b8db5]">
           {enabledCount > 0 ? `${enabledCount}개 활성화됨` : "채널을 선택하세요"}
         </span>
       </div>
@@ -119,15 +119,15 @@ export function ChannelPreferencesSection() {
           return (
             <div key={ch.channel}>
               <div
-                className={`flex items-center justify-between p-4 rounded-xl bg-[#0f0a19] border transition-colors ${
-                  needsVerification ? "border-[#e84d3d]/40" : "border-[#2d1f42]"
+                className={`flex items-center justify-between p-4 rounded-xl bg-white border transition-colors ${
+                  needsVerification ? "border-[#ff5442]/40" : "border-[#d4e6f5]"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{info.icon}</span>
                   <div>
-                    <p className="text-sm font-medium text-[#f5f0ff]">{info.label}</p>
-                    <p className="text-xs text-[#9b8bb4] mt-0.5">{info.description}</p>
+                    <p className="text-sm font-medium text-[#1e3a5f]">{info.label}</p>
+                    <p className="text-xs text-[#6b8db5] mt-0.5">{info.description}</p>
                   </div>
                 </div>
 
@@ -136,10 +136,10 @@ export function ChannelPreferencesSection() {
                   disabled={saving || needsVerification}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                     needsVerification
-                      ? "bg-[#e84d3d]/30 cursor-not-allowed"
+                      ? "bg-[#ff5442]/30 cursor-not-allowed"
                       : ch.enabled
-                        ? "bg-[#5ba4d9]"
-                        : "bg-[#2d1f42]"
+                        ? "bg-[#26b0ff]"
+                        : "bg-[#d4e6f5]"
                   } ${saving ? "opacity-50 cursor-not-allowed" : !needsVerification ? "cursor-pointer" : ""}`}
                   aria-label={`${info.label} ${ch.enabled ? "비활성화" : "활성화"}`}
                 >
@@ -153,7 +153,7 @@ export function ChannelPreferencesSection() {
 
               {/* Delivery failure warning */}
               {failure && ch.enabled && (
-                <div className="mt-2 ml-4 text-xs text-[#e84d3d] bg-[#e84d3d]/10 rounded-lg px-3 py-2 border border-[#e84d3d]/20">
+                <div className="mt-2 ml-4 text-xs text-[#ff5442] bg-[#ff5442]/10 rounded-lg px-3 py-2 border border-[#ff5442]/20">
                   {failure.retry_count >= MAX_RETRIES ? (
                     <p>이 채널로의 전달이 실패했습니다. 채널 설정을 확인해주세요.</p>
                   ) : (
@@ -164,12 +164,12 @@ export function ChannelPreferencesSection() {
 
               {/* Email verification required */}
               {needsVerification && (
-                <div className="mt-2 ml-4 text-xs text-[#e84d3d] bg-[#e84d3d]/10 rounded-lg px-3 py-2 border border-[#e84d3d]/20">
+                <div className="mt-2 ml-4 text-xs text-[#ff5442] bg-[#ff5442]/10 rounded-lg px-3 py-2 border border-[#ff5442]/20">
                   <p>
                     이메일 수신을 활성화하려면 이메일 인증이 필요합니다.{" "}
                     <Link
                       to="/email-verification"
-                      className="underline font-medium hover:text-[#f56b5d] transition-colors"
+                      className="underline font-medium hover:text-[#e63a2e] transition-colors"
                     >
                       여기를 클릭하여 이메일을 설정하세요
                     </Link>
@@ -179,10 +179,10 @@ export function ChannelPreferencesSection() {
 
               {/* Verified email info */}
               {isEmail && emailVerified && ch.enabled && (
-                <div className="mt-2 ml-4 text-xs text-[#9b8bb4]">
+                <div className="mt-2 ml-4 text-xs text-[#6b8db5]">
                   <p>
                     현재 등록된 이메일: {user?.email}{" "}
-                    <Link to="/email-verification" className="underline hover:text-white transition-colors">
+                    <Link to="/email-verification" className="underline hover:text-[#1e3a5f] transition-colors">
                       변경하기
                     </Link>
                   </p>
@@ -194,12 +194,12 @@ export function ChannelPreferencesSection() {
       </div>
 
       {errorMsg && (
-        <p className="mt-4 text-xs text-[#e84d3d] bg-[#e84d3d]/10 rounded-lg px-3 py-2 border border-[#e84d3d]/20">
+        <p className="mt-4 text-xs text-[#ff5442] bg-[#ff5442]/10 rounded-lg px-3 py-2 border border-[#ff5442]/20">
           {errorMsg}
         </p>
       )}
 
-      <p className="mt-4 text-xs text-[#9b8bb4] text-center">
+      <p className="mt-4 text-xs text-[#6b8db5] text-center">
         선택한 채널로 매일 아침 7시에 맥락이 전달됩니다
       </p>
     </section>

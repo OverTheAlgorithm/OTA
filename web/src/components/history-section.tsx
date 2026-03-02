@@ -17,34 +17,34 @@ function formatDate(dateStr: string): string {
 function BuzzBadge({ score }: { score: number }) {
   if (!score) return null;
   return (
-    <span className="text-xs font-bold text-[#e84d3d]">
+    <span className="text-xs font-bold text-[#ff5442]">
       🔥 화제도 {score}
     </span>
   );
 }
 
 function TopicRow({ item, accent }: { item: HistoryItem; accent?: string }) {
-  const dotColor = accent ?? "#9b8bb4";
+  const dotColor = accent ?? "#6b8db5";
   const hasDetails = item.details && item.details.length > 0;
   return (
-    <li className="flex gap-3 py-2.5 border-b border-[#2d1f42]/60 last:border-0">
+    <li className="flex gap-3 py-2.5 border-b border-[#d4e6f5]/60 last:border-0">
       <span
         className="mt-2 w-1.5 h-1.5 rounded-full shrink-0"
         style={{ backgroundColor: dotColor + "99" }}
       />
       <div className="min-w-0">
         <BuzzBadge score={item.buzz_score} />
-        <p className="text-sm font-semibold text-[#f5f0ff] leading-snug">
+        <p className="text-sm font-semibold text-[#1e3a5f] leading-snug">
           {item.topic}
         </p>
-        <p className="text-xs text-[#d4cee0] mt-1 leading-relaxed">{item.summary}</p>
+        <p className="text-xs text-[#6b8db5] mt-1 leading-relaxed">{item.summary}</p>
         {hasDetails && (
           <Link
             to={`/topic/${item.id}`}
             className="inline-block mt-1 text-xs transition-colors"
-            style={{ color: "#9b8bb4" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#f5f0ff")}
-            onMouseLeave={e => (e.currentTarget.style.color = "#9b8bb4")}
+            style={{ color: "#6b8db5" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#1e3a5f")}
+            onMouseLeave={e => (e.currentTarget.style.color = "#6b8db5")}
           >
             {item.details.length}개의 추가 정보가 있어요 →
           </Link>
@@ -86,19 +86,19 @@ function HistoryCard({
   const bcGroups = groupByBrainCategory(selectedItems);
 
   return (
-    <div className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] overflow-hidden">
+    <div className="rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] overflow-hidden">
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full px-6 py-4 flex items-center justify-between cursor-pointer"
-        style={{ borderBottom: open ? "1px solid #2d1f42" : "none" }}
+        style={{ borderBottom: open ? "1px solid #d4e6f5" : "none" }}
       >
-        <span className="font-semibold text-[#f5f0ff]">{formatDate(entry.date)}</span>
+        <span className="font-semibold text-[#1e3a5f]">{formatDate(entry.date)}</span>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[#9b8bb4] bg-[#0f0a19] px-2.5 py-1 rounded-full border border-[#2d1f42]">
+          <span className="text-xs text-[#6b8db5] bg-white px-2.5 py-1 rounded-full border border-[#d4e6f5]">
             {selectedItems.length}개 토픽
           </span>
           <svg
-            className="w-4 h-4 text-[#9b8bb4] transition-transform duration-200"
+            className="w-4 h-4 text-[#6b8db5] transition-transform duration-200"
             style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
             strokeLinecap="round" strokeLinejoin="round"
@@ -142,10 +142,10 @@ function HistoryCard({
         {bcGroups[""] && bcGroups[""].length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-md bg-[#9b8bb4]/10 flex items-center justify-center">
+              <div className="w-6 h-6 rounded-md bg-[#6b8db5]/10 flex items-center justify-center">
                 <span className="text-sm">📌</span>
               </div>
-              <span className="text-xs font-semibold text-[#9b8bb4] tracking-wider">
+              <span className="text-xs font-semibold text-[#6b8db5] tracking-wider">
                 기타
               </span>
             </div>
@@ -214,8 +214,8 @@ export function HistorySection({ subscriptions }: Props) {
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-[#7bc67e]/10 flex items-center justify-center">
-          <svg className="w-4 h-4 text-[#7bc67e]" viewBox="0 0 24 24" fill="none"
+        <div className="w-8 h-8 rounded-lg bg-[#4a9fe5]/10 flex items-center justify-center">
+          <svg className="w-4 h-4 text-[#4a9fe5]" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -224,25 +224,25 @@ export function HistorySection({ subscriptions }: Props) {
             <polyline points="10 9 9 9 8 9"/>
           </svg>
         </div>
-        <h2 className="font-semibold text-[#f5f0ff]">받아본 맥락</h2>
+        <h2 className="font-semibold text-[#1e3a5f]">받아본 맥락</h2>
       </div>
 
       {loading ? (
         <div className="space-y-4">
           {[1, 2].map((i) => (
-            <div key={i} className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] p-6 animate-pulse">
-              <div className="h-4 bg-[#2d1f42] rounded w-24 mb-4" />
+            <div key={i} className="rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-6 animate-pulse">
+              <div className="h-4 bg-[#d4e6f5] rounded w-24 mb-4" />
               <div className="space-y-2">
-                <div className="h-3 bg-[#2d1f42] rounded w-full" />
-                <div className="h-3 bg-[#2d1f42] rounded w-3/4" />
+                <div className="h-3 bg-[#d4e6f5] rounded w-full" />
+                <div className="h-3 bg-[#d4e6f5] rounded w-3/4" />
               </div>
             </div>
           ))}
         </div>
       ) : entries.length === 0 ? (
-        <div className="rounded-2xl bg-[#1a1229] border border-[#2d1f42] p-12 text-center">
-          <p className="text-[#9b8bb4] text-sm">아직 받은 맥락이 없습니다.</p>
-          <p className="text-[#9b8bb4]/60 text-xs mt-1">매일 아침 7시에 첫 브리핑이 전달됩니다.</p>
+        <div className="rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-12 text-center">
+          <p className="text-[#6b8db5] text-sm">아직 받은 맥락이 없습니다.</p>
+          <p className="text-[#6b8db5]/60 text-xs mt-1">매일 아침 7시에 첫 브리핑이 전달됩니다.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -261,7 +261,7 @@ export function HistorySection({ subscriptions }: Props) {
 
           {loadingMore && (
             <div className="flex justify-center py-4">
-              <div className="flex items-center gap-2 text-[#9b8bb4] text-sm">
+              <div className="flex items-center gap-2 text-[#6b8db5] text-sm">
                 <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -272,7 +272,7 @@ export function HistorySection({ subscriptions }: Props) {
           )}
 
           {!hasMore && entries.length > 0 && (
-            <p className="text-center text-xs text-[#9b8bb4]/60 py-2">
+            <p className="text-center text-xs text-[#6b8db5]/60 py-2">
               모든 맥락을 불러왔습니다
             </p>
           )}
