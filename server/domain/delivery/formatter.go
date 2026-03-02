@@ -111,7 +111,7 @@ func generateHTMLBody(preferred, nonPreferred []collector.ContextItem, brainCate
 		}
 	}
 	if ungrouped, ok := bcGroups[""]; ok {
-		body.WriteString(renderEmailSection("📌 기타", "#9b8bb4", ungrouped, frontendURL, true, msgCtx))
+		body.WriteString(renderEmailSection("📌 기타", "#6b8db5", ungrouped, frontendURL, true, msgCtx))
 	}
 
 	// Non-preferred sections with divider
@@ -125,7 +125,7 @@ func generateHTMLBody(preferred, nonPreferred []collector.ContextItem, brainCate
 			}
 		}
 		if ungrouped, ok := bcGroupsNP[""]; ok {
-			body.WriteString(renderEmailSection("📌 기타", "#9b8bb4", ungrouped, frontendURL, false, msgCtx))
+			body.WriteString(renderEmailSection("📌 기타", "#6b8db5", ungrouped, frontendURL, false, msgCtx))
 		}
 	}
 
@@ -136,10 +136,10 @@ func generateHTMLBody(preferred, nonPreferred []collector.ContextItem, brainCate
 func renderNonPreferredDivider() string {
 	return `
       <tr><td style="padding-bottom:16px;">
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1a1229;border-radius:16px;border:1px solid #7bc67e;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f7ff;border-radius:16px;border:1px solid #7bc67e;">
           <tr><td style="padding:16px 24px;">
             <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#7bc67e;">🌱 시야를 넓힐 기회에요</p>
-            <p style="margin:0;font-size:12px;color:#9b8bb4;">구독하지 않은 주제예요. 읽으면 더 많은 포인트를 얻어요!</p>
+            <p style="margin:0;font-size:12px;color:#6b8db5;">구독하지 않은 주제예요. 읽으면 더 많은 포인트를 얻어요!</p>
           </td></tr>
         </table>
       </td></tr>
@@ -155,8 +155,8 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 </head>
-<body style="margin:0;padding:0;background-color:#0f0a19;font-family:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;">
-<table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0f0a19;">
+<body style="margin:0;padding:0;background-color:white;font-family:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;">
+<table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:white;">
   <tr><td align="center" style="padding:32px 16px 48px;">
     <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
 
@@ -168,8 +168,8 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
               <img src="%s" alt="OTA" height="32" style="display:block;">
             </td>
             <td style="padding-left:10px;vertical-align:middle;">
-              <p style="margin:0;font-size:16px;font-weight:700;color:#f5f0ff;letter-spacing:-0.01em;">Over the Algorithm</p>
-              <p style="margin:2px 0 0;font-size:11px;color:#9b8bb4;">오늘의 맥락 브리핑</p>
+              <p style="margin:0;font-size:16px;font-weight:700;color:#1e3a5f;letter-spacing:-0.01em;">Over the Algorithm</p>
+              <p style="margin:2px 0 0;font-size:11px;color:#6b8db5;">오늘의 맥락 브리핑</p>
             </td>
           </tr>
         </table>
@@ -182,8 +182,8 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
       %s
 
       <!-- Footer -->
-      <tr><td style="padding-top:32px;border-top:1px solid #2d1f42;text-align:center;">
-        <p style="margin:0;font-size:11px;color:#4a3d5c;line-height:1.6;">
+      <tr><td style="padding-top:32px;border-top:1px solid #d4e6f5;text-align:center;">
+        <p style="margin:0;font-size:11px;color:#a8bcc9;line-height:1.6;">
           알고리즘 너머의 맥락을 전달합니다.<br>
           이 메일은 OTA 브리핑 서비스를 통해 발송되었습니다.
         </p>
@@ -216,7 +216,7 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 		progressPercent = 100
 	} else {
 		progressText = fmt.Sprintf(
-			`<p style="margin:0 0 5px;font-size:11px;color:#9b8bb4;">%d / %d</p>`,
+			`<p style="margin:0 0 5px;font-size:11px;color:#6b8db5;">%d / %d</p>`,
 			info.CurrentProgress, info.PointsToNext,
 		)
 		progressPercent = int(float64(info.CurrentProgress) / float64(info.PointsToNext) * 100)
@@ -225,9 +225,9 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 	return fmt.Sprintf(`
       <!-- Level Card -->
       <tr><td style="padding-bottom:24px;">
-        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1a1229;border-radius:16px;border:1px solid #2d1f42;">
-          <tr><td style="padding:10px 16px;border-bottom:1px solid #2d1f42;">
-            <p style="margin:0;font-size:10px;font-weight:700;color:#5ba4d9;letter-spacing:0.08em;">🌈 나의 레벨</p>
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f7ff;border-radius:16px;border:1px solid #d4e6f5;">
+          <tr><td style="padding:10px 16px;border-bottom:1px solid #d4e6f5;">
+            <p style="margin:0;font-size:10px;font-weight:700;color:#26b0ff;letter-spacing:0.08em;">🌈 나의 레벨</p>
           </td></tr>
           <tr><td style="padding:12px 16px;">
             <table width="100%%" cellpadding="0" cellspacing="0" border="0">
@@ -236,13 +236,13 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
                   <img src="%s" alt="Lv.%d" width="72" style="display:block;">
                 </td>
                 <td style="padding-left:10px;vertical-align:middle;">
-                  <p style="margin:0 0 2px;font-size:17px;font-weight:700;color:#f5f0ff;">Lv.%d</p>
+                  <p style="margin:0 0 2px;font-size:17px;font-weight:700;color:#1e3a5f;">Lv.%d</p>
                   %s
-                  <div style="width:100%%;height:5px;background-color:#2d1f42;border-radius:3px;overflow:hidden;margin-bottom:6px;">
-                    <div style="width:%d%%;height:100%%;background:linear-gradient(to right,#5ba4d9,#7bc67e);border-radius:3px;"></div>
+                  <div style="width:100%%;height:5px;background-color:#d4e6f5;border-radius:3px;overflow:hidden;margin-bottom:6px;">
+                    <div style="width:%d%%;height:100%%;background:linear-gradient(to right,#26b0ff,#7bc67e);border-radius:3px;"></div>
                   </div>
-                  <p style="margin:0;font-size:11px;color:#9b8bb4;">%s</p>
-                  <p style="margin:4px 0 0;font-size:10px;color:#4a3d5c;">🌈 토픽을 읽으면 포인트가 쌓여요</p>
+                  <p style="margin:0;font-size:11px;color:#6b8db5;">%s</p>
+                  <p style="margin:4px 0 0;font-size:10px;color:#a8bcc9;">🌈 토픽을 읽으면 포인트가 쌓여요</p>
                 </td>
               </tr>
             </table>
@@ -256,7 +256,7 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 func renderEmailSection(title, accentColor string, items []collector.ContextItem, frontendURL string, preferred bool, msgCtx *MessageContext) string {
 	var rows strings.Builder
 	for i, item := range items {
-		borderBottom := "border-bottom:1px solid #2d1f42;"
+		borderBottom := "border-bottom:1px solid #d4e6f5;"
 		if i == len(items)-1 {
 			borderBottom = ""
 		}
@@ -264,7 +264,7 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 		buzzHTML := ""
 		if item.BuzzScore > 0 {
 			buzzHTML = fmt.Sprintf(
-				`<p style="margin:0 0 4px;font-size:11px;color:#e84d3d;font-weight:700;letter-spacing:0.01em;">🔥 화제도 %d</p>`,
+				`<p style="margin:0 0 4px;font-size:11px;color:#ff5442;font-weight:700;letter-spacing:0.01em;">🔥 화제도 %d</p>`,
 				item.BuzzScore,
 			)
 		}
@@ -275,7 +275,7 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx, pts)
 			pointsLabel := buildPointsLabelFromPts(pts)
 			linkHTML = fmt.Sprintf(
-				`<p style="margin:10px 0 0;"><a href="%s" style="font-size:12px;color:#9b8bb4;text-decoration:none;letter-spacing:0.01em;">%d개의 추가 정보가 있어요 →%s</a></p>`,
+				`<p style="margin:10px 0 0;"><a href="%s" style="font-size:12px;color:#6b8db5;text-decoration:none;letter-spacing:0.01em;">%d개의 추가 정보가 있어요 →%s</a></p>`,
 				href, len(item.Details), pointsLabel,
 			)
 		}
@@ -289,8 +289,8 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
             </td>
             <td style="padding-left:12px;">
               %s
-              <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#f5f0ff;letter-spacing:-0.01em;">%s</p>
-              <p style="margin:0;font-size:13px;color:#d4cee0;line-height:1.7;">%s</p>
+              <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#1e3a5f;letter-spacing:-0.01em;">%s</p>
+              <p style="margin:0;font-size:13px;color:#6b8db5;line-height:1.7;">%s</p>
               %s
             </td>
           </tr>
@@ -302,9 +302,9 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 
 	return fmt.Sprintf(`
       <tr><td style="padding-bottom:16px;">
-        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1a1229;border-radius:16px;border:1px solid #2d1f42;">
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f7ff;border-radius:16px;border:1px solid #d4e6f5;">
           <!-- Section header -->
-          <tr><td style="padding:16px 24px;border-bottom:1px solid #2d1f42;">
+          <tr><td style="padding:16px 24px;border-bottom:1px solid #d4e6f5;">
             <p style="margin:0;font-size:11px;font-weight:700;color:%s;letter-spacing:0.1em;text-transform:uppercase;">%s</p>
           </td></tr>
           <!-- Items -->

@@ -33,22 +33,31 @@ function PointToast({ earn }: ToastProps) {
   }, []);
 
   let message: string;
+  let bgColor: string;
+  let textColor: string;
+  let borderColor: string;
+
   if (earn.earned) {
     if (earn.leveled_up) {
       message = `🎉 +${earn.points_earned}pt 획득! Lv.${earn.new_level} 레벨 업!`;
     } else {
       message = `🌈 +${earn.points_earned}pt 획득!`;
     }
+    bgColor = "var(--color-card-bg)";
+    textColor = "var(--color-button-primary)";
+    borderColor = "var(--color-button-primary)";
   } else if (earn.reason === "EXPIRED") {
     message = "포인트 획득 기간이 지났어요.";
+    bgColor = "var(--color-card-bg)";
+    textColor = "var(--color-text-secondary)";
+    borderColor = "var(--color-text-secondary)";
   } else {
     // DUPLICATE or unknown
     message = "이미 이 주제의 포인트를 받았어요.";
+    bgColor = "var(--color-card-bg)";
+    textColor = "var(--color-text-secondary)";
+    borderColor = "var(--color-text-secondary)";
   }
-
-  const bgColor = earn.earned ? "#e8f5e9" : "#f3e5f5";
-  const textColor = earn.earned ? "#2e7d32" : "#6b8db5";
-  const borderColor = earn.earned ? "#81c784" : "#ce93d8";
 
   return (
     <div
@@ -114,24 +123,24 @@ export function TopicPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "white" }}>
-        <p style={{ color: "#6b8db5" }}>불러오는 중...</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--color-bg)", color: "var(--color-fg)" }}>
+        <p style={{ color: "var(--color-text-secondary)" }}>불러오는 중...</p>
       </div>
     );
   }
 
   if (error === "not_found") {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "white" }}>
-        <p style={{ color: "#6b8db5" }}>존재하지 않는 주제입니다.</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--color-bg)", color: "var(--color-fg)" }}>
+        <p style={{ color: "var(--color-text-secondary)" }}>존재하지 않는 주제입니다.</p>
       </div>
     );
   }
 
   if (error || !topic) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "white" }}>
-        <p style={{ color: "#6b8db5" }}>불러오기에 실패했습니다. 잠시 후 다시 시도해 주세요.</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--color-bg)", color: "var(--color-fg)" }}>
+        <p style={{ color: "var(--color-text-secondary)" }}>불러오기에 실패했습니다. 잠시 후 다시 시도해 주세요.</p>
       </div>
     );
   }
@@ -157,7 +166,8 @@ export function TopicPage() {
           </Link>
           <button
             onClick={toggleTheme}
-            className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
+            style={{ color: "var(--color-text-secondary)" }}
+            className="text-sm hover:opacity-70 transition-opacity"
             title="테마 전환"
           >
             🌙
@@ -167,15 +177,15 @@ export function TopicPage() {
 
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         <div>
-          <p className="text-sm mb-3" style={{ color: "#6b8db5" }}>
+          <p className="text-sm mb-3" style={{ color: "var(--color-text-secondary)" }}>
             {formatDate(topic.created_at)}
           </p>
           {topic.buzz_score > 0 && (
-            <p className="text-sm font-bold mb-2" style={{ color: "#ff5442" }}>
+            <p className="text-sm font-bold mb-2" style={{ color: "var(--color-error)" }}>
               🔥 화제도 {topic.buzz_score}
             </p>
           )}
-          <h1 className="text-2xl font-bold mb-6 leading-snug" style={{ color: "#1e3a5f" }}>
+          <h1 className="text-2xl font-bold mb-6 leading-snug" style={{ color: "var(--color-fg)" }}>
             {topic.topic}
           </h1>
           {topic.details && topic.details.length > 0 ? (
@@ -185,14 +195,14 @@ export function TopicPage() {
                 const content = typeof detail === "string" ? "" : detail?.content;
                 if (!title && !content) return null;
                 return (
-                  <div key={i} className="border-l-2 pl-4" style={{ borderColor: "#d4e6f5" }}>
+                  <div key={i} className="border-l-2 pl-4" style={{ borderColor: "var(--color-border)" }}>
                     {title && (
-                      <h3 className="text-base font-semibold leading-snug mb-1.5" style={{ color: "#1e3a5f" }}>
+                      <h3 className="text-base font-semibold leading-snug mb-1.5" style={{ color: "var(--color-fg)" }}>
                         {title}
                       </h3>
                     )}
                     {content && (
-                      <p className="text-sm leading-relaxed" style={{ color: "#6b8db5" }}>
+                      <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
                         {content}
                       </p>
                     )}
@@ -201,19 +211,19 @@ export function TopicPage() {
               })}
             </div>
           ) : topic.detail ? (
-            <p className="text-base leading-relaxed" style={{ color: "#335071" }}>
+            <p className="text-base leading-relaxed" style={{ color: "var(--color-fg)" }}>
               {topic.detail}
             </p>
           ) : (
-            <p className="text-sm" style={{ color: "#6b8db5" }}>
+            <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
               추가 정보가 없습니다.
             </p>
           )}
         </div>
 
         {topic.sources && topic.sources.length > 0 && (
-          <div className="rounded-xl border px-5 py-4 space-y-2" style={{ borderColor: "#d4e6f5", background: "#f0f7ff" }}>
-            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b8db5" }}>
+          <div className="rounded-xl border px-5 py-4 space-y-2" style={{ borderColor: "var(--color-border)", background: "var(--color-card-bg)" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-secondary)" }}>
               출처
             </p>
             <div className="flex flex-wrap gap-2">
@@ -224,14 +234,14 @@ export function TopicPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm px-3 py-1 rounded-full transition-colors"
-                  style={{ color: "#6b8db5", border: "1px solid #d4e6f5" }}
+                  style={{ color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.color = "#1e3a5f";
-                    e.currentTarget.style.borderColor = "#6b8db5";
+                    e.currentTarget.style.color = "var(--color-fg)";
+                    e.currentTarget.style.borderColor = "var(--color-text-secondary)";
                   }}
                   onMouseLeave={e => {
-                    e.currentTarget.style.color = "#6b8db5";
-                    e.currentTarget.style.borderColor = "#d4e6f5";
+                    e.currentTarget.style.color = "var(--color-text-secondary)";
+                    e.currentTarget.style.borderColor = "var(--color-border)";
                   }}
                 >
                   출처 {i + 1}

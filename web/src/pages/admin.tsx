@@ -310,7 +310,7 @@ export function AdminPage() {
             onClick={handleCollect}
             disabled={isDisabled}
             className="w-full py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: "#26b0ff", color: "white" }}
+            style={{ background: "var(--color-button-primary)", color: "white" }}
           >
             {collectState.status === "running" && "수집 중..."}
             {collectState.status === "requested" && "수집 요청 완료"}
@@ -339,7 +339,7 @@ export function AdminPage() {
             onClick={handleTestEmail}
             disabled={testEmailState.status === "sending"}
             className="w-full py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: "#26b0ff", color: "white" }}
+            style={{ background: "var(--color-button-primary)", color: "white" }}
           >
             {testEmailState.status === "sending" ? "전송 중..." : "테스트 이메일 전송하기"}
           </button>

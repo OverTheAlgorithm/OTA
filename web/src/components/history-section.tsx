@@ -42,9 +42,9 @@ function TopicRow({ item, accent }: { item: HistoryItem; accent?: string }) {
           <Link
             to={`/topic/${item.id}`}
             className="inline-block mt-1 text-xs transition-colors"
-            style={{ color: "#6b8db5" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#1e3a5f")}
-            onMouseLeave={e => (e.currentTarget.style.color = "#6b8db5")}
+            style={{ color: "var(--color-text-secondary)" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--color-fg)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--color-text-secondary)")}
           >
             {item.details.length}개의 추가 정보가 있어요 →
           </Link>
@@ -90,7 +90,7 @@ function HistoryCard({
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full px-6 py-4 flex items-center justify-between cursor-pointer"
-        style={{ borderBottom: open ? "1px solid #d4e6f5" : "none" }}
+        style={{ borderBottom: open ? "1px solid var(--color-border)" : "none" }}
       >
         <span className="font-semibold text-[#1e3a5f]">{formatDate(entry.date)}</span>
         <div className="flex items-center gap-2">
