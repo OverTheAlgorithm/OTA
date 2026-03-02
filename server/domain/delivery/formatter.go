@@ -320,7 +320,7 @@ func calcPointsForLink(preferred bool, msgCtx *MessageContext) int {
 	if msgCtx == nil {
 		return 0
 	}
-	return level.CalcPoints(preferred, msgCtx.DaysSinceLastEarn)
+	return level.CalcPoints(preferred)
 }
 
 // buildTopicLink constructs the topic detail URL with optional uid/rid/pts tracking params.

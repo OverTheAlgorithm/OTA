@@ -106,16 +106,7 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 					log.Printf("failed to get subscriptions: %v", err)
 				} else {
 					preferred := level.IsPreferredCategory(topic.Category, subs)
-
-					// Use pre-calculated points from email link if available.
-					var overridePts int
-					if v := c.Query("pts"); v != "" {
-						if n, convErr := strconv.Atoi(v); convErr == nil && n >= level.BasePointPreferred && n <= level.MaxPointEarn {
-							overridePts = n
-						}
-					}
-
-					result, earnErr := h.levelService.EarnPointWithOverride(c.Request.Context(), uid, runID, topic.ID, preferred, overridePts)
+					result, earnErr := h.levelService.EarnPoint(c.Request.Context(), uid, runID, topic.ID, preferred)
 					if earnErr != nil {
 						log.Printf("earn point error: %v", earnErr)
 					} else if result.Earned {

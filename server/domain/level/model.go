@@ -7,8 +7,8 @@ import (
 )
 
 // Thresholds는 레벨별 누적 포인트 기준 (인덱스 = 레벨-1)
-// Lv1: 0pt~, Lv2: 15pt~, Lv3: 45pt~, Lv4: 90pt~, Lv5: 165pt~
-var Thresholds = []int{0, 15, 45, 90, 165}
+// Lv1: 0pt~, Lv2: 50pt~, Lv3: 200pt~, Lv4: 500pt~, Lv5: 1000pt~
+var Thresholds = []int{0, 50, 200, 500, 1000}
 
 // Descriptions는 레벨별 설명
 var Descriptions = []string{
@@ -24,9 +24,7 @@ const MaxLevel = 5
 // Point constants for earn calculation.
 const (
 	BasePointPreferred    = 5  // points for visiting a topic in a subscribed category
-	BasePointNonPreferred = 15 // points for visiting a topic outside subscribed categories
-	BonusPointPerDay      = 5  // additional points per calendar day since last earn
-	MaxPointEarn          = 50 // maximum points a user can earn per click
+	BasePointNonPreferred = 10 // points for visiting a topic outside subscribed categories
 )
 
 type UserPoints struct {
@@ -105,17 +103,11 @@ func CalcLevelInfo(totalPoints int) LevelInfo {
 
 // CalcPoints returns the points to award for visiting a topic.
 // preferred=true means the topic belongs to a category the user subscribes to.
-// daysSinceLastEarn is the number of calendar days (KST) since the user last earned any points.
-func CalcPoints(preferred bool, daysSinceLastEarn int) int {
-	base := BasePointNonPreferred
+func CalcPoints(preferred bool) int {
 	if preferred {
-		base = BasePointPreferred
+		return BasePointPreferred
 	}
-	pts := base + daysSinceLastEarn*BonusPointPerDay
-	if pts > MaxPointEarn {
-		return MaxPointEarn
-	}
-	return pts
+	return BasePointNonPreferred
 }
 
 // IsPreferredCategory returns true if the category is always shown (top/brief) or is in the user's subscriptions.

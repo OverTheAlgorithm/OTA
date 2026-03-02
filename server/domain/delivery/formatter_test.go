@@ -361,17 +361,17 @@ func TestFormatMessage_PointsLabel(t *testing.T) {
 		},
 	}
 	subscriptions := []string{} // top is preferred, sports is non-preferred
-	msgCtx := &MessageContext{UserID: "uid1", RunID: "rid1", DaysSinceLastEarn: 2}
+	msgCtx := &MessageContext{UserID: "uid1", RunID: "rid1"}
 
 	result := FormatMessage(items, subscriptions, testBrainCategories, "https://example.com", nil, msgCtx)
 
-	// Preferred item: +5pt + 2*5 = +15pt
-	if !strings.Contains(result.HTMLBody, "+15pt") {
-		t.Errorf("expected preferred item to show +15pt, HTML: %s", result.HTMLBody)
+	// Preferred item: +5pt
+	if !strings.Contains(result.HTMLBody, "+5pt") {
+		t.Errorf("expected preferred item to show +5pt, HTML: %s", result.HTMLBody)
 	}
-	// Non-preferred item: +15pt + 2*5 = +25pt
-	if !strings.Contains(result.HTMLBody, "+25pt") {
-		t.Errorf("expected non-preferred item to show +25pt, HTML: %s", result.HTMLBody)
+	// Non-preferred item: +10pt
+	if !strings.Contains(result.HTMLBody, "+10pt") {
+		t.Errorf("expected non-preferred item to show +10pt, HTML: %s", result.HTMLBody)
 	}
 	// uid/rid tracking params in links
 	if !strings.Contains(result.HTMLBody, "uid=uid1") {

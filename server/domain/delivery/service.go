@@ -13,13 +13,9 @@ import (
 
 const deliveryBatchSize = 1000
 
-// kstLocation is KST (UTC+9).
-var kstLocation = time.FixedZone("KST", 9*60*60)
-
-// LevelProvider fetches level info and earn history per user for email rendering.
+// LevelProvider fetches level info per user for email rendering.
 type LevelProvider interface {
 	GetLevel(ctx context.Context, userID string) (UserLevelInfo, error)
-	GetLastEarnedAtBatch(ctx context.Context, userIDs []string) (map[string]time.Time, error)
 }
 
 // Service orchestrates message delivery
@@ -165,23 +161,7 @@ func (s *Service) DeliverToTargets(ctx context.Context, runID string, items []co
 }
 
 // deliverBatch processes one batch of targets.
-// Pre-loads lastEarnedAt for all users in the batch to avoid N+1 queries.
 func (s *Service) deliverBatch(ctx context.Context, runID string, items []collector.ContextItem, targets []DeliveryTarget, brainCats []collector.BrainCategory, result *DeliveryResult) {
-	// Pre-load lastEarnedAt for all users in this batch
-	lastEarnedMap := make(map[string]time.Time)
-	if s.levelProvider != nil {
-		userIDs := make([]string, len(targets))
-		for i, t := range targets {
-			userIDs[i] = t.User.UserID
-		}
-		m, err := s.levelProvider.GetLastEarnedAtBatch(ctx, userIDs)
-		if err != nil {
-			fmt.Printf("WARNING: failed to load last earned times for batch: %v\n", err)
-		} else {
-			lastEarnedMap = m
-		}
-	}
-
 	for _, target := range targets {
 		// Check idempotency
 		alreadySent, err := s.repo.HasDeliveryLog(ctx, runID, target.User.UserID, target.Channel)
@@ -199,14 +179,9 @@ func (s *Service) deliverBatch(ctx context.Context, runID string, items []collec
 		// Build message context for personalized links and point display
 		var msgCtx *MessageContext
 		if runID != "" {
-			daysSince := 0
-			if lastEarned, ok := lastEarnedMap[target.User.UserID]; ok {
-				daysSince = calcDaysSinceKST(lastEarned)
-			}
 			msgCtx = &MessageContext{
-				UserID:            target.User.UserID,
-				RunID:             runID,
-				DaysSinceLastEarn: daysSince,
+				UserID: target.User.UserID,
+				RunID:  runID,
 			}
 		}
 
@@ -300,12 +275,9 @@ func (s *Service) ForceDeliverToUser(ctx context.Context, userID string) (*Deliv
 
 	var msgCtx *MessageContext
 	if run.ID.String() != "" {
-		daysSince := 0
-
 		msgCtx = &MessageContext{
-			UserID:            userID,
-			RunID:             run.ID.String(),
-			DaysSinceLastEarn: daysSince,
+			UserID: userID,
+			RunID:  run.ID.String(),
 		}
 	}
 	brainCats := s.loadBrainCategories(ctx)
@@ -468,17 +440,4 @@ func (s *Service) sendViaChannel(ctx context.Context, channel DeliveryChannel, u
 	default:
 		return fmt.Errorf("unknown delivery channel: %s", channel)
 	}
-}
-
-// calcDaysSinceKST returns the number of KST calendar days between lastEarned and now.
-func calcDaysSinceKST(lastEarned time.Time) int {
-	now := time.Now().In(kstLocation)
-	last := lastEarned.In(kstLocation)
-	nowDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, kstLocation)
-	lastDate := time.Date(last.Year(), last.Month(), last.Day(), 0, 0, 0, 0, kstLocation)
-	days := int(nowDate.Sub(lastDate).Hours() / 24)
-	if days < 0 {
-		return 0
-	}
-	return days
 }

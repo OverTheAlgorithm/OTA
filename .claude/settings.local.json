@@ -92,7 +92,8 @@
       "WebFetch(domain:support.google.com)",
       "WebFetch(domain:www.google.com)",
       "WebFetch(domain:community.n8n.io)",
-      "WebFetch(domain:valentin.app)"
+      "WebFetch(domain:valentin.app)",
+      "Bash(xargs grep:*)"
     ]
   }
 }
