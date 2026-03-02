@@ -11,6 +11,8 @@ import (
 	"ota/domain/collector"
 )
 
+var kstLocation = time.FixedZone("KST", 9*60*60)
+
 type HistoryRepository struct {
 	pool *pgxpool.Pool
 }
@@ -23,7 +25,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 	// Fetch limit+1 distinct dates to determine hasMore.
 	rows, err := r.pool.Query(ctx, `
 		WITH target_dates AS (
-			SELECT DISTINCT DATE(dl.created_at AT TIME ZONE 'UTC') AS d
+			SELECT DISTINCT DATE(dl.created_at AT TIME ZONE 'Asia/Seoul') AS d
 			FROM delivery_logs dl
 			WHERE dl.user_id = $1 AND dl.status = 'sent'
 			ORDER BY d DESC
@@ -45,7 +47,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 		JOIN context_items ci   ON ci.collection_run_id = cr.id
 		WHERE dl.user_id = $1
 		  AND dl.status  = 'sent'
-		  AND DATE(dl.created_at AT TIME ZONE 'UTC') IN (SELECT d FROM target_dates)
+		  AND DATE(dl.created_at AT TIME ZONE 'Asia/Seoul') IN (SELECT d FROM target_dates)
 		ORDER BY dl.created_at DESC, ci.rank ASC
 	`, userID, limit+1, offset)
 	if err != nil {
@@ -64,7 +66,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 			return nil, false, err
 		}
 		item.Details = collector.UnmarshalDetails(detailsJSON)
-		date := deliveredAt.UTC().Format("2006-01-02")
+		date := deliveredAt.In(kstLocation).Format("2006-01-02")
 		if _, ok := entryMap[date]; !ok {
 			entryMap[date] = &collector.HistoryEntry{
 				Date:        date,
