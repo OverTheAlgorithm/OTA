@@ -145,7 +145,8 @@ Empty array [] is only allowed for "brief" category. MUST NOT repeat summary or 
 1. Only use topics from the collected data. Do NOT add topics you found yourself.
 2. Every source URL must come from the collected data. No invented URLs.
 3. Write in Korean. Instructions are in English for precision, but all topic/summary/detail/details must be Korean.
-4. Pure JSON only. No markdown fences.`, dateStr, collectedData, formatBrainCategoryList(brainCategories), jsonFormatExample())
+4. Pure JSON only. No markdown fences.
+5. Details must cover everything in the topic title. If the topic title mentions multiple subjects (e.g. "영화 X 흥행과 배우 Y 논란"), EVERY subject mentioned in the title MUST have at least one corresponding details entry. Users see the title first and expect details to explain it — a title claiming "배우 Y 논란" with no details about Y is a critical failure.`, dateStr, collectedData, formatBrainCategoryList(brainCategories), jsonFormatExample())
 }
 
 // jsonFormatExample returns the JSON schema example used in the AI prompt.
