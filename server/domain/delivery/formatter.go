@@ -271,8 +271,9 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 
 		linkHTML := ""
 		if frontendURL != "" && len(item.Details) > 0 {
-			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx)
-			pointsLabel := buildPointsLabel(preferred, msgCtx)
+			pts := calcPointsForLink(preferred, msgCtx)
+			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx, pts)
+			pointsLabel := buildPointsLabelFromPts(pts)
 			linkHTML = fmt.Sprintf(
 				`<p style="margin:10px 0 0;"><a href="%s" style="font-size:12px;color:#9b8bb4;text-decoration:none;letter-spacing:0.01em;">%d개의 추가 정보가 있어요 →%s</a></p>`,
 				href, len(item.Details), pointsLabel,
@@ -313,22 +314,33 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 `, accentColor, title, rows.String())
 }
 
-// buildTopicLink constructs the topic detail URL with optional uid/rid tracking params.
-func buildTopicLink(frontendURL, itemID string, msgCtx *MessageContext) string {
+// calcPointsForLink returns the pre-calculated points value for embedding in links.
+// Returns 0 if msgCtx is nil (no point tracking).
+func calcPointsForLink(preferred bool, msgCtx *MessageContext) int {
+	if msgCtx == nil {
+		return 0
+	}
+	return level.CalcPoints(preferred, msgCtx.DaysSinceLastEarn)
+}
+
+// buildTopicLink constructs the topic detail URL with optional uid/rid/pts tracking params.
+func buildTopicLink(frontendURL, itemID string, msgCtx *MessageContext, pts int) string {
 	base := fmt.Sprintf("%s/topic/%s", frontendURL, itemID)
 	if msgCtx == nil || msgCtx.UserID == "" {
 		return base
 	}
-	return fmt.Sprintf("%s?uid=%s&rid=%s", base, msgCtx.UserID, msgCtx.RunID)
+	link := fmt.Sprintf("%s?uid=%s&rid=%s", base, msgCtx.UserID, msgCtx.RunID)
+	if pts > 0 {
+		link += fmt.Sprintf("&pts=%d", pts)
+	}
+	return link
 }
 
-// buildPointsLabel returns the " +Xpt" HTML span shown next to the detail link.
-// Returns empty string if msgCtx is nil.
-func buildPointsLabel(preferred bool, msgCtx *MessageContext) string {
-	if msgCtx == nil {
+// buildPointsLabelFromPts returns the " +Xpt" HTML span for the given points value.
+func buildPointsLabelFromPts(pts int) string {
+	if pts <= 0 {
 		return ""
 	}
-	pts := level.CalcPoints(preferred, msgCtx.DaysSinceLastEarn)
 	return fmt.Sprintf(`  <span style="font-size:11px;color:#7bc67e;font-weight:700;">+%dpt</span>`, pts)
 }
 
@@ -349,12 +361,13 @@ func formatItemsAsText(items []collector.ContextItem, frontendURL string, prefer
 		}
 		line := fmt.Sprintf("%d. %s%s: %s", i+1, item.Topic, buzzStr, item.Summary)
 		if frontendURL != "" && len(item.Details) > 0 {
-			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx)
-			pts := ""
-			if msgCtx != nil {
-				pts = fmt.Sprintf(" +%dpt", level.CalcPoints(preferred, msgCtx.DaysSinceLastEarn))
+			pts := calcPointsForLink(preferred, msgCtx)
+			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx, pts)
+			ptsLabel := ""
+			if pts > 0 {
+				ptsLabel = fmt.Sprintf(" +%dpt", pts)
 			}
-			line += fmt.Sprintf("\n   👉 %d개의 추가 정보: %s%s", len(item.Details), href, pts)
+			line += fmt.Sprintf("\n   👉 %d개의 추가 정보: %s%s", len(item.Details), href, ptsLabel)
 		}
 		lines = append(lines, line)
 	}

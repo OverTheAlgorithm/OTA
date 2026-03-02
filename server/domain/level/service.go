@@ -39,11 +39,22 @@ func (s *Service) SetPoints(ctx context.Context, userID string, points int) (Lev
 // EarnPoint awards points for visiting a topic.
 // preferred=true if the topic's category is in the user's subscriptions (or is top/brief).
 func (s *Service) EarnPoint(ctx context.Context, userID string, runID, contextItemID uuid.UUID, preferred bool) (EarnResult, error) {
-	daysSince, err := s.getDaysSinceLastEarn(ctx, userID)
-	if err != nil {
-		return EarnResult{}, fmt.Errorf("get last earned at: %w", err)
+	return s.EarnPointWithOverride(ctx, userID, runID, contextItemID, preferred, 0)
+}
+
+// EarnPointWithOverride awards points with an optional pre-calculated override.
+// If overridePts > 0, uses that value instead of recalculating (for email link consistency).
+func (s *Service) EarnPointWithOverride(ctx context.Context, userID string, runID, contextItemID uuid.UUID, preferred bool, overridePts int) (EarnResult, error) {
+	var points int
+	if overridePts > 0 {
+		points = overridePts
+	} else {
+		daysSince, err := s.getDaysSinceLastEarn(ctx, userID)
+		if err != nil {
+			return EarnResult{}, fmt.Errorf("get last earned at: %w", err)
+		}
+		points = CalcPoints(preferred, daysSince)
 	}
-	points := CalcPoints(preferred, daysSince)
 
 	before, err := s.repo.GetUserPoints(ctx, userID)
 	if err != nil {

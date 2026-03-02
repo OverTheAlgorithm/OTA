@@ -186,6 +186,7 @@ export interface TopicDetail {
 export interface TopicEarnResult {
   attempted: boolean;
   earned: boolean;
+  reason: string; // "EARNED" | "DUPLICATE" | "EXPIRED"
   points_earned: number;
   leveled_up: boolean;
   new_level: number;
@@ -198,11 +199,12 @@ export interface TopicDetailResponse {
 
 export async function fetchTopicDetail(
   id: string,
-  params?: { uid?: string; rid?: string }
+  params?: { uid?: string; rid?: string; pts?: string }
 ): Promise<TopicDetailResponse> {
   const url = new URL(`${API_BASE}/api/v1/context/topic/${id}`, window.location.origin);
   if (params?.uid) url.searchParams.set("uid", params.uid);
   if (params?.rid) url.searchParams.set("rid", params.rid);
+  if (params?.pts) url.searchParams.set("pts", params.pts);
   const res = await fetch(url.toString());
   if (res.status === 404) throw new Error("not_found");
   if (!res.ok) throw new Error("server_error");

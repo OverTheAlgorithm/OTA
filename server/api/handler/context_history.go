@@ -77,12 +77,14 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 
 	// earnResult is only set when uid+rid are provided (i.e. opened from email link).
 	// nil means no point earning was attempted.
+	// reason: "EARNED", "DUPLICATE", "EXPIRED"
 	type earnResult struct {
-		Attempted    bool `json:"attempted"`
-		Earned       bool `json:"earned"`
-		PointsEarned int  `json:"points_earned"`
-		LeveledUp    bool `json:"leveled_up"`
-		NewLevel     int  `json:"new_level"`
+		Attempted    bool   `json:"attempted"`
+		Earned       bool   `json:"earned"`
+		Reason       string `json:"reason"`
+		PointsEarned int    `json:"points_earned"`
+		LeveledUp    bool   `json:"leveled_up"`
+		NewLevel     int    `json:"new_level"`
 	}
 	var earn *earnResult
 
@@ -96,20 +98,34 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 			isToday, err := h.repo.IsRunCreatedToday(c.Request.Context(), runID)
 			if err != nil {
 				log.Printf("failed to check run creation date: %v", err)
-			} else if isToday {
+			} else if !isToday {
+				earn.Reason = "EXPIRED"
+			} else {
 				subs, err := h.subGetter.GetSubscriptions(c.Request.Context(), uid)
 				if err != nil {
 					log.Printf("failed to get subscriptions: %v", err)
 				} else {
 					preferred := level.IsPreferredCategory(topic.Category, subs)
-					result, earnErr := h.levelService.EarnPoint(c.Request.Context(), uid, runID, topic.ID, preferred)
+
+					// Use pre-calculated points from email link if available.
+					var overridePts int
+					if v := c.Query("pts"); v != "" {
+						if n, convErr := strconv.Atoi(v); convErr == nil && n >= level.BasePointPreferred && n <= level.MaxPointEarn {
+							overridePts = n
+						}
+					}
+
+					result, earnErr := h.levelService.EarnPointWithOverride(c.Request.Context(), uid, runID, topic.ID, preferred, overridePts)
 					if earnErr != nil {
 						log.Printf("earn point error: %v", earnErr)
 					} else if result.Earned {
 						earn.Earned = true
+						earn.Reason = "EARNED"
 						earn.PointsEarned = result.PointsEarned
 						earn.LeveledUp = result.LeveledUp
 						earn.NewLevel = result.Level
+					} else {
+						earn.Reason = "DUPLICATE"
 					}
 				}
 			}

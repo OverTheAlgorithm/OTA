@@ -38,8 +38,10 @@ function PointToast({ earn }: ToastProps) {
     } else {
       message = `🌈 +${earn.points_earned}pt 획득!`;
     }
+  } else if (earn.reason === "EXPIRED") {
+    message = "포인트 획득 기간이 지났어요.";
   } else {
-    // attempted but not earned (duplicate or old run)
+    // DUPLICATE or unknown
     message = "이미 이 주제의 포인트를 받았어요.";
   }
 
@@ -86,11 +88,12 @@ export function TopicPage() {
 
   const uid = searchParams.get("uid") ?? undefined;
   const rid = searchParams.get("rid") ?? undefined;
+  const pts = searchParams.get("pts") ?? undefined;
   const hasTracking = Boolean(uid && rid);
 
   useEffect(() => {
     if (!id) return;
-    fetchTopicDetail(id, { uid, rid })
+    fetchTopicDetail(id, { uid, rid, pts })
       .then((res) => {
         setTopic(res.data);
         if (hasTracking && res.earn_result) {
