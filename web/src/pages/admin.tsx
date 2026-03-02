@@ -271,7 +271,13 @@ export function AdminPage() {
   const isDisabled = collectState.status === "running" || collectState.status === "requested";
 
   return (
-    <div className="min-h-screen bg-white text-[#1e3a5f] p-8">
+    <div
+      className="min-h-screen p-8"
+      style={{
+        backgroundColor: "var(--color-bg)",
+        color: "var(--color-fg)"
+      }}
+    >
       <div className="max-w-xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">관리자 페이지</h1>

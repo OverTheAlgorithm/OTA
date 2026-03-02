@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
+import { useTheme } from "@/contexts/theme-context";
 import { InterestSection } from "@/components/interest-section";
 import { ChannelPreferencesSection } from "@/components/channel-preferences-section";
 import { HistorySection } from "@/components/history-section";
@@ -10,6 +11,7 @@ import { LevelCard } from "@/components/level-card";
 
 export function HomePage() {
   const { user, loading, logout } = useAuth();
+  const { mode, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
@@ -53,11 +55,30 @@ export function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-[#1e3a5f] flex flex-col">
-      <header className="sticky top-0 z-10 border-b border-[#d4e6f5] bg-white/90 backdrop-blur-lg">
+    <div
+      className="min-h-screen flex flex-col"
+      style={{
+        backgroundColor: "var(--color-bg)",
+        color: "var(--color-fg)"
+      }}
+    >
+      <header
+        className="sticky top-0 z-10 border-b bg-opacity-90 backdrop-blur-lg"
+        style={{
+          borderColor: "var(--color-border)",
+          backgroundColor: "var(--color-bg)"
+        }}
+      >
         <div className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
           <img src="/OTA_logo.png" alt="OTA" className="w-[63px] h-[42px]" />
           <div className="flex items-center gap-3">
+            <button
+              onClick={toggleTheme}
+              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
+              title={mode === "light" ? "다크 모드" : "라이트 모드"}
+            >
+              {mode === "light" ? "🌙" : "☀️"}
+            </button>
             <div className="flex items-center gap-2">
               {user.profile_image ? (
                 <img

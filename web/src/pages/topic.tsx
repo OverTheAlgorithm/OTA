@@ -135,8 +135,20 @@ export function TopicPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: "white" }}>
-      <header className="sticky top-0 z-10 border-b border-[#d4e6f5] bg-white/90 backdrop-blur-lg">
+    <div
+      className="min-h-screen"
+      style={{
+        backgroundColor: "var(--color-bg)",
+        color: "var(--color-fg)"
+      }}
+    >
+      <header
+        className="sticky top-0 z-10 border-b bg-opacity-90 backdrop-blur-lg"
+        style={{
+          borderColor: "var(--color-border)",
+          backgroundColor: "var(--color-bg)"
+        }}
+      >
         <div className="max-w-2xl mx-auto px-6 h-16 flex items-center">
           <Link to="/">
             <img src="/OTA_logo.png" alt="OTA" className="w-[63px] h-[42px]" />

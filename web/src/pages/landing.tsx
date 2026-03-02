@@ -266,14 +266,22 @@ export function LandingPage() {
   };
 
   return (
-    <div className="bg-white text-[#1e3a5f] min-h-screen">
+    <div
+      className="min-h-screen"
+      style={{
+        backgroundColor: "var(--color-bg)",
+        color: "var(--color-fg)"
+      }}
+    >
       {/* Navbar */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
-            ? "bg-white/90 backdrop-blur-lg border-b border-[#d4e6f5]"
-            : "bg-transparent"
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-lg ${
+          scrolled ? "bg-opacity-90 border-b" : ""
         }`}
+        style={scrolled ? {
+          backgroundColor: "var(--color-bg)",
+          borderColor: "var(--color-border)"
+        } : {}}
       >
         <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
           <a href="#top" className="flex items-center gap-3">
@@ -323,7 +331,13 @@ export function LandingPage() {
         </div>
 
         {menuOpen && (
-          <div className="md:hidden bg-white/95 backdrop-blur-lg border-b border-[#d4e6f5] px-6 py-4 flex flex-col gap-4">
+          <div
+            className="md:hidden bg-opacity-95 backdrop-blur-lg border-b px-6 py-4 flex flex-col gap-4"
+            style={{
+              backgroundColor: "var(--color-bg)",
+              borderColor: "var(--color-border)"
+            }}
+          >
             <a
               href="#features"
               className="text-sm text-[#6b8db5] hover:text-[#1e3a5f]"
