@@ -30,7 +30,6 @@ export function createThemeStyle(
   mode: ThemeMode,
   styleMap: Record<string, string>
 ): Record<string, any> {
-  const colors = getThemeColors(mode);
   const result: Record<string, any> = {};
 
   for (const [cssProperty, colorPath] of Object.entries(styleMap)) {
