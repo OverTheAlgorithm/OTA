@@ -39,7 +39,9 @@ type TopicDetail struct {
 }
 
 type HistoryRepository interface {
-	GetHistoryForUser(ctx context.Context, userID string) ([]HistoryEntry, error)
+	// GetHistoryForUser returns paginated history entries (date-based).
+	// Returns entries, hasMore, error.
+	GetHistoryForUser(ctx context.Context, userID string, limit, offset int) ([]HistoryEntry, bool, error)
 	// GetContextItemByID returns the detail for a single topic. Returns nil, nil if not found.
 	GetContextItemByID(ctx context.Context, id uuid.UUID) (*TopicDetail, error)
 	// IsRunCreatedToday checks if the collection run was started today (in KST).

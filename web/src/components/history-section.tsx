@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { HistoryEntry, HistoryItem, BrainCategory } from "@/lib/api";
-import { getBrainCategories } from "@/lib/api";
+import { getContextHistory, getBrainCategories } from "@/lib/api";
+
+const PAGE_SIZE = 10;
 
 interface Props {
-  entries: HistoryEntry[];
   subscriptions: string[];
-  loading: boolean;
 }
 
 function formatDate(dateStr: string): string {
@@ -161,12 +161,55 @@ function HistoryCard({
   );
 }
 
-export function HistorySection({ entries, subscriptions, loading }: Props) {
+export function HistorySection({ subscriptions }: Props) {
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getBrainCategories().then(setBrainCategories).catch(() => {});
+    getContextHistory(PAGE_SIZE, 0)
+      .then(({ data, has_more }) => {
+        setEntries(data);
+        setHasMore(has_more);
+        setOffset(data.length);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const { data, has_more } = await getContextHistory(PAGE_SIZE, offset);
+      setEntries((prev) => [...prev, ...data]);
+      setHasMore(has_more);
+      setOffset((prev) => prev + data.length);
+    } catch {
+      // silently fail — user can scroll again to retry
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, offset]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) loadMore();
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   return (
     <section>
@@ -212,6 +255,27 @@ export function HistorySection({ entries, subscriptions, loading }: Props) {
               defaultOpen={i === 0}
             />
           ))}
+
+          {/* Sentinel for infinite scroll */}
+          <div ref={sentinelRef} className="h-1" />
+
+          {loadingMore && (
+            <div className="flex justify-center py-4">
+              <div className="flex items-center gap-2 text-[#9b8bb4] text-sm">
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                이전 맥락을 불러오는 중...
+              </div>
+            </div>
+          )}
+
+          {!hasMore && entries.length > 0 && (
+            <p className="text-center text-xs text-[#9b8bb4]/60 py-2">
+              모든 맥락을 불러왔습니다
+            </p>
+          )}
         </div>
       )}
     </section>

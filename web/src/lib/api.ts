@@ -91,11 +91,16 @@ export interface HistoryEntry {
   items: HistoryItem[];
 }
 
-export async function getContextHistory(): Promise<HistoryEntry[]> {
-  const res = await fetch(`${API_BASE}/api/v1/context/history`, { credentials: "include" });
+export interface HistoryPage {
+  data: HistoryEntry[];
+  has_more: boolean;
+}
+
+export async function getContextHistory(limit: number, offset: number): Promise<HistoryPage> {
+  const res = await fetch(`${API_BASE}/api/v1/context/history?limit=${limit}&offset=${offset}`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch context history");
-  const body: ApiResponse<HistoryEntry[]> = await res.json();
-  return body.data;
+  const body = await res.json();
+  return { data: body.data ?? [], has_more: body.has_more ?? false };
 }
 
 // ── 전달 채널 ─────────────────────────────────────────

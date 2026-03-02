@@ -189,7 +189,7 @@ export function ChannelPreferencesSection() {
                 </div>
               )}
             </div>
-          );
+          );  
         })}
       </div>
 

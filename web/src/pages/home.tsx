@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { InterestSection } from "@/components/interest-section";
 import { ChannelPreferencesSection } from "@/components/channel-preferences-section";
 import { HistorySection } from "@/components/history-section";
-import { getSubscriptions, getContextHistory, getUserLevel, type HistoryEntry, type LevelInfo } from "@/lib/api";
+import { getSubscriptions, getUserLevel, type LevelInfo } from "@/lib/api";
 import { SendBriefingButton } from "@/components/send-briefing-button";
 import { LevelCard } from "@/components/level-card";
 
@@ -13,8 +13,6 @@ export function HomePage() {
   const navigate = useNavigate();
 
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
 
   useEffect(() => {
@@ -24,10 +22,6 @@ export function HomePage() {
   useEffect(() => {
     if (!user) return;
     getSubscriptions().then(setSubscriptions).catch(() => {});
-    getContextHistory()
-      .then(setHistory)
-      .catch(() => {})
-      .finally(() => setHistoryLoading(false));
     getUserLevel().then(setLevelInfo).catch(() => {});
   }, [user]);
 
@@ -115,7 +109,7 @@ export function HomePage() {
         <InterestSection selected={subscriptions} onChange={setSubscriptions} />
         <ChannelPreferencesSection />
         <SendBriefingButton />
-        <HistorySection entries={history} subscriptions={subscriptions} loading={historyLoading} />
+        <HistorySection subscriptions={subscriptions} />
       </main>
 
       <footer className="border-t border-[#2d1f42] py-6 px-6 mt-4">

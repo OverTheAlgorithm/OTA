@@ -30,8 +30,8 @@ type mockHistoryRepo struct {
 	historyItems []collector.HistoryEntry
 }
 
-func (m *mockHistoryRepo) GetHistoryForUser(_ context.Context, _ string) ([]collector.HistoryEntry, error) {
-	return m.historyItems, m.historyErr
+func (m *mockHistoryRepo) GetHistoryForUser(_ context.Context, _ string, _, _ int) ([]collector.HistoryEntry, bool, error) {
+	return m.historyItems, false, m.historyErr
 }
 
 func (m *mockHistoryRepo) GetContextItemByID(_ context.Context, _ uuid.UUID) (*collector.TopicDetail, error) {

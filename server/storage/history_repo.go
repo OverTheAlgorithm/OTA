@@ -19,8 +19,16 @@ func NewHistoryRepository(pool *pgxpool.Pool) *HistoryRepository {
 	return &HistoryRepository{pool: pool}
 }
 
-func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string) ([]collector.HistoryEntry, error) {
+func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string, limit, offset int) ([]collector.HistoryEntry, bool, error) {
+	// Fetch limit+1 distinct dates to determine hasMore.
 	rows, err := r.pool.Query(ctx, `
+		WITH target_dates AS (
+			SELECT DISTINCT DATE(dl.created_at AT TIME ZONE 'UTC') AS d
+			FROM delivery_logs dl
+			WHERE dl.user_id = $1 AND dl.status = 'sent'
+			ORDER BY d DESC
+			LIMIT $2 OFFSET $3
+		)
 		SELECT
 			dl.created_at,
 			ci.id::text,
@@ -37,10 +45,11 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 		JOIN context_items ci   ON ci.collection_run_id = cr.id
 		WHERE dl.user_id = $1
 		  AND dl.status  = 'sent'
+		  AND DATE(dl.created_at AT TIME ZONE 'UTC') IN (SELECT d FROM target_dates)
 		ORDER BY dl.created_at DESC, ci.rank ASC
-	`, userID)
+	`, userID, limit+1, offset)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer rows.Close()
 
@@ -52,7 +61,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 		var item collector.HistoryItem
 		var detailsJSON []byte
 		if err := rows.Scan(&deliveredAt, &item.ID, &item.Category, &item.BrainCategory, &item.Rank, &item.Topic, &item.Summary, &item.Detail, &detailsJSON, &item.BuzzScore); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		item.Details = collector.UnmarshalDetails(detailsJSON)
 		date := deliveredAt.UTC().Format("2006-01-02")
@@ -67,11 +76,16 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 		entryMap[date].Items = append(entryMap[date].Items, item)
 	}
 
+	hasMore := len(order) > limit
+	if hasMore {
+		order = order[:limit]
+	}
+
 	result := make([]collector.HistoryEntry, 0, len(order))
 	for _, date := range order {
 		result = append(result, *entryMap[date])
 	}
-	return result, nil
+	return result, hasMore, nil
 }
 
 // GetContextItemByID returns the detail for a single topic by its UUID.
