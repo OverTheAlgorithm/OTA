@@ -81,7 +81,7 @@ func TestPointEarning_FirstEarn(t *testing.T) {
 		t.Error("expected points to be earned")
 	}
 
-	expectedPoints := level.CalcPoints(true, 0) // 첫 적립, days=0
+	expectedPoints := level.CalcPoints(true) // 첫 적립, days=0
 	if result.PointsEarned != expectedPoints {
 		t.Errorf("expected %d points earned, got %d", expectedPoints, result.PointsEarned)
 	}
@@ -110,7 +110,7 @@ func TestPointEarning_FirstEarn(t *testing.T) {
 		t.Errorf("expected %d total points in DB, got %d", expectedPoints, totalPoints)
 	}
 
-	t.Logf("✓ FirstEarn passed: +%dpt (preferred=top, days=0)", result.PointsEarned)
+	t.Logf("✓ FirstEarn passed: +%dpt (preferred=top)", result.PointsEarned)
 }
 
 // TestPointEarning_DuplicateEarnBlocked: 같은 run+topic 조합으로 두 번 클릭 시 중복 적립 방지를 검증합니다.
@@ -233,13 +233,13 @@ func TestPointEarning_NonPreferredHigherPoints(t *testing.T) {
 		t.Fatalf("EarnPoint error: %v", err)
 	}
 
-	expectedPoints := level.CalcPoints(false, 0) // 비선호 기본 15pt
+	expectedPoints := level.CalcPoints(false) // 비선호 기본 10pt
 	if result.PointsEarned != expectedPoints {
 		t.Errorf("expected %d points for non-preferred, got %d", expectedPoints, result.PointsEarned)
 	}
 
 	// 비선호 > 선호 포인트 확인
-	preferredPoints := level.CalcPoints(true, 0)
+	preferredPoints := level.CalcPoints(true)
 	if result.PointsEarned <= preferredPoints {
 		t.Errorf("non-preferred points (%d) should be greater than preferred (%d)", result.PointsEarned, preferredPoints)
 	}
@@ -299,9 +299,9 @@ func TestPointEarning_LevelUp(t *testing.T) {
 	levelRepo := storage.NewLevelRepository(db.Pool)
 	svc := level.NewService(levelRepo)
 
-	// 레벨 1→2 경계(15pt)에 가깝게 사전 설정
-	// level.Thresholds 기준: 0=lv1, 15=lv2
-	if err := levelRepo.SetPoints(ctx, userID, 10); err != nil {
+	// 레벨 1→2 경계(50pt)에 가깝게 사전 설정 (비선호 10pt → 40+10=50 → lv2)
+	// level.Thresholds 기준: 0=lv1, 50=lv2, 200=lv3, 500=lv4, 1000=lv5
+	if err := levelRepo.SetPoints(ctx, userID, 40); err != nil {
 		t.Fatalf("SetPoints error: %v", err)
 	}
 
@@ -325,7 +325,7 @@ func TestPointEarning_LevelUp(t *testing.T) {
 		t.Fatalf("failed to create item: %v", err)
 	}
 
-	// 비선호(15pt) 클릭 → 10+15=25pt → lv2
+	// 비선호(10pt) 클릭 → 40+10=50pt → lv2
 	result, err := svc.EarnPoint(ctx, userID, runID, itemID, false)
 	if err != nil {
 		t.Fatalf("EarnPoint error: %v", err)

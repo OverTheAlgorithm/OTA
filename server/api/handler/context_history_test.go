@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -63,13 +62,6 @@ func (m *mockLevelRepo) EarnPoint(_ context.Context, _ string, _, _ uuid.UUID, p
 	return true, m.points + pts, nil
 }
 
-func (m *mockLevelRepo) GetLastEarnedAt(_ context.Context, _ string) (time.Time, bool, error) {
-	return time.Time{}, false, nil
-}
-
-func (m *mockLevelRepo) GetLastEarnedAtBatch(_ context.Context, _ []string) (map[string]time.Time, error) {
-	return nil, nil
-}
 
 func (m *mockLevelRepo) DecayPoints(_ context.Context, _ int) (int, error) {
 	return 0, nil
@@ -351,36 +343,19 @@ func TestGetTopicByID_TopicCategoryInResponse(t *testing.T) {
 
 // ─── Verify level.CalcPoints point values match expected base values ──────────
 
-// TestCalcPoints_Preferred: 선호 카테고리 기본 포인트 확인
+// TestCalcPoints_Preferred: 선호 카테고리 포인트 확인
 func TestCalcPoints_Preferred(t *testing.T) {
-	pts := level.CalcPoints(true, 0)
+	pts := level.CalcPoints(true)
 	if pts != level.BasePointPreferred {
-		t.Errorf("expected %d for preferred day=0, got %d", level.BasePointPreferred, pts)
+		t.Errorf("expected %d for preferred, got %d", level.BasePointPreferred, pts)
 	}
 }
 
-// TestCalcPoints_NonPreferred: 비선호 카테고리 기본 포인트 확인
+// TestCalcPoints_NonPreferred: 비선호 카테고리 포인트 확인
 func TestCalcPoints_NonPreferred(t *testing.T) {
-	pts := level.CalcPoints(false, 0)
+	pts := level.CalcPoints(false)
 	if pts != level.BasePointNonPreferred {
-		t.Errorf("expected %d for non-preferred day=0, got %d", level.BasePointNonPreferred, pts)
-	}
-}
-
-// TestCalcPoints_BonusAccumulates: 날짜 경과에 따른 보너스 포인트 누적 확인
-func TestCalcPoints_BonusAccumulates(t *testing.T) {
-	pts := level.CalcPoints(true, 3) // 5 + 3*5 = 20
-	expected := level.BasePointPreferred + 3*level.BonusPointPerDay
-	if pts != expected {
-		t.Errorf("expected %d for preferred day=3, got %d", expected, pts)
-	}
-}
-
-// TestCalcPoints_MaxCap: 최대 포인트 제한 확인
-func TestCalcPoints_MaxCap(t *testing.T) {
-	pts := level.CalcPoints(false, 100) // 15 + 100*5 >> 50
-	if pts != level.MaxPointEarn {
-		t.Errorf("expected max %d, got %d", level.MaxPointEarn, pts)
+		t.Errorf("expected %d for non-preferred, got %d", level.BasePointNonPreferred, pts)
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -76,49 +75,10 @@ func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, runID, c
 	return true, newTotal, nil
 }
 
-func (r *LevelRepository) GetLastEarnedAt(ctx context.Context, userID string) (time.Time, bool, error) {
-	var t time.Time
-	err := r.pool.QueryRow(ctx,
-		`SELECT created_at FROM point_logs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
-		userID,
-	).Scan(&t)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return time.Time{}, false, nil
-	}
-	if err != nil {
-		return time.Time{}, false, fmt.Errorf("get last earned at: %w", err)
-	}
-	return t, true, nil
-}
-
-func (r *LevelRepository) GetLastEarnedAtBatch(ctx context.Context, userIDs []string) (map[string]time.Time, error) {
-	if len(userIDs) == 0 {
-		return make(map[string]time.Time), nil
-	}
-	rows, err := r.pool.Query(ctx,
-		`SELECT user_id, MAX(created_at) FROM point_logs WHERE user_id = ANY($1) GROUP BY user_id`,
-		userIDs,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("get last earned at batch: %w", err)
-	}
-	defer rows.Close()
-
-	result := make(map[string]time.Time, len(userIDs))
-	for rows.Next() {
-		var uid string
-		var t time.Time
-		if err := rows.Scan(&uid, &t); err != nil {
-			return nil, fmt.Errorf("scan last earned at: %w", err)
-		}
-		result[uid] = t
-	}
-	return result, rows.Err()
-}
 
 // DecayPoints subtracts 1 point from all users (minimum 0) using keyset pagination.
 // Level is recalculated after each batch.
-// Thresholds must match level.Thresholds: [0, 15, 45, 90, 165].
+// Thresholds must match level.Thresholds: [0, 50, 200, 500, 1000].
 func (r *LevelRepository) DecayPoints(ctx context.Context, batchSize int) (int, error) {
 	total := 0
 	cursor := "" // empty = start from beginning

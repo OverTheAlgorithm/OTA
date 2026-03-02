@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -43,9 +42,6 @@ func (a *levelServiceAdapter) GetLevel(ctx context.Context, userID string) (deli
 	}, nil
 }
 
-func (a *levelServiceAdapter) GetLastEarnedAtBatch(ctx context.Context, userIDs []string) (map[string]time.Time, error) {
-	return a.svc.GetLastEarnedAtBatch(ctx, userIDs)
-}
 
 func main() {
 	cfg, err := config.Load()

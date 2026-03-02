@@ -110,7 +110,6 @@ type UserLevelInfo struct {
 // MessageContext holds per-user context for personalized link generation and point display.
 // Nil = no personalization (e.g. welcome emails, admin previews).
 type MessageContext struct {
-	UserID            string
-	RunID             string
-	DaysSinceLastEarn int
+	UserID string
+	RunID  string
 }
