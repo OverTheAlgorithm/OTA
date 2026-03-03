@@ -309,7 +309,7 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
         <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f7ff;border-radius:16px;border:1px solid #d4e6f5;">
           <!-- Section header -->
           <tr><td style="padding:16px 24px;border-bottom:1px solid #d4e6f5;">
-            <p style="margin:0;font-size:11px;font-weight:700;color:%s;letter-spacing:0.1em;text-transform:uppercase;">%s</p>
+            <p style="margin:0;font-size:14px;font-weight:700;color:%s;letter-spacing:0.1em;text-transform:uppercase;">%s</p>
           </td></tr>
           <!-- Items -->
           %s
