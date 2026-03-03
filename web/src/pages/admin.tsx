@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
-import { useTheme } from "@/contexts/theme-context";
 import {
   triggerCollection,
   sendTestEmail,
@@ -225,7 +224,6 @@ function BrainCategoryManager() {
 
 export function AdminPage() {
   const { user, loading } = useAuth();
-  const { toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [collectState, setCollectState] = useState<CollectState>({ status: "idle" });
 
@@ -284,13 +282,6 @@ export function AdminPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">관리자 페이지</h1>
           <div className="flex items-center gap-3">
-            <button
-              onClick={toggleTheme}
-              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
-              title="테마 전환"
-            >
-              🌙
-            </button>
             <button
               onClick={() => navigate("/home")}
               className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
