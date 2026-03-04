@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"ota/api"
 	"ota/api/handler"
 	"ota/auth"
+	"ota/cache"
 	"ota/config"
 	"ota/domain/collector"
 	"ota/domain/delivery"
@@ -41,7 +43,6 @@ func (a *levelServiceAdapter) GetLevel(ctx context.Context, userID string) (deli
 		Description:     info.Description,
 	}, nil
 }
-
 
 func main() {
 	cfg, err := config.Load()
@@ -88,6 +89,12 @@ func main() {
 		log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
 	}
 
+	earnCache, err := cache.New(10_000)
+	if err != nil {
+		log.Fatalf("failed to create cache: %v", err)
+	}
+	defer earnCache.Close()
+
 	// Structured source collectors (Google Trends + Google News)
 	trendsCollector := googletrends.NewCollector()
 	newsCollector := googlenews.NewCollector(googlenews.DefaultTopics())
@@ -115,15 +122,15 @@ func main() {
 
 	// Level
 	levelRepo := storage.NewLevelRepository(pool)
-	levelService := level.NewService(levelRepo)
+	levelService := level.NewService(levelRepo, cfg.DailyCoinLimit)
 
 	// Scheduler
-	sched := scheduler.New(collectorService, deliveryService, levelService)
+	sched := scheduler.New(collectorService, deliveryService)
 	if err := sched.Start(); err != nil {
 		log.Fatalf("failed to start scheduler: %v", err)
 	}
 	defer sched.Stop()
-	log.Println("scheduler started (collection 4-6 AM, delivery 7:00-7:15 AM, retry 7:30-8:30 AM KST, decay 00:00 KST)")
+	log.Println("scheduler started (collection 4-6 AM, delivery 7:00-7:15 AM, retry 7:30-8:30 AM KST)")
 
 	// Handlers
 	userRepo := storage.NewUserRepository(pool)
@@ -144,10 +151,11 @@ func main() {
 
 	// Context history
 	historyRepo := storage.NewHistoryRepository(pool)
-	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, levelService, subscriptionRepo, api.AuthMiddleware(jwtManager))
+	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
 
 	// Level
-	levelHandler := handler.NewLevelHandler(levelService, api.AuthMiddleware(jwtManager))
+	earnMinDuration := time.Duration(cfg.EarnMinDurationSec) * time.Second
+	levelHandler := handler.NewLevelHandler(levelService, historyRepo, subscriptionRepo, earnCache, earnMinDuration, api.AuthMiddleware(jwtManager))
 	deliveryService.WithLevelProvider(&levelServiceAdapter{svc: levelService})
 
 	adminHandler := handler.NewAdminHandler(collectorService, cfg.SlackWebhookURL, brainCategoryHandler).
