@@ -118,6 +118,34 @@ func (r *LevelRepository) GetTodayEarnedCoins(ctx context.Context, userID string
 	return total, nil
 }
 
+// DeductCoins atomically subtracts coins from a user's balance.
+// Returns an error if the user has insufficient funds.
+func (r *LevelRepository) DeductCoins(ctx context.Context, userID string, amount int) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE user_points SET points = points - $2, updated_at = NOW()
+		WHERE user_id = $1 AND points >= $2
+	`, userID, amount)
+	if err != nil {
+		return fmt.Errorf("deduct coins: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("insufficient coins")
+	}
+	return nil
+}
+
+// RestoreCoins adds coins back to a user's balance.
+func (r *LevelRepository) RestoreCoins(ctx context.Context, userID string, amount int) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE user_points SET points = points + $2, updated_at = NOW()
+		WHERE user_id = $1
+	`, userID, amount)
+	if err != nil {
+		return fmt.Errorf("restore coins: %w", err)
+	}
+	return nil
+}
+
 // CreateMockOTAItem inserts a fake collection_run and a context_item for
 // testing level progression. Returns the context_item UUID.
 func (r *LevelRepository) CreateMockOTAItem(ctx context.Context) (uuid.UUID, error) {

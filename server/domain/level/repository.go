@@ -18,4 +18,8 @@ type Repository interface {
 	GetTodayEarnedCoins(ctx context.Context, userID string) (int, error)
 	// HasEarned reports whether the user has already earned a coin for the given run+item combination.
 	HasEarned(ctx context.Context, userID string, runID, contextItemID uuid.UUID) (bool, error)
+	// DeductCoins atomically subtracts coins from a user's balance. Fails if insufficient funds.
+	DeductCoins(ctx context.Context, userID string, amount int) error
+	// RestoreCoins adds coins back to a user's balance (e.g. withdrawal cancellation/rejection).
+	RestoreCoins(ctx context.Context, userID string, amount int) error
 }

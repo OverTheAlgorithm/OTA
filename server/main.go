@@ -16,6 +16,7 @@ import (
 	"ota/domain/delivery"
 	"ota/domain/level"
 	"ota/domain/user"
+	"ota/domain/withdrawal"
 	"ota/platform/email"
 	"ota/platform/gemini"
 	"ota/platform/googlenews"
@@ -124,6 +125,21 @@ func main() {
 	levelRepo := storage.NewLevelRepository(pool)
 	levelService := level.NewService(levelRepo, cfg.DailyCoinLimit)
 
+	// Withdrawal
+	withdrawalRepo := storage.NewWithdrawalRepository(pool)
+	coinManager := withdrawal.NewCoinManager(
+		func(ctx context.Context, userID string) (int, error) {
+			uc, err := levelRepo.GetUserCoins(ctx, userID)
+			if err != nil {
+				return 0, err
+			}
+			return uc.Coins, nil
+		},
+		levelRepo.DeductCoins,
+		levelRepo.RestoreCoins,
+	)
+	withdrawalService := withdrawal.NewService(withdrawalRepo, coinManager, cfg.MinWithdrawalAmount)
+
 	// Scheduler
 	sched := scheduler.New(collectorService, deliveryService)
 	if err := sched.Start(); err != nil {
@@ -155,8 +171,19 @@ func main() {
 
 	// Level
 	earnMinDuration := time.Duration(cfg.EarnMinDurationSec) * time.Second
-	levelHandler := handler.NewLevelHandler(levelService, historyRepo, subscriptionRepo, earnCache, earnMinDuration, api.AuthMiddleware(jwtManager))
+	levelHandler := handler.NewLevelHandler(
+		levelService,
+		historyRepo,
+		subscriptionRepo,
+		earnCache,
+		earnMinDuration,
+		cfg.TurnstileSecretKey,
+		api.AuthMiddleware(jwtManager),
+	)
 	deliveryService.WithLevelProvider(&levelServiceAdapter{svc: levelService})
+
+	withdrawalHandler := handler.NewWithdrawalHandler(withdrawalService, api.AuthMiddleware(jwtManager))
+	withdrawalAdminHandler := handler.NewWithdrawalAdminHandler(withdrawalService)
 
 	adminHandler := handler.NewAdminHandler(collectorService, cfg.SlackWebhookURL, brainCategoryHandler).
 		WithLevelService(levelService).
@@ -209,6 +236,16 @@ func main() {
 			GroupName:   "level",
 			Handler:     levelHandler,
 			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "withdrawal",
+			Handler:     withdrawalHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "admin/withdrawals",
+			Handler:     withdrawalAdminHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
 		},
 	})
 
