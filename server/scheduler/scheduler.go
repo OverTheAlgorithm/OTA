@@ -12,26 +12,19 @@ import (
 	"ota/domain/delivery"
 )
 
-// CoinDecayer runs the daily coin decay job.
-type CoinDecayer interface {
-	DecayAllCoins(ctx context.Context) (int, error)
-}
-
-// Scheduler manages all scheduled tasks (collection, delivery, retry, decay)
+// Scheduler manages all scheduled tasks (collection, delivery, retry)
 type Scheduler struct {
 	cron             *cron.Cron
 	collectorService *collector.Service
 	deliveryService  *delivery.Service
-	coinDecayer      CoinDecayer
 }
 
 // New creates a new Scheduler
-func New(collectorService *collector.Service, deliveryService *delivery.Service, coinDecayer CoinDecayer) *Scheduler {
+func New(collectorService *collector.Service, deliveryService *delivery.Service) *Scheduler {
 	return &Scheduler{
 		cron:             cron.New(cron.WithLocation(time.UTC)),
 		collectorService: collectorService,
 		deliveryService:  deliveryService,
-		coinDecayer:      coinDecayer,
 	}
 }
 
@@ -42,7 +35,6 @@ func New(collectorService *collector.Service, deliveryService *delivery.Service,
 //	Collection: 4 AM, 5 AM, 6 AM  (multiple attempts to ensure data ready)
 //	Delivery:   7:00 AM, 7:15 AM  (primary + fallback)
 //	Retry:      7:30 AM, 8:00 AM, 8:30 AM (30min intervals, max 3 retries)
-//	Decay:      00:00 AM (midnight KST = 15:00 UTC previous day)
 func (s *Scheduler) Start() error {
 	// Collection: 4 AM, 5 AM, 6 AM KST → 19:00, 20:00, 21:00 UTC
 	collectionSchedules := []string{"0 19 * * *", "0 20 * * *", "0 21 * * *"}
@@ -65,13 +57,6 @@ func (s *Scheduler) Start() error {
 	for _, schedule := range retrySchedules {
 		if _, err := s.cron.AddFunc(schedule, s.retryFailed); err != nil {
 			return fmt.Errorf("failed to schedule retry (%s): %w", schedule, err)
-		}
-	}
-
-	// Decay: 00:00 KST = 15:00 UTC
-	if s.coinDecayer != nil {
-		if _, err := s.cron.AddFunc("0 15 * * *", s.decayPoints); err != nil {
-			return fmt.Errorf("failed to schedule point decay: %w", err)
 		}
 	}
 
@@ -130,14 +115,3 @@ func (s *Scheduler) retryFailed() {
 		result.TotalUsers, result.SuccessCount, result.FailureCount)
 }
 
-func (s *Scheduler) decayPoints() {
-	log.Println("starting daily point decay")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	affected, err := s.coinDecayer.DecayAllCoins(ctx)
-	if err != nil {
-		log.Printf("point decay failed: %v", err)
-		return
-	}
-	log.Printf("point decay completed: %d users updated", affected)
-}
