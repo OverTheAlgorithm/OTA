@@ -74,6 +74,14 @@ func (m *mockLevelRepo) HasEarned(_ context.Context, _ string, _, _ uuid.UUID) (
 	return m.hasEarned, m.hasEarnedErr
 }
 
+func (m *mockLevelRepo) DeductCoins(_ context.Context, _ string, _ int) error {
+	return nil
+}
+
+func (m *mockLevelRepo) RestoreCoins(_ context.Context, _ string, _ int) error {
+	return nil
+}
+
 type mockSubGetterLevel struct {
 	subs    []string
 	subsErr error
@@ -121,16 +129,17 @@ func newLevelTestRouter(
 ) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := handler.NewLevelHandler(lvlSvc, histRepo, sub, earnCache, earnMinDuration, func(c *gin.Context) { c.Next() })
+	h := handler.NewLevelHandler(lvlSvc, histRepo, sub, earnCache, earnMinDuration, "dummy-secret-key", func(c *gin.Context) { c.Next() })
 	h.RegisterRoutes(r.Group("/level"))
 	return r
 }
 
-func postEarn(r *gin.Engine, uid, runID, contextItemID string) *httptest.ResponseRecorder {
+func postEarn(r *gin.Engine, uid, runID, contextItemID, turnstileToken string) *httptest.ResponseRecorder {
 	body, _ := json.Marshal(map[string]string{
 		"uid":             uid,
 		"run_id":          runID,
 		"context_item_id": contextItemID,
+		"turnstile_token": turnstileToken,
 	})
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/level/earn", bytes.NewReader(body))
@@ -177,7 +186,7 @@ func TestEarnCoin_Success_Preferred(t *testing.T) {
 	}, time.Hour)
 
 	r := newLevelTestRouter(histRepo, svc, sub, mc, 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String())
+	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
@@ -204,7 +213,7 @@ func TestEarnCoin_TooEarly_NoCache(t *testing.T) {
 
 	// Empty cache — no init-earn was called
 	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String())
+	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 TOO_EARLY when cache empty, got %d", w.Code)
@@ -232,7 +241,7 @@ func TestEarnCoin_Expired(t *testing.T) {
 	}, time.Hour)
 
 	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String())
+	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -266,7 +275,7 @@ func TestEarnCoin_Duplicate(t *testing.T) {
 	}, time.Hour)
 
 	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{subs: []string{}}, mc, 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String())
+	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -283,12 +292,12 @@ func TestEarnCoin_InvalidUUIDs(t *testing.T) {
 	svc := level.NewService(&mockLevelRepo{}, 0)
 	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
 
-	w := postEarn(r, uuid.New().String(), "not-a-uuid", uuid.New().String())
+	w := postEarn(r, uuid.New().String(), "not-a-uuid", uuid.New().String(), "dummy-token")
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for invalid run_id, got %d", w.Code)
 	}
 
-	w = postEarn(r, uuid.New().String(), uuid.New().String(), "not-a-uuid")
+	w = postEarn(r, uuid.New().String(), uuid.New().String(), "not-a-uuid", "dummy-token")
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for invalid context_item_id, got %d", w.Code)
 	}
@@ -306,6 +315,42 @@ func TestEarnCoin_MissingFields(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for missing fields, got %d", w.Code)
+	}
+}
+
+func TestEarnCoin_InvalidTurnstileToken(t *testing.T) {
+	topicID := uuid.New()
+	runID := uuid.New()
+	userID := uuid.New().String()
+
+	histRepo := &mockLevelHistoryRepo{
+		topic:   &collector.TopicDetail{ID: topicID, Category: "top"},
+		isToday: true,
+	}
+	svc := level.NewService(&mockLevelRepo{coins: 0}, 0)
+
+	mc := newMockCache()
+	cacheKey := fmt.Sprintf("earn:%s:%s", userID, topicID)
+	// Cache hit valid
+	mc.Set(cacheKey, handler.EarnPending{
+		InitiatedAt:   time.Now().Add(-time.Minute),
+		UID:           userID,
+		ContextItemID: topicID,
+		RunID:         runID,
+	}, time.Hour)
+
+	// Inject a real-looking config but pass an invalid token resulting in Cloudflare failure
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	// Real-looking secret key that isn't the dummy test bypass.
+	// Cloudflare specifically reserves 2x0000000000000000000000000000000AA to always FAIL validation.
+	h := handler.NewLevelHandler(svc, histRepo, &mockSubGetterLevel{}, mc, 5*time.Second, "2x0000000000000000000000000000000AA", func(c *gin.Context) { c.Next() })
+	h.RegisterRoutes(r.Group("/level"))
+
+	w := postEarn(r, userID, runID.String(), topicID.String(), "invalid-token-here")
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 Forbidden for invalid turnstile token, got %d", w.Code)
 	}
 }
 
@@ -327,7 +372,7 @@ func TestEarnCoin_ContextItemNotFound(t *testing.T) {
 	}, time.Hour)
 
 	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String())
+	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404 for missing context item, got %d (body: %s)", w.Code, w.Body.String())

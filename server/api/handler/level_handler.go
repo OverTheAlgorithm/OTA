@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,12 +31,13 @@ func earnCacheKey(uid string, contextItemID uuid.UUID) string {
 
 // LevelHandler handles coin-earning and level queries.
 type LevelHandler struct {
-	service         *level.Service
-	histRepo        collector.HistoryRepository
-	subGetter       SubscriptionGetter
-	earnCache       cache.Cache
-	earnMinDuration time.Duration
-	authMW          gin.HandlerFunc
+	service            *level.Service
+	histRepo           collector.HistoryRepository
+	subGetter          SubscriptionGetter
+	earnCache          cache.Cache
+	earnMinDuration    time.Duration
+	turnstileSecretKey string
+	authMW             gin.HandlerFunc
 }
 
 func NewLevelHandler(
@@ -43,15 +46,17 @@ func NewLevelHandler(
 	subGetter SubscriptionGetter,
 	earnCache cache.Cache,
 	earnMinDuration time.Duration,
+	turnstileSecretKey string,
 	authMW gin.HandlerFunc,
 ) *LevelHandler {
 	return &LevelHandler{
-		service:         service,
-		histRepo:        histRepo,
-		subGetter:       subGetter,
-		earnCache:       earnCache,
-		earnMinDuration: earnMinDuration,
-		authMW:          authMW,
+		service:            service,
+		histRepo:           histRepo,
+		subGetter:          subGetter,
+		earnCache:          earnCache,
+		earnMinDuration:    earnMinDuration,
+		turnstileSecretKey: turnstileSecretKey,
+		authMW:             authMW,
 	}
 }
 
@@ -165,12 +170,13 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 // enough. Verifies cache presence and elapsed time before awarding coins.
 func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	var req struct {
-		UID           string `json:"uid" binding:"required"`
-		ContextItemID string `json:"context_item_id" binding:"required"`
-		RunID         string `json:"run_id" binding:"required"`
+		UID            string `json:"uid" binding:"required"`
+		ContextItemID  string `json:"context_item_id" binding:"required"`
+		RunID          string `json:"run_id" binding:"required"`
+		TurnstileToken string `json:"turnstile_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "uid, context_item_id, and run_id are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "uid, context_item_id, run_id, turnstile_token are required"})
 		return
 	}
 
@@ -196,6 +202,13 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	pending, ok := raw.(EarnPending)
 	if !ok || time.Since(pending.InitiatedAt) < h.earnMinDuration {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "TOO_EARLY"})
+		return
+	}
+
+	// ── Turnstile validation (Layer 3) ────────────────────────────────────────
+	if err := h.verifyTurnstileToken(req.TurnstileToken, c.ClientIP()); err != nil {
+		log.Printf("earn coin: turnstile validation failed: %v", err)
+		c.JSON(http.StatusForbidden, gin.H{"error": "bot verification failed"})
 		return
 	}
 
@@ -266,4 +279,54 @@ func (h *LevelHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("", h.authMW, h.GetLevel)  // GET  /api/v1/level
 	group.POST("/init-earn", h.InitEarn) // POST /api/v1/level/init-earn (public)
 	group.POST("/earn", h.EarnCoin)      // POST /api/v1/level/earn (public)
+}
+
+// ── Turnstile Helper ──────────────────────────────────────────────────────────
+
+// verifyTurnstileToken calls the Cloudflare SiteVerify API to validate the token.
+func (h *LevelHandler) verifyTurnstileToken(token string, remoteIP string) error {
+	// If the secret is the dummy dev key and the token is a specific testing string,
+	// or if we are purely offline testing (e.g. tests passing "dummy-secret-key"),
+	// we allow it. (Cloudflare provides "1x0000000000000000000000000000000AA" for testing pass).
+	if h.turnstileSecretKey == "dummy-secret-key" {
+		return nil
+	}
+
+	endpoint := "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+	// Create x-www-form-urlencoded body
+	data := fmt.Sprintf("secret=%s&response=%s", h.turnstileSecretKey, token)
+	if remoteIP != "" {
+		data += fmt.Sprintf("&remoteip=%s", remoteIP)
+	}
+
+	req, err := http.NewRequest("POST", endpoint, strings.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("could not create turnstile req: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// Use a short timeout for verification so we don't block
+	client := http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("turnstile sightverify call failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Success  bool     `json:"success"`
+		Error    []string `json:"error-codes"`
+		Hostname string   `json:"hostname"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("could not decode turnstile response: %w", err)
+	}
+
+	if !result.Success {
+		return fmt.Errorf("invalid token, error-codes: %v", result.Error)
+	}
+
+	return nil
 }

@@ -31,6 +31,8 @@ type Config struct {
 	OpenAIAPIKey string
 	OpenAIModel  string
 
+	TurnstileSecretKey string // Cloudflare Turnstile Secret Key
+
 	SMTPHost     string
 	SMTPPort     int
 	SMTPUsername string
@@ -42,6 +44,8 @@ type Config struct {
 	DailyCoinLimit int // max coins a user can earn per day (KST); 0 = unlimited
 
 	EarnMinDurationSec int // EARN_MIN_DURATION_SEC: minimum seconds user must stay on page before earning; default 10
+
+	MinWithdrawalAmount int // MIN_WITHDRAWAL_AMOUNT: minimum coins required to request withdrawal; default 1000
 
 	ServerPort  string
 	FrontendURL string
@@ -81,6 +85,8 @@ func Load() (Config, error) {
 		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
 		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-4o"),
 
+		TurnstileSecretKey: getEnv("TURNSTILE_SECRET_KEY", "1x0000000000000000000000000000000AA"), // Default to test key if missing
+
 		SMTPHost:     getEnv("SMTP_HOST", "smtp.gmail.com"),
 		SMTPPort:     getEnvInt("SMTP_PORT", 587),
 		SMTPUsername: getEnv("SMTP_USERNAME", ""),
@@ -89,8 +95,9 @@ func Load() (Config, error) {
 
 		SlackWebhookURL: getEnv("SLACK_WEBHOOK_URL", ""),
 
-		DailyCoinLimit:     getEnvInt("DAILY_COIN_LIMIT", 10),
-		EarnMinDurationSec: getEnvInt("EARN_MIN_DURATION_SEC", 10),
+		DailyCoinLimit:      getEnvInt("DAILY_COIN_LIMIT", 10),
+		EarnMinDurationSec:  getEnvInt("EARN_MIN_DURATION_SEC", 10),
+		MinWithdrawalAmount: getEnvInt("MIN_WITHDRAWAL_AMOUNT", 1000),
 
 		ServerPort:  getEnv("SERVER_PORT", "8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),

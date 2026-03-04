@@ -27,6 +27,13 @@ const (
 	BaseCoinNonPreferred = 10 // coins for visiting a topic outside subscribed categories
 )
 
+// EarnResult reason constants.
+const (
+	ReasonEarned     = "EARNED"
+	ReasonDuplicate  = "DUPLICATE"
+	ReasonDailyLimit = "DAILY_LIMIT"
+)
+
 type UserCoins struct {
 	UserID    string
 	Coins     int
@@ -52,13 +59,14 @@ type LevelInfo struct {
 }
 
 type EarnResult struct {
-	Earned          bool `json:"earned"`
-	Level           int  `json:"level"`
-	TotalCoins      int  `json:"total_coins"`
-	CurrentProgress int  `json:"current_progress"`
-	CoinsToNext     int  `json:"coins_to_next"`
-	LeveledUp       bool `json:"leveled_up"`
-	CoinsEarned     int  `json:"coins_earned"`
+	Earned          bool   `json:"earned"`
+	Reason          string `json:"reason"`
+	Level           int    `json:"level"`
+	TotalCoins      int    `json:"total_coins"`
+	CurrentProgress int    `json:"current_progress"`
+	CoinsToNext     int    `json:"coins_to_next"`
+	LeveledUp       bool   `json:"leveled_up"`
+	CoinsEarned     int    `json:"coins_earned"`
 }
 
 // CalcLevel returns the level (1-5) for the given total accumulated coins.
