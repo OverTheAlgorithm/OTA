@@ -186,29 +186,53 @@ export interface TopicDetail {
 export interface TopicEarnResult {
   attempted: boolean;
   earned: boolean;
-  reason: string; // "EARNED" | "DUPLICATE" | "EXPIRED"
+  reason: string; // "EARNED" | "DUPLICATE" | "EXPIRED" | "DAILY_LIMIT"
   coins_earned: number;
   leveled_up: boolean;
   new_level: number;
 }
 
-export interface TopicDetailResponse {
-  data: TopicDetail;
-  earn_result: TopicEarnResult | null;
-}
-
-export async function fetchTopicDetail(
-  id: string,
-  params?: { uid?: string; rid?: string; pts?: string }
-): Promise<TopicDetailResponse> {
-  const url = new URL(`${API_BASE}/api/v1/context/topic/${id}`, window.location.origin);
-  if (params?.uid) url.searchParams.set("uid", params.uid);
-  if (params?.rid) url.searchParams.set("rid", params.rid);
-  if (params?.pts) url.searchParams.set("pts", params.pts);
-  const res = await fetch(url.toString());
+export async function fetchTopicDetail(id: string): Promise<TopicDetail> {
+  const res = await fetch(`${API_BASE}/api/v1/context/topic/${id}`);
   if (res.status === 404) throw new Error("not_found");
   if (!res.ok) throw new Error("server_error");
-  return res.json() as Promise<TopicDetailResponse>;
+  const body: ApiResponse<TopicDetail> = await res.json();
+  return body.data;
+}
+
+export async function earnCoinFromEmail(
+  uid: string,
+  runId: string,
+  contextItemId: string
+): Promise<TopicEarnResult> {
+  const res = await fetch(`${API_BASE}/api/v1/level/earn`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, run_id: runId, context_item_id: contextItemId }),
+  });
+  if (!res.ok) throw new Error("earn_failed");
+  const body: ApiResponse<TopicEarnResult> = await res.json();
+  return body.data;
+}
+
+export interface InitEarnResult {
+  status: "PENDING" | "EXPIRED" | "DUPLICATE" | "DAILY_LIMIT";
+  required_seconds?: number;
+}
+
+export async function initEarn(
+  uid: string,
+  runId: string,
+  contextItemId: string
+): Promise<InitEarnResult> {
+  const res = await fetch(`${API_BASE}/api/v1/level/init-earn`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, run_id: runId, context_item_id: contextItemId }),
+  });
+  if (!res.ok) throw new Error("init_earn_failed");
+  const body: ApiResponse<InitEarnResult> = await res.json();
+  return body.data;
 }
 
 // ── 이메일 인증 ───────────────────────────────────────
@@ -340,32 +364,11 @@ export interface LevelInfo {
   description: string;
 }
 
-export interface EarnResult {
-  earned: boolean;
-  level: number;
-  total_coins: number;
-  current_progress: number;
-  coins_to_next: number;
-  leveled_up: boolean;
-}
-
 export async function getUserLevel(): Promise<LevelInfo> {
   const res = await fetch(`${API_BASE}/api/v1/level`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to fetch level");
   const body: ApiResponse<LevelInfo> = await res.json();
-  return body.data;
-}
-
-export async function earnPoint(contextItemId: string): Promise<EarnResult> {
-  const res = await fetch(`${API_BASE}/api/v1/level/earn`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ context_item_id: contextItemId }),
-  });
-  if (!res.ok) throw new Error("Failed to earn point");
-  const body: ApiResponse<EarnResult> = await res.json();
   return body.data;
 }

@@ -1,7 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
-import { fetchTopicDetail, type TopicDetail, type TopicEarnResult } from "@/lib/api";
-
+import {
+  fetchTopicDetail,
+  earnCoinFromEmail,
+  initEarn,
+  type TopicDetail,
+  type TopicEarnResult,
+} from "@/lib/api";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -12,50 +17,94 @@ function formatDate(iso: string): string {
   });
 }
 
-// ── Toast ────────────────────────────────────────────────────────────────────
-interface ToastProps {
-  earn: TopicEarnResult;
+// ── Toast types ───────────────────────────────────────────────────────────────
+
+type ToastState =
+  | { kind: "countdown"; remaining: number }
+  | { kind: "success"; earn: TopicEarnResult }
+  | { kind: "info"; message: string }
+  | { kind: "error"; message: string }
+  | null;
+
+// ── Countdown Toast (매초 pop 애니메이션) ────────────────────────────────────
+
+function CountdownToast({ remaining }: { remaining: number }) {
+  const [pop, setPop] = useState(false);
+
+  useEffect(() => {
+    // 값이 바뀔 때마다 pop 트리거
+    setPop(true);
+    const t = setTimeout(() => setPop(false), 280);
+    return () => clearTimeout(t);
+  }, [remaining]);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: "28px",
+        left: "50%",
+        transform: `translateX(-50%) scale(${pop ? 1.12 : 1})`,
+        transition: "transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        zIndex: 50,
+        background: "var(--color-card-bg)",
+        color: "var(--color-button-primary)",
+        border: "1px solid var(--color-button-primary)",
+        borderRadius: "12px",
+        padding: "10px 22px",
+        fontSize: "14px",
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+        pointerEvents: "none",
+      }}
+    >
+      🕐 {remaining}초 뒤 코인 획득 가능
+    </div>
+  );
 }
 
-function PointToast({ earn }: ToastProps) {
+// ── Static Toast (성공 / 실패 / 안내) ────────────────────────────────────────
+
+function StaticToast({ state }: { state: Exclude<ToastState, { kind: "countdown" } | null> }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // 마운트 직후 fade-in
-    const showTimer = setTimeout(() => setVisible(true), 50);
-    // 2.5초 뒤 fade-out 시작
-    const hideTimer = setTimeout(() => setVisible(false), 2500);
-    return () => {
-      clearTimeout(showTimer);
-      clearTimeout(hideTimer);
-    };
+    const show = setTimeout(() => setVisible(true), 50);
+    const hide = setTimeout(() => setVisible(false), 2500);
+    return () => { clearTimeout(show); clearTimeout(hide); };
   }, []);
 
   let message: string;
-  let bgColor: string;
-  let textColor: string;
   let borderColor: string;
+  let textColor: string;
 
-  if (earn.earned) {
-    if (earn.leveled_up) {
-      message = `🎉 +${earn.coins_earned}코인 획득! Lv.${earn.new_level} 레벨 업!`;
+  if (state.kind === "success") {
+    const { earn } = state;
+    if (earn.earned) {
+      message = earn.leveled_up
+        ? `🎊 +${earn.coins_earned}코인 획득! Lv.${earn.new_level} 레벨 업!`
+        : `🎊 +${earn.coins_earned}코인 획득!`;
+      borderColor = "var(--color-button-primary)";
+      textColor = "var(--color-button-primary)";
     } else {
-      message = `🌈 +${earn.coins_earned}코인 획득!`;
+      // earn failed even after dwell (DUPLICATE etc)
+      message =
+        earn.reason === "EXPIRED"
+          ? "코인 획득 기간이 지났어요."
+          : "이미 이 주제의 코인을 받았어요.";
+      borderColor = "var(--color-text-secondary)";
+      textColor = "var(--color-text-secondary)";
     }
-    bgColor = "var(--color-card-bg)";
-    textColor = "var(--color-button-primary)";
-    borderColor = "var(--color-button-primary)";
-  } else if (earn.reason === "EXPIRED") {
-    message = "코인 획득 기간이 지났어요.";
-    bgColor = "var(--color-card-bg)";
-    textColor = "var(--color-text-secondary)";
+  } else if (state.kind === "info") {
+    message = state.message;
     borderColor = "var(--color-text-secondary)";
+    textColor = "var(--color-text-secondary)";
   } else {
-    // DUPLICATE or unknown
-    message = "이미 이 주제의 코인을 받았어요.";
-    bgColor = "var(--color-card-bg)";
-    textColor = "var(--color-text-secondary)";
-    borderColor = "var(--color-text-secondary)";
+    // error
+    message = state.message;
+    borderColor = "var(--color-error)";
+    textColor = "var(--color-error)";
   }
 
   return (
@@ -66,11 +115,11 @@ function PointToast({ earn }: ToastProps) {
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 50,
-        background: bgColor,
+        background: "var(--color-card-bg)",
         color: textColor,
         border: `1px solid ${borderColor}`,
         borderRadius: "12px",
-        padding: "10px 20px",
+        padding: "10px 22px",
         fontSize: "14px",
         fontWeight: 600,
         whiteSpace: "nowrap",
@@ -86,37 +135,101 @@ function PointToast({ earn }: ToastProps) {
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
+
 export function TopicPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const [topic, setTopic] = useState<TopicDetail | null>(null);
-  const [earn, setEarn] = useState<TopicEarnResult | null>(null);
-  const [showToast, setShowToast] = useState(false);
+  const [toast, setToast] = useState<ToastState>(null);
   const [error, setError] = useState<"not_found" | "server_error" | null>(null);
   const [loading, setLoading] = useState(true);
 
   const uid = searchParams.get("uid") ?? undefined;
   const rid = searchParams.get("rid") ?? undefined;
-  const pts = searchParams.get("pts") ?? undefined;
-  const hasTracking = Boolean(uid && rid);
+
+  // Refs for countdown timer management
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const toastClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimers = () => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (toastClearRef.current) clearTimeout(toastClearRef.current);
+  };
+
+  // Start countdown and trigger earnCoinFromEmail after N seconds
+  const startCountdown = (requiredSeconds: number, topicId: string) => {
+    let remaining = requiredSeconds;
+    setToast({ kind: "countdown", remaining });
+
+    countdownIntervalRef.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining > 0) {
+        setToast({ kind: "countdown", remaining });
+      } else {
+        clearInterval(countdownIntervalRef.current!);
+        countdownIntervalRef.current = null;
+
+        // Fire confirm-earn
+        if (!uid || !rid) return;
+        earnCoinFromEmail(uid, rid, topicId)
+          .then((result) => {
+            setToast({ kind: "success", earn: result });
+            toastClearRef.current = setTimeout(() => setToast(null), 3200);
+          })
+          .catch(() => {
+            setToast({
+              kind: "error",
+              message: "잠시 후 다시 시도해 주세요.",
+            });
+            toastClearRef.current = setTimeout(() => setToast(null), 3200);
+          });
+      }
+    }, 1000);
+  };
 
   useEffect(() => {
     if (!id) return;
-    fetchTopicDetail(id, { uid, rid, pts })
-      .then((res) => {
-        setTopic(res.data);
-        if (hasTracking && res.earn_result) {
-          setEarn(res.earn_result);
-          setShowToast(true);
-          // 토스트 컴포넌트 자체 fade-out(2.5s) + 추가 400ms 뒤 언마운트
-          setTimeout(() => setShowToast(false), 3000);
-        }
-      })
+
+    // 1. Topic fetch (always)
+    fetchTopicDetail(id)
+      .then(setTopic)
       .catch((e: Error) => {
         setError(e.message === "not_found" ? "not_found" : "server_error");
       })
       .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    // 2. Init-earn (only when uid + rid provided)
+    if (uid && rid) {
+      initEarn(uid, rid, id)
+        .then((result) => {
+          switch (result.status) {
+            case "PENDING": {
+              const n = result.required_seconds ?? 10;
+              startCountdown(n, id);
+              break;
+            }
+            case "EXPIRED":
+              setToast({ kind: "info", message: "코인 획득 기간이 지났어요." });
+              toastClearRef.current = setTimeout(() => setToast(null), 3200);
+              break;
+            case "DUPLICATE":
+              setToast({ kind: "info", message: "이미 이 주제의 코인을 받았어요." });
+              toastClearRef.current = setTimeout(() => setToast(null), 3200);
+              break;
+            case "DAILY_LIMIT":
+              setToast({ kind: "info", message: "오늘 코인 획득 한도를 채웠어요." });
+              toastClearRef.current = setTimeout(() => setToast(null), 3200);
+              break;
+          }
+        })
+        .catch(() => {
+          setToast({ kind: "error", message: "잠시 후 다시 시도해 주세요." });
+          toastClearRef.current = setTimeout(() => setToast(null), 3200);
+        });
+    }
+
+    return () => clearTimers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (loading) {
@@ -146,17 +259,11 @@ export function TopicPage() {
   return (
     <div
       className="min-h-screen"
-      style={{
-        backgroundColor: "var(--color-bg)",
-        color: "var(--color-fg)"
-      }}
+      style={{ backgroundColor: "var(--color-bg)", color: "var(--color-fg)" }}
     >
       <header
         className="sticky top-0 z-10 border-b bg-opacity-90 backdrop-blur-lg"
-        style={{
-          borderColor: "var(--color-border)",
-          backgroundColor: "var(--color-bg)"
-        }}
+        style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-bg)" }}
       >
         <div className="max-w-2xl mx-auto px-6 h-16 flex items-center">
           <Link to="/">
@@ -242,8 +349,9 @@ export function TopicPage() {
         )}
       </div>
 
-      {/* 코인 토스트 — uid+rid가 있을 때만 렌더링 */}
-      {showToast && earn && <PointToast earn={earn} />}
+      {/* Toast layer */}
+      {toast?.kind === "countdown" && <CountdownToast remaining={toast.remaining} />}
+      {toast && toast.kind !== "countdown" && <StaticToast state={toast} />}
     </div>
   );
 }
