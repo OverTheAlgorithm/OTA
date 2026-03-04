@@ -15,7 +15,7 @@ import (
 // 오늘 생성된 run + 새 topic → 코인이 적립되어야 합니다.
 func TestCoinEarning_FirstEarn(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "point_logs", "user_points", "context_items", "collection_runs", "users")
+	defer db.Truncate(t, "coin_logs", "user_points", "context_items", "collection_runs", "users")
 
 	ctx := context.Background()
 
@@ -55,7 +55,7 @@ func TestCoinEarning_FirstEarn(t *testing.T) {
 	// 4. 코인 적립 실행
 	levelRepo := storage.NewLevelRepository(db.Pool)
 	historyRepo := storage.NewHistoryRepository(db.Pool)
-	svc := level.NewService(levelRepo)
+	svc := level.NewService(levelRepo, 0)
 
 	// run이 오늘 생성됐는지 확인
 	isToday, err := historyRepo.IsRunCreatedToday(ctx, runID)
@@ -86,16 +86,16 @@ func TestCoinEarning_FirstEarn(t *testing.T) {
 		t.Errorf("expected %d coins earned, got %d", expectedCoins, result.CoinsEarned)
 	}
 
-	// 5. DB에서 실제 point_log 확인
+	// 5. DB에서 실제 coin_log 확인
 	var logCount int
 	err = db.Pool.QueryRow(ctx, `
-		SELECT COUNT(*) FROM point_logs WHERE user_id = $1 AND run_id = $2 AND context_item_id = $3
+		SELECT COUNT(*) FROM coin_logs WHERE user_id = $1 AND run_id = $2 AND context_item_id = $3
 	`, userID, runID, itemID).Scan(&logCount)
 	if err != nil {
-		t.Fatalf("failed to count point logs: %v", err)
+		t.Fatalf("failed to count coin logs: %v", err)
 	}
 	if logCount != 1 {
-		t.Errorf("expected 1 point_log, got %d", logCount)
+		t.Errorf("expected 1 coin_log, got %d", logCount)
 	}
 
 	// 6. user_points 총계 확인
@@ -116,7 +116,7 @@ func TestCoinEarning_FirstEarn(t *testing.T) {
 // TestCoinEarning_DuplicateEarnBlocked: 같은 run+topic 조합으로 두 번 클릭 시 중복 적립 방지를 검증합니다.
 func TestCoinEarning_DuplicateEarnBlocked(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "point_logs", "user_points", "context_items", "collection_runs", "users")
+	defer db.Truncate(t, "coin_logs", "user_points", "context_items", "collection_runs", "users")
 
 	ctx := context.Background()
 
@@ -152,7 +152,7 @@ func TestCoinEarning_DuplicateEarnBlocked(t *testing.T) {
 	}
 
 	levelRepo := storage.NewLevelRepository(db.Pool)
-	svc := level.NewService(levelRepo)
+	svc := level.NewService(levelRepo, 0)
 
 	// 첫 번째 적립
 	result1, err := svc.EarnCoin(ctx, userID, runID, itemID, true)
@@ -172,16 +172,16 @@ func TestCoinEarning_DuplicateEarnBlocked(t *testing.T) {
 		t.Error("expected second earn to be blocked (duplicate)")
 	}
 
-	// point_logs 에 딱 1건만 있어야 함
+	// coin_logs 에 딱 1건만 있어야 함
 	var logCount int
 	err = db.Pool.QueryRow(ctx, `
-		SELECT COUNT(*) FROM point_logs WHERE user_id = $1 AND run_id = $2 AND context_item_id = $3
+		SELECT COUNT(*) FROM coin_logs WHERE user_id = $1 AND run_id = $2 AND context_item_id = $3
 	`, userID, runID, itemID).Scan(&logCount)
 	if err != nil {
-		t.Fatalf("failed to count point logs: %v", err)
+		t.Fatalf("failed to count coin logs: %v", err)
 	}
 	if logCount != 1 {
-		t.Errorf("expected 1 point_log (no duplicate), got %d", logCount)
+		t.Errorf("expected 1 coin_log (no duplicate), got %d", logCount)
 	}
 
 	t.Log("DuplicateEarnBlocked passed: second click correctly blocked")
@@ -190,7 +190,7 @@ func TestCoinEarning_DuplicateEarnBlocked(t *testing.T) {
 // TestCoinEarning_NonPreferredHigherCoins: 비선호 카테고리는 선호보다 더 많은 코인을 획득합니다.
 func TestCoinEarning_NonPreferredHigherCoins(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "point_logs", "user_points", "context_items", "collection_runs", "users")
+	defer db.Truncate(t, "coin_logs", "user_points", "context_items", "collection_runs", "users")
 
 	ctx := context.Background()
 
@@ -225,7 +225,7 @@ func TestCoinEarning_NonPreferredHigherCoins(t *testing.T) {
 	}
 
 	levelRepo := storage.NewLevelRepository(db.Pool)
-	svc := level.NewService(levelRepo)
+	svc := level.NewService(levelRepo, 0)
 
 	// 비선호 카테고리로 코인 적립
 	result, err := svc.EarnCoin(ctx, userID, runID, itemID, false)
@@ -282,7 +282,7 @@ func TestCoinEarning_IsRunCreatedToday_OldRun(t *testing.T) {
 // TestCoinEarning_LevelUp: 충분한 코인 적립 시 레벨업 감지를 검증합니다.
 func TestCoinEarning_LevelUp(t *testing.T) {
 	db := SetupTestDB(t)
-	defer db.Truncate(t, "point_logs", "user_points", "context_items", "collection_runs", "users")
+	defer db.Truncate(t, "coin_logs", "user_points", "context_items", "collection_runs", "users")
 
 	ctx := context.Background()
 
@@ -297,7 +297,7 @@ func TestCoinEarning_LevelUp(t *testing.T) {
 	}
 
 	levelRepo := storage.NewLevelRepository(db.Pool)
-	svc := level.NewService(levelRepo)
+	svc := level.NewService(levelRepo, 0)
 
 	// 레벨 1→2 경계(50코인)에 가깝게 사전 설정 (비선호 10코인 → 40+10=50 → lv2)
 	// level.Thresholds 기준: 0=lv1, 50=lv2, 200=lv3, 500=lv4, 1000=lv5

@@ -365,13 +365,13 @@ func TestFormatMessage_PointsLabel(t *testing.T) {
 
 	result := FormatMessage(items, subscriptions, testBrainCategories, "https://example.com", nil, msgCtx)
 
-	// Preferred item: +5pt
-	if !strings.Contains(result.HTMLBody, "+5pt") {
-		t.Errorf("expected preferred item to show +5pt, HTML: %s", result.HTMLBody)
+	// Preferred item: +5코인
+	if !strings.Contains(result.HTMLBody, "+5코인") {
+		t.Errorf("expected preferred item to show +5코인, HTML: %s", result.HTMLBody)
 	}
-	// Non-preferred item: +10pt
-	if !strings.Contains(result.HTMLBody, "+10pt") {
-		t.Errorf("expected non-preferred item to show +10pt, HTML: %s", result.HTMLBody)
+	// Non-preferred item: +10코인
+	if !strings.Contains(result.HTMLBody, "+10코인") {
+		t.Errorf("expected non-preferred item to show +10코인, HTML: %s", result.HTMLBody)
 	}
 	// uid/rid tracking params in links
 	if !strings.Contains(result.HTMLBody, "uid=uid1") {

@@ -35,6 +35,14 @@ func (m *mockRepo) HasEarned(_ context.Context, _ string, _, _ uuid.UUID) (bool,
 	return false, nil
 }
 
+func (m *mockRepo) DeductCoins(_ context.Context, _ string, _ int) error {
+	return nil
+}
+
+func (m *mockRepo) RestoreCoins(_ context.Context, _ string, _ int) error {
+	return nil
+}
+
 func TestService_GetLevel(t *testing.T) {
 	// 100코인 → Lv2 with thresholds [0, 50, 200, 500, 1000]
 	svc := NewService(&mockRepo{coins: UserCoins{Coins: 100}}, 0)
