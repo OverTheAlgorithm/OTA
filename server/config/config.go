@@ -39,6 +39,10 @@ type Config struct {
 
 	SlackWebhookURL string // optional; used for async admin notifications
 
+	DailyCoinLimit int // max coins a user can earn per day (KST); 0 = unlimited
+
+	EarnMinDurationSec int // EARN_MIN_DURATION_SEC: minimum seconds user must stay on page before earning; default 10
+
 	ServerPort  string
 	FrontendURL string
 	AppEnv      string // "development" | "production"
@@ -84,6 +88,9 @@ func Load() (Config, error) {
 		SMTPFrom:     getEnv("SMTP_FROM", ""),
 
 		SlackWebhookURL: getEnv("SLACK_WEBHOOK_URL", ""),
+
+		DailyCoinLimit:     getEnvInt("DAILY_COIN_LIMIT", 10),
+		EarnMinDurationSec: getEnvInt("EARN_MIN_DURATION_SEC", 10),
 
 		ServerPort:  getEnv("SERVER_PORT", "8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),

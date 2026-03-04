@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"ota/domain/level"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"ota/domain/level"
 )
 
 type LevelRepository struct {
@@ -42,9 +43,9 @@ func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, co
 	}
 	defer tx.Rollback(ctx)
 
-	// 1. Insert point_log — UNIQUE(user_id, run_id, context_item_id) prevents duplicates within same run
+	// 1. Insert coin_log — UNIQUE(user_id, run_id, context_item_id) prevents duplicates within same run
 	_, err = tx.Exec(ctx,
-		`INSERT INTO point_logs (user_id, run_id, context_item_id, points_earned) VALUES ($1, $2, $3, $4)`,
+		`INSERT INTO coin_logs (user_id, run_id, context_item_id, coins_earned) VALUES ($1, $2, $3, $4)`,
 		userID, runID, contextItemID, coins,
 	)
 	if err != nil {
@@ -75,68 +76,6 @@ func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, co
 	return true, newTotal, nil
 }
 
-
-// DecayCoins subtracts 1 coin from all users (minimum 0) using keyset pagination.
-func (r *LevelRepository) DecayCoins(ctx context.Context, batchSize int) (int, error) {
-	total := 0
-	cursor := "" // empty = start from beginning
-
-	for {
-		ids, err := r.fetchDecayBatch(ctx, cursor, batchSize)
-		if err != nil {
-			return total, err
-		}
-		if len(ids) == 0 {
-			break
-		}
-
-		if _, err = r.pool.Exec(ctx,
-			`UPDATE user_points SET points = GREATEST(0, points - 1), updated_at = NOW() WHERE user_id = ANY($1)`,
-			ids,
-		); err != nil {
-			return total, fmt.Errorf("decay batch: %w", err)
-		}
-
-		total += len(ids)
-		cursor = ids[len(ids)-1]
-		if len(ids) < batchSize {
-			break
-		}
-	}
-
-	return total, nil
-}
-
-func (r *LevelRepository) fetchDecayBatch(ctx context.Context, cursor string, batchSize int) ([]string, error) {
-	var rows pgx.Rows
-	var err error
-	if cursor == "" {
-		rows, err = r.pool.Query(ctx,
-			`SELECT user_id FROM user_points WHERE points > 0 ORDER BY user_id LIMIT $1`,
-			batchSize,
-		)
-	} else {
-		rows, err = r.pool.Query(ctx,
-			`SELECT user_id FROM user_points WHERE points > 0 AND user_id > $1 ORDER BY user_id LIMIT $2`,
-			cursor, batchSize,
-		)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("fetch decay batch: %w", err)
-	}
-	defer rows.Close()
-
-	var ids []string
-	for rows.Next() {
-		var id string
-		if scanErr := rows.Scan(&id); scanErr != nil {
-			return nil, fmt.Errorf("scan user id: %w", scanErr)
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
-}
-
 func (r *LevelRepository) SetCoins(ctx context.Context, userID string, coins int) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO user_points (user_id, points, updated_at)
@@ -149,6 +88,34 @@ func (r *LevelRepository) SetCoins(ctx context.Context, userID string, coins int
 		return fmt.Errorf("set coins: %w", err)
 	}
 	return nil
+}
+
+// HasEarned reports whether the given (user, run, item) triple already exists in coin_logs.
+func (r *LevelRepository) HasEarned(ctx context.Context, userID string, runID, contextItemID uuid.UUID) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM coin_logs WHERE user_id = $1 AND run_id = $2 AND context_item_id = $3)`,
+		userID, runID, contextItemID,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("has earned: %w", err)
+	}
+	return exists, nil
+}
+
+// GetTodayEarnedCoins returns the total coins a user has earned today (KST).
+func (r *LevelRepository) GetTodayEarnedCoins(ctx context.Context, userID string) (int, error) {
+	var total int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(coins_earned), 0)
+		FROM coin_logs
+		WHERE user_id = $1
+		  AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul'
+	`, userID).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("get today earned coins: %w", err)
+	}
+	return total, nil
 }
 
 // CreateMockOTAItem inserts a fake collection_run and a context_item for

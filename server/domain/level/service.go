@@ -8,11 +8,12 @@ import (
 )
 
 type Service struct {
-	repo Repository
+	repo           Repository
+	dailyCoinLimit int
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, dailyCoinLimit int) *Service {
+	return &Service{repo: repo, dailyCoinLimit: dailyCoinLimit}
 }
 
 // GetLevel returns the current level info for a user.
@@ -32,6 +33,28 @@ func (s *Service) SetCoins(ctx context.Context, userID string, coins int) (Level
 	return CalcLevelInfo(coins), nil
 }
 
+// HasEarned reports whether the user already has a coin_log entry for this run+item.
+func (s *Service) HasEarned(ctx context.Context, userID string, runID, contextItemID uuid.UUID) (bool, error) {
+	ok, err := s.repo.HasEarned(ctx, userID, runID, contextItemID)
+	if err != nil {
+		return false, fmt.Errorf("has earned: %w", err)
+	}
+	return ok, nil
+}
+
+// IsAtDailyLimit reports whether the user has reached today's coin earn limit.
+// Returns false when the limit is 0 (unlimited).
+func (s *Service) IsAtDailyLimit(ctx context.Context, userID string) (bool, error) {
+	if s.dailyCoinLimit == 0 {
+		return false, nil
+	}
+	todayEarned, err := s.repo.GetTodayEarnedCoins(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("is at daily limit: %w", err)
+	}
+	return todayEarned >= s.dailyCoinLimit, nil
+}
+
 // EarnCoin awards coins for visiting a topic.
 // preferred=true if the topic's category is in the user's subscriptions (or is top/brief).
 func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, preferred bool) (EarnResult, error) {
@@ -41,6 +64,26 @@ func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextIte
 	if err != nil {
 		return EarnResult{}, fmt.Errorf("get coins before earn: %w", err)
 	}
+
+	// Check daily coin limit (0 = unlimited)
+	if s.dailyCoinLimit > 0 {
+		todayEarned, err := s.repo.GetTodayEarnedCoins(ctx, userID)
+		if err != nil {
+			return EarnResult{}, fmt.Errorf("get today earned coins: %w", err)
+		}
+		if todayEarned >= s.dailyCoinLimit {
+			info := CalcLevelInfo(before.Coins)
+			return EarnResult{
+				Earned:          false,
+				Reason:          ReasonDailyLimit,
+				Level:           info.Level,
+				TotalCoins:      info.TotalCoins,
+				CurrentProgress: info.CurrentProgress,
+				CoinsToNext:     info.CoinsToNext,
+			}, nil
+		}
+	}
+
 	oldLevel := CalcLevel(before.Coins)
 
 	earned, newTotal, err := s.repo.EarnCoin(ctx, userID, runID, contextItemID, coins)
@@ -52,17 +95,18 @@ func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextIte
 		info := CalcLevelInfo(before.Coins)
 		return EarnResult{
 			Earned:          false,
+			Reason:          ReasonDuplicate,
 			Level:           info.Level,
 			TotalCoins:      info.TotalCoins,
 			CurrentProgress: info.CurrentProgress,
 			CoinsToNext:     info.CoinsToNext,
-			LeveledUp:       false,
 		}, nil
 	}
 
 	info := CalcLevelInfo(newTotal)
 	return EarnResult{
 		Earned:          true,
+		Reason:          ReasonEarned,
 		Level:           info.Level,
 		TotalCoins:      info.TotalCoins,
 		CurrentProgress: info.CurrentProgress,
@@ -70,13 +114,4 @@ func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextIte
 		LeveledUp:       info.Level > oldLevel,
 		CoinsEarned:     coins,
 	}, nil
-}
-
-// DecayAllCoins runs the daily coin decay: -1 per user (min 0), batch size 1000.
-func (s *Service) DecayAllCoins(ctx context.Context) (int, error) {
-	affected, err := s.repo.DecayCoins(ctx, 1000)
-	if err != nil {
-		return 0, fmt.Errorf("decay all coins: %w", err)
-	}
-	return affected, nil
 }
