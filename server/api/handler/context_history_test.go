@@ -14,7 +14,6 @@ import (
 
 	"ota/api/handler"
 	"ota/domain/collector"
-	"ota/domain/level"
 	"ota/storage"
 )
 
@@ -41,55 +40,12 @@ func (m *mockHistoryRepo) IsRunCreatedToday(_ context.Context, _ uuid.UUID) (boo
 	return m.isToday, m.isTodayErr
 }
 
-// mockLevelRepo implements level.Repository for level.Service.
-type mockLevelRepo struct {
-	coins         int
-	earnErr       error
-	alreadyEarned bool
-}
-
-func (m *mockLevelRepo) GetUserCoins(_ context.Context, userID string) (level.UserCoins, error) {
-	return level.UserCoins{UserID: userID, Coins: m.coins}, nil
-}
-
-func (m *mockLevelRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, coins int) (bool, int, error) {
-	if m.earnErr != nil {
-		return false, 0, m.earnErr
-	}
-	if m.alreadyEarned {
-		return false, 0, nil
-	}
-	return true, m.coins + coins, nil
-}
-
-
-func (m *mockLevelRepo) DecayCoins(_ context.Context, _ int) (int, error) {
-	return 0, nil
-}
-
-func (m *mockLevelRepo) SetCoins(_ context.Context, _ string, _ int) error {
-	return nil
-}
-
-func (m *mockLevelRepo) CreateMockOTAItem(_ context.Context) (uuid.UUID, error) {
-	return uuid.New(), nil
-}
-
-type mockSubGetter struct {
-	subs    []string
-	subsErr error
-}
-
-func (m *mockSubGetter) GetSubscriptions(_ context.Context, _ string) ([]string, error) {
-	return m.subs, m.subsErr
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-func newTestRouter(repo collector.HistoryRepository, lvlSvc *level.Service, sub handler.SubscriptionGetter) *gin.Engine {
+func newTestRouter(repo collector.HistoryRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := handler.NewContextHistoryHandler(repo, lvlSvc, sub, func(c *gin.Context) { c.Next() })
+	h := handler.NewContextHistoryHandler(repo, func(c *gin.Context) { c.Next() })
 	h.RegisterRoutes(r.Group("/context"))
 	return r
 }
@@ -99,8 +55,7 @@ func newTestRouter(repo collector.HistoryRepository, lvlSvc *level.Service, sub 
 // TestGetTopicByID_NotFound: 존재하지 않는 topic 요청 시 404 반환
 func TestGetTopicByID_NotFound(t *testing.T) {
 	repo := &mockHistoryRepo{topic: nil}
-	svc := level.NewService(&mockLevelRepo{})
-	r := newTestRouter(repo, svc, &mockSubGetter{})
+	r := newTestRouter(repo)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/context/topic/%s", uuid.New()), nil)
@@ -114,8 +69,7 @@ func TestGetTopicByID_NotFound(t *testing.T) {
 // TestGetTopicByID_InvalidID: UUID 포맷이 아닌 id를 보내면 400 반환
 func TestGetTopicByID_InvalidID(t *testing.T) {
 	repo := &mockHistoryRepo{}
-	svc := level.NewService(&mockLevelRepo{})
-	r := newTestRouter(repo, svc, &mockSubGetter{})
+	r := newTestRouter(repo)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/context/topic/not-a-uuid", nil)
@@ -129,8 +83,7 @@ func TestGetTopicByID_InvalidID(t *testing.T) {
 // TestGetTopicByID_RepoError: repo 오류 시 500 반환
 func TestGetTopicByID_RepoError(t *testing.T) {
 	repo := &mockHistoryRepo{topicErr: errors.New("db error")}
-	svc := level.NewService(&mockLevelRepo{})
-	r := newTestRouter(repo, svc, &mockSubGetter{})
+	r := newTestRouter(repo)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/context/topic/%s", uuid.New()), nil)
@@ -141,8 +94,8 @@ func TestGetTopicByID_RepoError(t *testing.T) {
 	}
 }
 
-// TestGetTopicByID_NoRidUID: rid/uid 없이 조회하면 코인 로직 없이 200 반환
-func TestGetTopicByID_NoRidUID(t *testing.T) {
+// TestGetTopicByID_Success: 정상 조회 시 200 반환
+func TestGetTopicByID_Success(t *testing.T) {
 	topicID := uuid.New()
 	repo := &mockHistoryRepo{
 		topic: &collector.TopicDetail{
@@ -151,8 +104,7 @@ func TestGetTopicByID_NoRidUID(t *testing.T) {
 			Topic:    "테스트 주제",
 		},
 	}
-	svc := level.NewService(&mockLevelRepo{})
-	r := newTestRouter(repo, svc, &mockSubGetter{})
+	r := newTestRouter(repo)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/context/topic/%s", topicID), nil)
@@ -160,150 +112,6 @@ func TestGetTopicByID_NoRidUID(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
-	}
-}
-
-// TestGetTopicByID_EarnCoin_PreferredCategory: 선호 카테고리 클릭 시 코인 적립 (200)
-func TestGetTopicByID_EarnCoin_PreferredCategory(t *testing.T) {
-	topicID := uuid.New()
-	runID := uuid.New()
-	userID := uuid.New().String()
-
-	repo := &mockHistoryRepo{
-		topic: &collector.TopicDetail{
-			ID:       topicID,
-			Category: "sports", // user subscribes to sports → preferred
-			Topic:    "스포츠 뉴스",
-		},
-		isToday: true,
-	}
-	levelRepo := &mockLevelRepo{coins: 0}
-	svc := level.NewService(levelRepo)
-	sub := &mockSubGetter{subs: []string{"sports"}}
-
-	r := newTestRouter(repo, svc, sub)
-
-	w := httptest.NewRecorder()
-	url := fmt.Sprintf("/context/topic/%s?rid=%s&uid=%s", topicID, runID, userID)
-	req, _ := http.NewRequest("GET", url, nil)
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
-	}
-}
-
-// TestGetTopicByID_EarnCoin_NonPreferredCategory: 비선호 카테고리 클릭 시 더 많은 코인 경로 (200)
-func TestGetTopicByID_EarnCoin_NonPreferredCategory(t *testing.T) {
-	topicID := uuid.New()
-	runID := uuid.New()
-	userID := uuid.New().String()
-
-	repo := &mockHistoryRepo{
-		topic: &collector.TopicDetail{
-			ID:       topicID,
-			Category: "economy", // user doesn't subscribe → non-preferred
-			Topic:    "경제 뉴스",
-		},
-		isToday: true,
-	}
-	levelRepo := &mockLevelRepo{coins: 0}
-	svc := level.NewService(levelRepo)
-	sub := &mockSubGetter{subs: []string{"sports"}}
-
-	r := newTestRouter(repo, svc, sub)
-
-	w := httptest.NewRecorder()
-	url := fmt.Sprintf("/context/topic/%s?rid=%s&uid=%s", topicID, runID, userID)
-	req, _ := http.NewRequest("GET", url, nil)
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-// TestGetTopicByID_RidNotToday: rid가 오늘 생성된 것이 아니면 코인 미적립하고 200 반환
-func TestGetTopicByID_RidNotToday(t *testing.T) {
-	topicID := uuid.New()
-	runID := uuid.New()
-	userID := uuid.New().String()
-
-	repo := &mockHistoryRepo{
-		topic: &collector.TopicDetail{
-			ID:       topicID,
-			Category: "top",
-			Topic:    "오래된 주제",
-		},
-		isToday: false, // run은 오늘 생성된 것이 아님
-	}
-	levelRepo := &mockLevelRepo{coins: 0}
-	svc := level.NewService(levelRepo)
-
-	r := newTestRouter(repo, svc, &mockSubGetter{})
-
-	w := httptest.NewRecorder()
-	url := fmt.Sprintf("/context/topic/%s?rid=%s&uid=%s", topicID, runID, userID)
-	req, _ := http.NewRequest("GET", url, nil)
-	r.ServeHTTP(w, req)
-
-	// 200 반환, 코인은 적립 안 됨
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-// TestGetTopicByID_InvalidRID: rid가 UUID 형식이 아니면 코인 로직을 건너뛰고 200 반환
-func TestGetTopicByID_InvalidRID(t *testing.T) {
-	topicID := uuid.New()
-	userID := uuid.New().String()
-
-	repo := &mockHistoryRepo{
-		topic: &collector.TopicDetail{
-			ID:       topicID,
-			Category: "top",
-			Topic:    "테스트",
-		},
-	}
-	svc := level.NewService(&mockLevelRepo{})
-	r := newTestRouter(repo, svc, &mockSubGetter{})
-
-	w := httptest.NewRecorder()
-	url := fmt.Sprintf("/context/topic/%s?rid=not-valid-uuid&uid=%s", topicID, userID)
-	req, _ := http.NewRequest("GET", url, nil)
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-// TestGetTopicByID_AlreadyEarned: 이미 동일 run+topic에서 코인을 적립한 경우 중복 적립 없이 200 반환
-func TestGetTopicByID_AlreadyEarned(t *testing.T) {
-	topicID := uuid.New()
-	runID := uuid.New()
-	userID := uuid.New().String()
-
-	repo := &mockHistoryRepo{
-		topic: &collector.TopicDetail{
-			ID:       topicID,
-			Category: "top",
-			Topic:    "이미 읽은 주제",
-		},
-		isToday: true,
-	}
-	levelRepo := &mockLevelRepo{coins: 5, alreadyEarned: true} // 이미 이전에 적립됨
-	svc := level.NewService(levelRepo)
-
-	r := newTestRouter(repo, svc, &mockSubGetter{subs: []string{}})
-
-	w := httptest.NewRecorder()
-	url := fmt.Sprintf("/context/topic/%s?rid=%s&uid=%s", topicID, runID, userID)
-	req, _ := http.NewRequest("GET", url, nil)
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
 	}
 }
 
@@ -317,8 +125,7 @@ func TestGetTopicByID_TopicCategoryInResponse(t *testing.T) {
 			Topic:    "연예 뉴스",
 		},
 	}
-	svc := level.NewService(&mockLevelRepo{})
-	r := newTestRouter(repo, svc, &mockSubGetter{})
+	r := newTestRouter(repo)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/context/topic/%s", topicID), nil)
@@ -341,49 +148,38 @@ func TestGetTopicByID_TopicCategoryInResponse(t *testing.T) {
 	}
 }
 
+// TestGetTopicByID_NoEarnResult: 응답에 earn_result 필드가 없어야 함
+func TestGetTopicByID_NoEarnResult(t *testing.T) {
+	topicID := uuid.New()
+	repo := &mockHistoryRepo{
+		topic: &collector.TopicDetail{
+			ID:       topicID,
+			Category: "top",
+			Topic:    "테스트",
+		},
+	}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/context/topic/%s?rid=%s&uid=%s", topicID, uuid.New(), uuid.New()), nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if _, exists := resp["earn_result"]; exists {
+		t.Error("expected no 'earn_result' key in response after refactor")
+	}
+}
+
 // ─── Verify level.CalcCoins coin values match expected base values ──────────
 
-// TestCalcCoins_Preferred: 선호 카테고리 코인 확인
-func TestCalcCoins_Preferred(t *testing.T) {
-	coins := level.CalcCoins(true)
-	if coins != level.BaseCoinPreferred {
-		t.Errorf("expected %d for preferred, got %d", level.BaseCoinPreferred, coins)
-	}
-}
-
-// TestCalcCoins_NonPreferred: 비선호 카테고리 코인 확인
-func TestCalcCoins_NonPreferred(t *testing.T) {
-	coins := level.CalcCoins(false)
-	if coins != level.BaseCoinNonPreferred {
-		t.Errorf("expected %d for non-preferred, got %d", level.BaseCoinNonPreferred, coins)
-	}
-}
-
-// ─── Verify level.IsPreferredCategory ─────────────────────────────────────────
-
-func TestIsPreferredCategory_Top(t *testing.T) {
-	if !level.IsPreferredCategory("top", nil) {
-		t.Error("expected 'top' to be preferred")
-	}
-}
-
-func TestIsPreferredCategory_Brief(t *testing.T) {
-	if !level.IsPreferredCategory("brief", nil) {
-		t.Error("expected 'brief' to be preferred")
-	}
-}
-
-func TestIsPreferredCategory_Subscribed(t *testing.T) {
-	if !level.IsPreferredCategory("sports", []string{"sports", "economy"}) {
-		t.Error("expected 'sports' to be preferred when in subscriptions")
-	}
-}
-
-func TestIsPreferredCategory_NotSubscribed(t *testing.T) {
-	if level.IsPreferredCategory("politics", []string{"sports", "economy"}) {
-		t.Error("expected 'politics' to be non-preferred")
-	}
-}
+// (CalcCoins/IsPreferredCategory tests remain in level package tests)
 
 // Assert that storage.HistoryRepository implements collector.HistoryRepository
 // (compile-time check)
