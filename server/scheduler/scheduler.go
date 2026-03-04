@@ -12,9 +12,9 @@ import (
 	"ota/domain/delivery"
 )
 
-// PointDecayer runs the daily point decay job.
-type PointDecayer interface {
-	DecayAllPoints(ctx context.Context) (int, error)
+// CoinDecayer runs the daily coin decay job.
+type CoinDecayer interface {
+	DecayAllCoins(ctx context.Context) (int, error)
 }
 
 // Scheduler manages all scheduled tasks (collection, delivery, retry, decay)
@@ -22,16 +22,16 @@ type Scheduler struct {
 	cron             *cron.Cron
 	collectorService *collector.Service
 	deliveryService  *delivery.Service
-	pointDecayer     PointDecayer
+	coinDecayer      CoinDecayer
 }
 
 // New creates a new Scheduler
-func New(collectorService *collector.Service, deliveryService *delivery.Service, pointDecayer PointDecayer) *Scheduler {
+func New(collectorService *collector.Service, deliveryService *delivery.Service, coinDecayer CoinDecayer) *Scheduler {
 	return &Scheduler{
 		cron:             cron.New(cron.WithLocation(time.UTC)),
 		collectorService: collectorService,
 		deliveryService:  deliveryService,
-		pointDecayer:     pointDecayer,
+		coinDecayer:      coinDecayer,
 	}
 }
 
@@ -69,7 +69,7 @@ func (s *Scheduler) Start() error {
 	}
 
 	// Decay: 00:00 KST = 15:00 UTC
-	if s.pointDecayer != nil {
+	if s.coinDecayer != nil {
 		if _, err := s.cron.AddFunc("0 15 * * *", s.decayPoints); err != nil {
 			return fmt.Errorf("failed to schedule point decay: %w", err)
 		}
@@ -134,7 +134,7 @@ func (s *Scheduler) decayPoints() {
 	log.Println("starting daily point decay")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	affected, err := s.pointDecayer.DecayAllPoints(ctx)
+	affected, err := s.coinDecayer.DecayAllCoins(ctx)
 	if err != nil {
 		log.Printf("point decay failed: %v", err)
 		return

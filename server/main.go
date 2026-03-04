@@ -37,7 +37,7 @@ func (a *levelServiceAdapter) GetLevel(ctx context.Context, userID string) (deli
 	return delivery.UserLevelInfo{
 		Level:           info.Level,
 		CurrentProgress: info.CurrentProgress,
-		PointsToNext:    info.PointsToNext,
+		CoinsToNext:     info.CoinsToNext,
 		Description:     info.Description,
 	}, nil
 }

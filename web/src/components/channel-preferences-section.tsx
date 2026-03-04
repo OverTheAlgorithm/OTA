@@ -11,10 +11,9 @@ import {
 
 const CHANNEL_INFO = {
   email: { label: "이메일", icon: "📧", description: "이메일로 맥락을 받아요" },
-  kakao: { label: "카카오톡", icon: "💬", description: "카카오톡으로 맥락을 받아요 (준비중)" },
 };
 
-const CHANNEL_ORDER = ["email", "kakao"];
+const CHANNEL_ORDER = ["email"];
 const MAX_RETRIES = 3;
 
 export function ChannelPreferencesSection() {

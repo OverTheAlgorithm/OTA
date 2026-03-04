@@ -97,9 +97,9 @@ func (h *AdminHandler) notifySlack(text string) {
 	}
 }
 
-// SetLevelPoints handles POST /api/v1/admin/level/set-points
-// Directly sets the authenticated user's points for testing purposes.
-func (h *AdminHandler) SetLevelPoints(c *gin.Context) {
+// SetLevelCoins handles POST /api/v1/admin/level/set-coins
+// Directly sets the authenticated user's coins for testing purposes.
+func (h *AdminHandler) SetLevelCoins(c *gin.Context) {
 	if h.levelService == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "level service not available"})
 		return
@@ -108,16 +108,16 @@ func (h *AdminHandler) SetLevelPoints(c *gin.Context) {
 	userID := c.GetString("userID")
 
 	var req struct {
-		Points int `json:"points" binding:"min=0"`
+		Coins int `json:"coins" binding:"min=0"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "points must be >= 0"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "coins must be >= 0"})
 		return
 	}
 
-	info, err := h.levelService.SetPoints(c.Request.Context(), userID, req.Points)
+	info, err := h.levelService.SetCoins(c.Request.Context(), userID, req.Coins)
 	if err != nil {
-		log.Printf("set level points error: %v", err)
+		log.Printf("set level coins error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -173,7 +173,7 @@ func (h *AdminHandler) SendTestEmail(c *gin.Context) {
 func (h *AdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/collect", h.TriggerCollection)
 	group.POST("/delivery/send-test", h.SendTestEmail)
-	group.POST("/level/set-points", h.SetLevelPoints)
+	group.POST("/level/set-coins", h.SetLevelCoins)
 	group.POST("/level/create-mock-item", h.CreateMockOTAItem)
 
 	if h.brainCategoryHandler != nil {

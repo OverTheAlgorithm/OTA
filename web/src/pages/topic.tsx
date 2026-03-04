@@ -38,21 +38,21 @@ function PointToast({ earn }: ToastProps) {
 
   if (earn.earned) {
     if (earn.leveled_up) {
-      message = `🎉 +${earn.points_earned}pt 획득! Lv.${earn.new_level} 레벨 업!`;
+      message = `🎉 +${earn.coins_earned}코인 획득! Lv.${earn.new_level} 레벨 업!`;
     } else {
-      message = `🌈 +${earn.points_earned}pt 획득!`;
+      message = `🌈 +${earn.coins_earned}코인 획득!`;
     }
     bgColor = "var(--color-card-bg)";
     textColor = "var(--color-button-primary)";
     borderColor = "var(--color-button-primary)";
   } else if (earn.reason === "EXPIRED") {
-    message = "포인트 획득 기간이 지났어요.";
+    message = "코인 획득 기간이 지났어요.";
     bgColor = "var(--color-card-bg)";
     textColor = "var(--color-text-secondary)";
     borderColor = "var(--color-text-secondary)";
   } else {
     // DUPLICATE or unknown
-    message = "이미 이 주제의 포인트를 받았어요.";
+    message = "이미 이 주제의 코인을 받았어요.";
     bgColor = "var(--color-card-bg)";
     textColor = "var(--color-text-secondary)";
     borderColor = "var(--color-text-secondary)";
@@ -242,7 +242,7 @@ export function TopicPage() {
         )}
       </div>
 
-      {/* 포인트 토스트 — uid+rid가 있을 때만 렌더링 */}
+      {/* 코인 토스트 — uid+rid가 있을 때만 렌더링 */}
       {showToast && earn && <PointToast earn={earn} />}
     </div>
   );

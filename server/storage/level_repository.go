@@ -20,22 +20,22 @@ func NewLevelRepository(pool *pgxpool.Pool) *LevelRepository {
 	return &LevelRepository{pool: pool}
 }
 
-func (r *LevelRepository) GetUserPoints(ctx context.Context, userID string) (level.UserPoints, error) {
-	var up level.UserPoints
+func (r *LevelRepository) GetUserCoins(ctx context.Context, userID string) (level.UserCoins, error) {
+	var uc level.UserCoins
 	err := r.pool.QueryRow(ctx,
 		`SELECT user_id, points, created_at, updated_at FROM user_points WHERE user_id = $1`,
 		userID,
-	).Scan(&up.UserID, &up.Points, &up.CreatedAt, &up.UpdatedAt)
+	).Scan(&uc.UserID, &uc.Coins, &uc.CreatedAt, &uc.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return level.UserPoints{UserID: userID, Points: 0}, nil
+		return level.UserCoins{UserID: userID, Coins: 0}, nil
 	}
 	if err != nil {
-		return level.UserPoints{}, fmt.Errorf("get user points: %w", err)
+		return level.UserCoins{}, fmt.Errorf("get user coins: %w", err)
 	}
-	return up, nil
+	return uc, nil
 }
 
-func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, runID, contextItemID uuid.UUID, points int) (bool, int, error) {
+func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, coins int) (bool, int, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return false, 0, fmt.Errorf("begin tx: %w", err)
@@ -45,17 +45,17 @@ func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, runID, c
 	// 1. Insert point_log — UNIQUE(user_id, run_id, context_item_id) prevents duplicates within same run
 	_, err = tx.Exec(ctx,
 		`INSERT INTO point_logs (user_id, run_id, context_item_id, points_earned) VALUES ($1, $2, $3, $4)`,
-		userID, runID, contextItemID, points,
+		userID, runID, contextItemID, coins,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return false, 0, nil // already earned this topic in this run
 		}
-		return false, 0, fmt.Errorf("insert point log: %w", err)
+		return false, 0, fmt.Errorf("insert coin log: %w", err)
 	}
 
-	// 2. Upsert user_points and add earned points
+	// 2. Upsert user_points and add earned coins
 	var newTotal int
 	err = tx.QueryRow(ctx, `
 		INSERT INTO user_points (user_id, points, updated_at)
@@ -64,9 +64,9 @@ func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, runID, c
 			points = user_points.points + $2,
 			updated_at = NOW()
 		RETURNING points
-	`, userID, points).Scan(&newTotal)
+	`, userID, coins).Scan(&newTotal)
 	if err != nil {
-		return false, 0, fmt.Errorf("upsert user points: %w", err)
+		return false, 0, fmt.Errorf("upsert user coins: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -76,10 +76,8 @@ func (r *LevelRepository) EarnPoint(ctx context.Context, userID string, runID, c
 }
 
 
-// DecayPoints subtracts 1 point from all users (minimum 0) using keyset pagination.
-// Level is recalculated after each batch.
-// Thresholds must match level.Thresholds: [0, 50, 200, 500, 1000].
-func (r *LevelRepository) DecayPoints(ctx context.Context, batchSize int) (int, error) {
+// DecayCoins subtracts 1 coin from all users (minimum 0) using keyset pagination.
+func (r *LevelRepository) DecayCoins(ctx context.Context, batchSize int) (int, error) {
 	total := 0
 	cursor := "" // empty = start from beginning
 
@@ -139,16 +137,16 @@ func (r *LevelRepository) fetchDecayBatch(ctx context.Context, cursor string, ba
 	return ids, rows.Err()
 }
 
-func (r *LevelRepository) SetPoints(ctx context.Context, userID string, points int) error {
+func (r *LevelRepository) SetCoins(ctx context.Context, userID string, coins int) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO user_points (user_id, points, updated_at)
 		VALUES ($1, $2, NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
 			points     = $2,
 			updated_at = NOW()
-	`, userID, points)
+	`, userID, coins)
 	if err != nil {
-		return fmt.Errorf("set points: %w", err)
+		return fmt.Errorf("set coins: %w", err)
 	}
 	return nil
 }
@@ -173,7 +171,7 @@ func (r *LevelRepository) CreateMockOTAItem(ctx context.Context) (uuid.UUID, err
 		VALUES
 			($1, $2, 'top', 'over_the_algorithm', 1,
 			 '[테스트] Over the Algorithm 샘플 토픽',
-			 '알고리즘 너머의 세상을 경험하고 있나요? 이 토픽을 읽으면 레벨 포인트가 적립돼요.',
+			 '알고리즘 너머의 세상을 경험하고 있나요? 이 토픽을 읽으면 레벨 코인이 적립돼요.',
 			 '이것은 Over the Algorithm 기능 테스트용 샘플 게시글입니다. 실제 서비스에서는 AI가 분류한 진짜 맥락이 여기에 담겨요.',
 			 '[]', 50, '[]')
 	`, itemID, runID)

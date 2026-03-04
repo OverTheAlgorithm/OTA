@@ -103,11 +103,11 @@ type EligibleUser struct {
 type UserLevelInfo struct {
 	Level           int
 	CurrentProgress int
-	PointsToNext    int
+	CoinsToNext     int
 	Description     string
 }
 
-// MessageContext holds per-user context for personalized link generation and point display.
+// MessageContext holds per-user context for personalized link generation and coin display.
 // Nil = no personalization (e.g. welcome emails, admin previews).
 type MessageContext struct {
 	UserID string

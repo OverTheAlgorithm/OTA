@@ -17,45 +17,45 @@ func NewService(repo Repository) *Service {
 
 // GetLevel returns the current level info for a user.
 func (s *Service) GetLevel(ctx context.Context, userID string) (LevelInfo, error) {
-	up, err := s.repo.GetUserPoints(ctx, userID)
+	uc, err := s.repo.GetUserCoins(ctx, userID)
 	if err != nil {
 		return LevelInfo{}, fmt.Errorf("get level: %w", err)
 	}
-	return CalcLevelInfo(up.Points), nil
+	return CalcLevelInfo(uc.Coins), nil
 }
 
-// SetPoints directly overwrites a user's points and recalculates level. For testing only.
-func (s *Service) SetPoints(ctx context.Context, userID string, points int) (LevelInfo, error) {
-	if err := s.repo.SetPoints(ctx, userID, points); err != nil {
-		return LevelInfo{}, fmt.Errorf("set points: %w", err)
+// SetCoins directly overwrites a user's coins and recalculates level. For testing only.
+func (s *Service) SetCoins(ctx context.Context, userID string, coins int) (LevelInfo, error) {
+	if err := s.repo.SetCoins(ctx, userID, coins); err != nil {
+		return LevelInfo{}, fmt.Errorf("set coins: %w", err)
 	}
-	return CalcLevelInfo(points), nil
+	return CalcLevelInfo(coins), nil
 }
 
-// EarnPoint awards points for visiting a topic.
+// EarnCoin awards coins for visiting a topic.
 // preferred=true if the topic's category is in the user's subscriptions (or is top/brief).
-func (s *Service) EarnPoint(ctx context.Context, userID string, runID, contextItemID uuid.UUID, preferred bool) (EarnResult, error) {
-	points := CalcPoints(preferred)
+func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, preferred bool) (EarnResult, error) {
+	coins := CalcCoins(preferred)
 
-	before, err := s.repo.GetUserPoints(ctx, userID)
+	before, err := s.repo.GetUserCoins(ctx, userID)
 	if err != nil {
-		return EarnResult{}, fmt.Errorf("get points before earn: %w", err)
+		return EarnResult{}, fmt.Errorf("get coins before earn: %w", err)
 	}
-	oldLevel := CalcLevel(before.Points)
+	oldLevel := CalcLevel(before.Coins)
 
-	earned, newTotal, err := s.repo.EarnPoint(ctx, userID, runID, contextItemID, points)
+	earned, newTotal, err := s.repo.EarnCoin(ctx, userID, runID, contextItemID, coins)
 	if err != nil {
-		return EarnResult{}, fmt.Errorf("earn point: %w", err)
+		return EarnResult{}, fmt.Errorf("earn coin: %w", err)
 	}
 
 	if !earned {
-		info := CalcLevelInfo(before.Points)
+		info := CalcLevelInfo(before.Coins)
 		return EarnResult{
 			Earned:          false,
 			Level:           info.Level,
-			TotalPoints:     info.TotalPoints,
+			TotalCoins:      info.TotalCoins,
 			CurrentProgress: info.CurrentProgress,
-			PointsToNext:    info.PointsToNext,
+			CoinsToNext:     info.CoinsToNext,
 			LeveledUp:       false,
 		}, nil
 	}
@@ -64,19 +64,19 @@ func (s *Service) EarnPoint(ctx context.Context, userID string, runID, contextIt
 	return EarnResult{
 		Earned:          true,
 		Level:           info.Level,
-		TotalPoints:     info.TotalPoints,
+		TotalCoins:      info.TotalCoins,
 		CurrentProgress: info.CurrentProgress,
-		PointsToNext:    info.PointsToNext,
+		CoinsToNext:     info.CoinsToNext,
 		LeveledUp:       info.Level > oldLevel,
-		PointsEarned:    points,
+		CoinsEarned:     coins,
 	}, nil
 }
 
-// DecayAllPoints runs the daily point decay: -1pt per user (min 0), batch size 1000.
-func (s *Service) DecayAllPoints(ctx context.Context) (int, error) {
-	affected, err := s.repo.DecayPoints(ctx, 1000)
+// DecayAllCoins runs the daily coin decay: -1 per user (min 0), batch size 1000.
+func (s *Service) DecayAllCoins(ctx context.Context) (int, error) {
+	affected, err := s.repo.DecayCoins(ctx, 1000)
 	if err != nil {
-		return 0, fmt.Errorf("decay all points: %w", err)
+		return 0, fmt.Errorf("decay all coins: %w", err)
 	}
 	return affected, nil
 }

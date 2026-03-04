@@ -8,31 +8,31 @@ import (
 )
 
 type mockRepo struct {
-	points     UserPoints
+	coins      UserCoins
 	earnResult bool
 	earnTotal  int
 	earnErr    error
 }
 
-func (m *mockRepo) GetUserPoints(_ context.Context, _ string) (UserPoints, error) {
-	return m.points, nil
+func (m *mockRepo) GetUserCoins(_ context.Context, _ string) (UserCoins, error) {
+	return m.coins, nil
 }
 
-func (m *mockRepo) EarnPoint(_ context.Context, _ string, _, _ uuid.UUID, _ int) (bool, int, error) {
+func (m *mockRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, _ int) (bool, int, error) {
 	return m.earnResult, m.earnTotal, m.earnErr
 }
 
-func (m *mockRepo) DecayPoints(_ context.Context, _ int) (int, error) {
+func (m *mockRepo) DecayCoins(_ context.Context, _ int) (int, error) {
 	return 0, nil
 }
 
-func (m *mockRepo) SetPoints(_ context.Context, _ string, _ int) error {
+func (m *mockRepo) SetCoins(_ context.Context, _ string, _ int) error {
 	return nil
 }
 
 func TestService_GetLevel(t *testing.T) {
-	// 100pt → Lv2 with thresholds [0, 50, 200, 500, 1000]
-	svc := NewService(&mockRepo{points: UserPoints{Points: 100}})
+	// 100코인 → Lv2 with thresholds [0, 50, 200, 500, 1000]
+	svc := NewService(&mockRepo{coins: UserCoins{Coins: 100}})
 	info, err := svc.GetLevel(context.Background(), "user1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -43,19 +43,19 @@ func TestService_GetLevel(t *testing.T) {
 	if info.CurrentProgress != 50 {
 		t.Errorf("CurrentProgress = %d, want 50 (100-50)", info.CurrentProgress)
 	}
-	if info.PointsToNext != 150 {
-		t.Errorf("PointsToNext = %d, want 150 (200-50)", info.PointsToNext)
+	if info.CoinsToNext != 150 {
+		t.Errorf("CoinsToNext = %d, want 150 (200-50)", info.CoinsToNext)
 	}
 }
 
-func TestService_EarnPoint_Success_LevelUp(t *testing.T) {
+func TestService_EarnCoin_Success_LevelUp(t *testing.T) {
 	// Lv1→Lv2: before=49, after=50
 	svc := NewService(&mockRepo{
-		points:     UserPoints{Points: 49},
+		coins:      UserCoins{Coins: 49},
 		earnResult: true,
 		earnTotal:  50,
 	})
-	res, err := svc.EarnPoint(context.Background(), "user1", uuid.New(), uuid.New(), false)
+	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -70,14 +70,14 @@ func TestService_EarnPoint_Success_LevelUp(t *testing.T) {
 	}
 }
 
-func TestService_EarnPoint_Success_NoLevelUp(t *testing.T) {
+func TestService_EarnCoin_Success_NoLevelUp(t *testing.T) {
 	// Within Lv2 range (50-199)
 	svc := NewService(&mockRepo{
-		points:     UserPoints{Points: 100},
+		coins:      UserCoins{Coins: 100},
 		earnResult: true,
 		earnTotal:  101,
 	})
-	res, err := svc.EarnPoint(context.Background(), "user1", uuid.New(), uuid.New(), false)
+	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -89,13 +89,13 @@ func TestService_EarnPoint_Success_NoLevelUp(t *testing.T) {
 	}
 }
 
-func TestService_EarnPoint_Duplicate(t *testing.T) {
+func TestService_EarnCoin_Duplicate(t *testing.T) {
 	svc := NewService(&mockRepo{
-		points:     UserPoints{Points: 20},
+		coins:      UserCoins{Coins: 20},
 		earnResult: false,
 		earnTotal:  0,
 	})
-	res, err := svc.EarnPoint(context.Background(), "user1", uuid.New(), uuid.New(), true)
+	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,9 +107,9 @@ func TestService_EarnPoint_Duplicate(t *testing.T) {
 	}
 }
 
-// TestEarnPoint_AllLevelTransitions checks every level-up boundary:
+// TestEarnCoin_AllLevelTransitions checks every level-up boundary:
 // Thresholds: [0, 50, 200, 500, 1000]
-func TestEarnPoint_AllLevelTransitions(t *testing.T) {
+func TestEarnCoin_AllLevelTransitions(t *testing.T) {
 	transitions := []struct {
 		name      string
 		before    int
@@ -128,11 +128,11 @@ func TestEarnPoint_AllLevelTransitions(t *testing.T) {
 	for _, tt := range transitions {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := NewService(&mockRepo{
-				points:     UserPoints{Points: tt.before},
+				coins:      UserCoins{Coins: tt.before},
 				earnResult: true,
 				earnTotal:  tt.after,
 			})
-			res, err := svc.EarnPoint(context.Background(), "user1", uuid.New(), uuid.New(), false)
+			res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), false)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -145,22 +145,22 @@ func TestEarnPoint_AllLevelTransitions(t *testing.T) {
 			if res.LeveledUp != tt.wantLevUp {
 				t.Errorf("LeveledUp = %v, want %v", res.LeveledUp, tt.wantLevUp)
 			}
-			if res.TotalPoints != tt.after {
-				t.Errorf("TotalPoints = %d, want %d", res.TotalPoints, tt.after)
+			if res.TotalCoins != tt.after {
+				t.Errorf("TotalCoins = %d, want %d", res.TotalCoins, tt.after)
 			}
 		})
 	}
 }
 
-// TestEarnPoint_AtMaxLevel verifies that earning at Lv5 records the point
+// TestEarnCoin_AtMaxLevel verifies that earning at Lv5 records the coin
 // but does not set LeveledUp (already max).
-func TestEarnPoint_AtMaxLevel(t *testing.T) {
+func TestEarnCoin_AtMaxLevel(t *testing.T) {
 	svc := NewService(&mockRepo{
-		points:     UserPoints{Points: 1050}, // already Lv5
+		coins:      UserCoins{Coins: 1050}, // already Lv5
 		earnResult: true,
 		earnTotal:  1051,
 	})
-	res, err := svc.EarnPoint(context.Background(), "user1", uuid.New(), uuid.New(), true)
+	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -173,21 +173,21 @@ func TestEarnPoint_AtMaxLevel(t *testing.T) {
 	if res.Level != MaxLevel {
 		t.Errorf("Level = %d, want %d", res.Level, MaxLevel)
 	}
-	if res.PointsToNext != 0 {
-		t.Errorf("PointsToNext = %d, want 0 at max level", res.PointsToNext)
+	if res.CoinsToNext != 0 {
+		t.Errorf("CoinsToNext = %d, want 0 at max level", res.CoinsToNext)
 	}
 }
 
-// TestEarnPoint_ProgressCalc verifies CurrentProgress and PointsToNext
+// TestEarnCoin_ProgressCalc verifies CurrentProgress and CoinsToNext
 // are calculated correctly within a level.
-func TestEarnPoint_ProgressCalc(t *testing.T) {
-	// Lv2: 50~199pt. At 100pt → progress=50 (100-50), needed=150 (200-50)
+func TestEarnCoin_ProgressCalc(t *testing.T) {
+	// Lv2: 50~199코인. At 100코인 → progress=50 (100-50), needed=150 (200-50)
 	svc := NewService(&mockRepo{
-		points:     UserPoints{Points: 99},
+		coins:      UserCoins{Coins: 99},
 		earnResult: true,
 		earnTotal:  100,
 	})
-	res, err := svc.EarnPoint(context.Background(), "user1", uuid.New(), uuid.New(), true)
+	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestEarnPoint_ProgressCalc(t *testing.T) {
 	if res.CurrentProgress != 50 {
 		t.Errorf("CurrentProgress = %d, want 50 (100-50)", res.CurrentProgress)
 	}
-	if res.PointsToNext != 150 {
-		t.Errorf("PointsToNext = %d, want 150 (200-50)", res.PointsToNext)
+	if res.CoinsToNext != 150 {
+		t.Errorf("CoinsToNext = %d, want 150 (200-50)", res.CoinsToNext)
 	}
 }

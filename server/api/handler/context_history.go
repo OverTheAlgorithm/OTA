@@ -76,15 +76,15 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 	}
 
 	// earnResult is only set when uid+rid are provided (i.e. opened from email link).
-	// nil means no point earning was attempted.
+	// nil means no coin earning was attempted.
 	// reason: "EARNED", "DUPLICATE", "EXPIRED"
 	type earnResult struct {
-		Attempted    bool   `json:"attempted"`
-		Earned       bool   `json:"earned"`
-		Reason       string `json:"reason"`
-		PointsEarned int    `json:"points_earned"`
-		LeveledUp    bool   `json:"leveled_up"`
-		NewLevel     int    `json:"new_level"`
+		Attempted   bool   `json:"attempted"`
+		Earned      bool   `json:"earned"`
+		Reason      string `json:"reason"`
+		CoinsEarned int    `json:"coins_earned"`
+		LeveledUp   bool   `json:"leveled_up"`
+		NewLevel    int    `json:"new_level"`
 	}
 	var earn *earnResult
 
@@ -106,13 +106,13 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 					log.Printf("failed to get subscriptions: %v", err)
 				} else {
 					preferred := level.IsPreferredCategory(topic.Category, subs)
-					result, earnErr := h.levelService.EarnPoint(c.Request.Context(), uid, runID, topic.ID, preferred)
+					result, earnErr := h.levelService.EarnCoin(c.Request.Context(), uid, runID, topic.ID, preferred)
 					if earnErr != nil {
-						log.Printf("earn point error: %v", earnErr)
+						log.Printf("earn coin error: %v", earnErr)
 					} else if result.Earned {
 						earn.Earned = true
 						earn.Reason = "EARNED"
-						earn.PointsEarned = result.PointsEarned
+						earn.CoinsEarned = result.CoinsEarned
 						earn.LeveledUp = result.LeveledUp
 						earn.NewLevel = result.Level
 					} else {

@@ -187,7 +187,7 @@ export interface TopicEarnResult {
   attempted: boolean;
   earned: boolean;
   reason: string; // "EARNED" | "DUPLICATE" | "EXPIRED"
-  points_earned: number;
+  coins_earned: number;
   leveled_up: boolean;
   new_level: number;
 }
@@ -334,18 +334,18 @@ export async function sendTestEmail(): Promise<TestEmailResult> {
 // ── 레벨 시스템 ─────────────────────────────────────
 export interface LevelInfo {
   level: number;
-  total_points: number;
+  total_coins: number;
   current_progress: number;
-  points_to_next: number;
+  coins_to_next: number;
   description: string;
 }
 
 export interface EarnResult {
   earned: boolean;
   level: number;
-  total_points: number;
+  total_coins: number;
   current_progress: number;
-  points_to_next: number;
+  coins_to_next: number;
   leveled_up: boolean;
 }
 

@@ -43,31 +43,31 @@ func (m *mockHistoryRepo) IsRunCreatedToday(_ context.Context, _ uuid.UUID) (boo
 
 // mockLevelRepo implements level.Repository for level.Service.
 type mockLevelRepo struct {
-	points    int
-	earnErr   error
+	coins         int
+	earnErr       error
 	alreadyEarned bool
 }
 
-func (m *mockLevelRepo) GetUserPoints(_ context.Context, userID string) (level.UserPoints, error) {
-	return level.UserPoints{UserID: userID, Points: m.points}, nil
+func (m *mockLevelRepo) GetUserCoins(_ context.Context, userID string) (level.UserCoins, error) {
+	return level.UserCoins{UserID: userID, Coins: m.coins}, nil
 }
 
-func (m *mockLevelRepo) EarnPoint(_ context.Context, _ string, _, _ uuid.UUID, pts int) (bool, int, error) {
+func (m *mockLevelRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, coins int) (bool, int, error) {
 	if m.earnErr != nil {
 		return false, 0, m.earnErr
 	}
 	if m.alreadyEarned {
 		return false, 0, nil
 	}
-	return true, m.points + pts, nil
+	return true, m.coins + coins, nil
 }
 
 
-func (m *mockLevelRepo) DecayPoints(_ context.Context, _ int) (int, error) {
+func (m *mockLevelRepo) DecayCoins(_ context.Context, _ int) (int, error) {
 	return 0, nil
 }
 
-func (m *mockLevelRepo) SetPoints(_ context.Context, _ string, _ int) error {
+func (m *mockLevelRepo) SetCoins(_ context.Context, _ string, _ int) error {
 	return nil
 }
 
@@ -141,7 +141,7 @@ func TestGetTopicByID_RepoError(t *testing.T) {
 	}
 }
 
-// TestGetTopicByID_NoRidUID: rid/uid 없이 조회하면 포인트 로직 없이 200 반환
+// TestGetTopicByID_NoRidUID: rid/uid 없이 조회하면 코인 로직 없이 200 반환
 func TestGetTopicByID_NoRidUID(t *testing.T) {
 	topicID := uuid.New()
 	repo := &mockHistoryRepo{
@@ -163,8 +163,8 @@ func TestGetTopicByID_NoRidUID(t *testing.T) {
 	}
 }
 
-// TestGetTopicByID_EarnPoint_PreferredCategory: 선호 카테고리 클릭 시 포인트 적립 (200)
-func TestGetTopicByID_EarnPoint_PreferredCategory(t *testing.T) {
+// TestGetTopicByID_EarnCoin_PreferredCategory: 선호 카테고리 클릭 시 코인 적립 (200)
+func TestGetTopicByID_EarnCoin_PreferredCategory(t *testing.T) {
 	topicID := uuid.New()
 	runID := uuid.New()
 	userID := uuid.New().String()
@@ -177,7 +177,7 @@ func TestGetTopicByID_EarnPoint_PreferredCategory(t *testing.T) {
 		},
 		isToday: true,
 	}
-	levelRepo := &mockLevelRepo{points: 0}
+	levelRepo := &mockLevelRepo{coins: 0}
 	svc := level.NewService(levelRepo)
 	sub := &mockSubGetter{subs: []string{"sports"}}
 
@@ -193,8 +193,8 @@ func TestGetTopicByID_EarnPoint_PreferredCategory(t *testing.T) {
 	}
 }
 
-// TestGetTopicByID_EarnPoint_NonPreferredCategory: 비선호 카테고리 클릭 시 더 많은 포인트 경로 (200)
-func TestGetTopicByID_EarnPoint_NonPreferredCategory(t *testing.T) {
+// TestGetTopicByID_EarnCoin_NonPreferredCategory: 비선호 카테고리 클릭 시 더 많은 코인 경로 (200)
+func TestGetTopicByID_EarnCoin_NonPreferredCategory(t *testing.T) {
 	topicID := uuid.New()
 	runID := uuid.New()
 	userID := uuid.New().String()
@@ -207,7 +207,7 @@ func TestGetTopicByID_EarnPoint_NonPreferredCategory(t *testing.T) {
 		},
 		isToday: true,
 	}
-	levelRepo := &mockLevelRepo{points: 0}
+	levelRepo := &mockLevelRepo{coins: 0}
 	svc := level.NewService(levelRepo)
 	sub := &mockSubGetter{subs: []string{"sports"}}
 
@@ -223,7 +223,7 @@ func TestGetTopicByID_EarnPoint_NonPreferredCategory(t *testing.T) {
 	}
 }
 
-// TestGetTopicByID_RidNotToday: rid가 오늘 생성된 것이 아니면 포인트 미적립하고 200 반환
+// TestGetTopicByID_RidNotToday: rid가 오늘 생성된 것이 아니면 코인 미적립하고 200 반환
 func TestGetTopicByID_RidNotToday(t *testing.T) {
 	topicID := uuid.New()
 	runID := uuid.New()
@@ -237,7 +237,7 @@ func TestGetTopicByID_RidNotToday(t *testing.T) {
 		},
 		isToday: false, // run은 오늘 생성된 것이 아님
 	}
-	levelRepo := &mockLevelRepo{points: 0}
+	levelRepo := &mockLevelRepo{coins: 0}
 	svc := level.NewService(levelRepo)
 
 	r := newTestRouter(repo, svc, &mockSubGetter{})
@@ -247,13 +247,13 @@ func TestGetTopicByID_RidNotToday(t *testing.T) {
 	req, _ := http.NewRequest("GET", url, nil)
 	r.ServeHTTP(w, req)
 
-	// 200 반환, 포인트는 적립 안 됨
+	// 200 반환, 코인은 적립 안 됨
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
 }
 
-// TestGetTopicByID_InvalidRID: rid가 UUID 형식이 아니면 포인트 로직을 건너뛰고 200 반환
+// TestGetTopicByID_InvalidRID: rid가 UUID 형식이 아니면 코인 로직을 건너뛰고 200 반환
 func TestGetTopicByID_InvalidRID(t *testing.T) {
 	topicID := uuid.New()
 	userID := uuid.New().String()
@@ -278,7 +278,7 @@ func TestGetTopicByID_InvalidRID(t *testing.T) {
 	}
 }
 
-// TestGetTopicByID_AlreadyEarned: 이미 동일 run+topic에서 포인트를 적립한 경우 중복 적립 없이 200 반환
+// TestGetTopicByID_AlreadyEarned: 이미 동일 run+topic에서 코인을 적립한 경우 중복 적립 없이 200 반환
 func TestGetTopicByID_AlreadyEarned(t *testing.T) {
 	topicID := uuid.New()
 	runID := uuid.New()
@@ -292,7 +292,7 @@ func TestGetTopicByID_AlreadyEarned(t *testing.T) {
 		},
 		isToday: true,
 	}
-	levelRepo := &mockLevelRepo{points: 5, alreadyEarned: true} // 이미 이전에 적립됨
+	levelRepo := &mockLevelRepo{coins: 5, alreadyEarned: true} // 이미 이전에 적립됨
 	svc := level.NewService(levelRepo)
 
 	r := newTestRouter(repo, svc, &mockSubGetter{subs: []string{}})
@@ -341,21 +341,21 @@ func TestGetTopicByID_TopicCategoryInResponse(t *testing.T) {
 	}
 }
 
-// ─── Verify level.CalcPoints point values match expected base values ──────────
+// ─── Verify level.CalcCoins coin values match expected base values ──────────
 
-// TestCalcPoints_Preferred: 선호 카테고리 포인트 확인
-func TestCalcPoints_Preferred(t *testing.T) {
-	pts := level.CalcPoints(true)
-	if pts != level.BasePointPreferred {
-		t.Errorf("expected %d for preferred, got %d", level.BasePointPreferred, pts)
+// TestCalcCoins_Preferred: 선호 카테고리 코인 확인
+func TestCalcCoins_Preferred(t *testing.T) {
+	coins := level.CalcCoins(true)
+	if coins != level.BaseCoinPreferred {
+		t.Errorf("expected %d for preferred, got %d", level.BaseCoinPreferred, coins)
 	}
 }
 
-// TestCalcPoints_NonPreferred: 비선호 카테고리 포인트 확인
-func TestCalcPoints_NonPreferred(t *testing.T) {
-	pts := level.CalcPoints(false)
-	if pts != level.BasePointNonPreferred {
-		t.Errorf("expected %d for non-preferred, got %d", level.BasePointNonPreferred, pts)
+// TestCalcCoins_NonPreferred: 비선호 카테고리 코인 확인
+func TestCalcCoins_NonPreferred(t *testing.T) {
+	coins := level.CalcCoins(false)
+	if coins != level.BaseCoinNonPreferred {
+		t.Errorf("expected %d for non-preferred, got %d", level.BaseCoinNonPreferred, coins)
 	}
 }
 

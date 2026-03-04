@@ -11,9 +11,9 @@ import (
 	"ota/storage"
 )
 
-// TestPointEarning_FirstEarn: 최초 포인트 획득 플로우를 검증합니다.
-// 오늘 생성된 run + 새 topic → 포인트가 적립되어야 합니다.
-func TestPointEarning_FirstEarn(t *testing.T) {
+// TestCoinEarning_FirstEarn: 최초 코인 획득 플로우를 검증합니다.
+// 오늘 생성된 run + 새 topic → 코인이 적립되어야 합니다.
+func TestCoinEarning_FirstEarn(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, "point_logs", "user_points", "context_items", "collection_runs", "users")
 
@@ -52,7 +52,7 @@ func TestPointEarning_FirstEarn(t *testing.T) {
 		t.Fatalf("failed to create context item: %v", err)
 	}
 
-	// 4. 포인트 적립 실행
+	// 4. 코인 적립 실행
 	levelRepo := storage.NewLevelRepository(db.Pool)
 	historyRepo := storage.NewHistoryRepository(db.Pool)
 	svc := level.NewService(levelRepo)
@@ -72,18 +72,18 @@ func TestPointEarning_FirstEarn(t *testing.T) {
 		t.Fatal("expected 'top' to be preferred")
 	}
 
-	result, err := svc.EarnPoint(ctx, userID, runID, itemID, preferred)
+	result, err := svc.EarnCoin(ctx, userID, runID, itemID, preferred)
 	if err != nil {
-		t.Fatalf("EarnPoint error: %v", err)
+		t.Fatalf("EarnCoin error: %v", err)
 	}
 
 	if !result.Earned {
-		t.Error("expected points to be earned")
+		t.Error("expected coins to be earned")
 	}
 
-	expectedPoints := level.CalcPoints(true) // 첫 적립, days=0
-	if result.PointsEarned != expectedPoints {
-		t.Errorf("expected %d points earned, got %d", expectedPoints, result.PointsEarned)
+	expectedCoins := level.CalcCoins(true) // 첫 적립, days=0
+	if result.CoinsEarned != expectedCoins {
+		t.Errorf("expected %d coins earned, got %d", expectedCoins, result.CoinsEarned)
 	}
 
 	// 5. DB에서 실제 point_log 확인
@@ -99,22 +99,22 @@ func TestPointEarning_FirstEarn(t *testing.T) {
 	}
 
 	// 6. user_points 총계 확인
-	var totalPoints int
+	var totalCoins int
 	err = db.Pool.QueryRow(ctx, `
 		SELECT points FROM user_points WHERE user_id = $1
-	`, userID).Scan(&totalPoints)
+	`, userID).Scan(&totalCoins)
 	if err != nil {
 		t.Fatalf("failed to get user_points: %v", err)
 	}
-	if totalPoints != expectedPoints {
-		t.Errorf("expected %d total points in DB, got %d", expectedPoints, totalPoints)
+	if totalCoins != expectedCoins {
+		t.Errorf("expected %d total coins in DB, got %d", expectedCoins, totalCoins)
 	}
 
-	t.Logf("✓ FirstEarn passed: +%dpt (preferred=top)", result.PointsEarned)
+	t.Logf("FirstEarn passed: +%d코인 (preferred=top)", result.CoinsEarned)
 }
 
-// TestPointEarning_DuplicateEarnBlocked: 같은 run+topic 조합으로 두 번 클릭 시 중복 적립 방지를 검증합니다.
-func TestPointEarning_DuplicateEarnBlocked(t *testing.T) {
+// TestCoinEarning_DuplicateEarnBlocked: 같은 run+topic 조합으로 두 번 클릭 시 중복 적립 방지를 검증합니다.
+func TestCoinEarning_DuplicateEarnBlocked(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, "point_logs", "user_points", "context_items", "collection_runs", "users")
 
@@ -155,18 +155,18 @@ func TestPointEarning_DuplicateEarnBlocked(t *testing.T) {
 	svc := level.NewService(levelRepo)
 
 	// 첫 번째 적립
-	result1, err := svc.EarnPoint(ctx, userID, runID, itemID, true)
+	result1, err := svc.EarnCoin(ctx, userID, runID, itemID, true)
 	if err != nil {
-		t.Fatalf("first EarnPoint error: %v", err)
+		t.Fatalf("first EarnCoin error: %v", err)
 	}
 	if !result1.Earned {
 		t.Error("expected first earn to succeed")
 	}
 
 	// 두 번째 클릭 (동일 run+item → 중복 방지)
-	result2, err := svc.EarnPoint(ctx, userID, runID, itemID, true)
+	result2, err := svc.EarnCoin(ctx, userID, runID, itemID, true)
 	if err != nil {
-		t.Fatalf("second EarnPoint error: %v", err)
+		t.Fatalf("second EarnCoin error: %v", err)
 	}
 	if result2.Earned {
 		t.Error("expected second earn to be blocked (duplicate)")
@@ -184,11 +184,11 @@ func TestPointEarning_DuplicateEarnBlocked(t *testing.T) {
 		t.Errorf("expected 1 point_log (no duplicate), got %d", logCount)
 	}
 
-	t.Log("✓ DuplicateEarnBlocked passed: second click correctly blocked")
+	t.Log("DuplicateEarnBlocked passed: second click correctly blocked")
 }
 
-// TestPointEarning_NonPreferredHigherPoints: 비선호 카테고리는 선호보다 더 많은 포인트를 획득합니다.
-func TestPointEarning_NonPreferredHigherPoints(t *testing.T) {
+// TestCoinEarning_NonPreferredHigherCoins: 비선호 카테고리는 선호보다 더 많은 코인을 획득합니다.
+func TestCoinEarning_NonPreferredHigherCoins(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, "point_logs", "user_points", "context_items", "collection_runs", "users")
 
@@ -227,28 +227,28 @@ func TestPointEarning_NonPreferredHigherPoints(t *testing.T) {
 	levelRepo := storage.NewLevelRepository(db.Pool)
 	svc := level.NewService(levelRepo)
 
-	// 비선호 카테고리로 포인트 적립
-	result, err := svc.EarnPoint(ctx, userID, runID, itemID, false)
+	// 비선호 카테고리로 코인 적립
+	result, err := svc.EarnCoin(ctx, userID, runID, itemID, false)
 	if err != nil {
-		t.Fatalf("EarnPoint error: %v", err)
+		t.Fatalf("EarnCoin error: %v", err)
 	}
 
-	expectedPoints := level.CalcPoints(false) // 비선호 기본 10pt
-	if result.PointsEarned != expectedPoints {
-		t.Errorf("expected %d points for non-preferred, got %d", expectedPoints, result.PointsEarned)
+	expectedCoins := level.CalcCoins(false) // 비선호 기본 10코인
+	if result.CoinsEarned != expectedCoins {
+		t.Errorf("expected %d coins for non-preferred, got %d", expectedCoins, result.CoinsEarned)
 	}
 
-	// 비선호 > 선호 포인트 확인
-	preferredPoints := level.CalcPoints(true)
-	if result.PointsEarned <= preferredPoints {
-		t.Errorf("non-preferred points (%d) should be greater than preferred (%d)", result.PointsEarned, preferredPoints)
+	// 비선호 > 선호 코인 확인
+	preferredCoins := level.CalcCoins(true)
+	if result.CoinsEarned <= preferredCoins {
+		t.Errorf("non-preferred coins (%d) should be greater than preferred (%d)", result.CoinsEarned, preferredCoins)
 	}
 
-	t.Logf("✓ NonPreferredHigherPoints passed: non-pref=%dpt, pref=%dpt", result.PointsEarned, preferredPoints)
+	t.Logf("NonPreferredHigherCoins passed: non-pref=%d코인, pref=%d코인", result.CoinsEarned, preferredCoins)
 }
 
-// TestPointEarning_IsRunCreatedToday_OldRun: 과거에 생성된 run이면 false를 반환합니다.
-func TestPointEarning_IsRunCreatedToday_OldRun(t *testing.T) {
+// TestCoinEarning_IsRunCreatedToday_OldRun: 과거에 생성된 run이면 false를 반환합니다.
+func TestCoinEarning_IsRunCreatedToday_OldRun(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, "collection_runs")
 
@@ -276,11 +276,11 @@ func TestPointEarning_IsRunCreatedToday_OldRun(t *testing.T) {
 		t.Error("expected old run to return false for IsRunCreatedToday")
 	}
 
-	t.Log("✓ IsRunCreatedToday_OldRun passed: correctly returned false for old run")
+	t.Log("IsRunCreatedToday_OldRun passed: correctly returned false for old run")
 }
 
-// TestPointEarning_LevelUp: 충분한 포인트 적립 시 레벨업 감지를 검증합니다.
-func TestPointEarning_LevelUp(t *testing.T) {
+// TestCoinEarning_LevelUp: 충분한 코인 적립 시 레벨업 감지를 검증합니다.
+func TestCoinEarning_LevelUp(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, "point_logs", "user_points", "context_items", "collection_runs", "users")
 
@@ -299,10 +299,10 @@ func TestPointEarning_LevelUp(t *testing.T) {
 	levelRepo := storage.NewLevelRepository(db.Pool)
 	svc := level.NewService(levelRepo)
 
-	// 레벨 1→2 경계(50pt)에 가깝게 사전 설정 (비선호 10pt → 40+10=50 → lv2)
+	// 레벨 1→2 경계(50코인)에 가깝게 사전 설정 (비선호 10코인 → 40+10=50 → lv2)
 	// level.Thresholds 기준: 0=lv1, 50=lv2, 200=lv3, 500=lv4, 1000=lv5
-	if err := levelRepo.SetPoints(ctx, userID, 40); err != nil {
-		t.Fatalf("SetPoints error: %v", err)
+	if err := levelRepo.SetCoins(ctx, userID, 40); err != nil {
+		t.Fatalf("SetCoins error: %v", err)
 	}
 
 	var runID uuid.UUID
@@ -325,10 +325,10 @@ func TestPointEarning_LevelUp(t *testing.T) {
 		t.Fatalf("failed to create item: %v", err)
 	}
 
-	// 비선호(10pt) 클릭 → 40+10=50pt → lv2
-	result, err := svc.EarnPoint(ctx, userID, runID, itemID, false)
+	// 비선호(10코인) 클릭 → 40+10=50코인 → lv2
+	result, err := svc.EarnCoin(ctx, userID, runID, itemID, false)
 	if err != nil {
-		t.Fatalf("EarnPoint error: %v", err)
+		t.Fatalf("EarnCoin error: %v", err)
 	}
 
 	if !result.Earned {
@@ -336,12 +336,12 @@ func TestPointEarning_LevelUp(t *testing.T) {
 	}
 
 	if !result.LeveledUp {
-		t.Errorf("expected level up, got level=%d totalPoints=%d", result.Level, result.TotalPoints)
+		t.Errorf("expected level up, got level=%d totalCoins=%d", result.Level, result.TotalCoins)
 	}
 
 	if result.Level < 2 {
 		t.Errorf("expected level >= 2 after levelup, got %d", result.Level)
 	}
 
-	t.Logf("✓ LevelUp passed: lv%d, totalPts=%d, leveledUp=%v", result.Level, result.TotalPoints, result.LeveledUp)
+	t.Logf("LevelUp passed: lv%d, totalCoins=%d, leveledUp=%v", result.Level, result.TotalCoins, result.LeveledUp)
 }

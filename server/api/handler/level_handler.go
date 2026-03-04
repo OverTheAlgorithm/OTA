@@ -30,8 +30,8 @@ func (h *LevelHandler) GetLevel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": info})
 }
 
-// EarnPoint handles POST /api/v1/level/earn
-func (h *LevelHandler) EarnPoint(c *gin.Context) {
+// EarnCoin handles POST /api/v1/level/earn
+func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	userID := c.GetString("userID")
 
 	var req struct {
@@ -56,9 +56,9 @@ func (h *LevelHandler) EarnPoint(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.EarnPoint(c.Request.Context(), userID, runID, itemID, req.Preferred)
+	result, err := h.service.EarnCoin(c.Request.Context(), userID, runID, itemID, req.Preferred)
 	if err != nil {
-		log.Printf("earn point error: %v", err)
+		log.Printf("earn coin error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -67,6 +67,6 @@ func (h *LevelHandler) EarnPoint(c *gin.Context) {
 }
 
 func (h *LevelHandler) RegisterRoutes(group *gin.RouterGroup) {
-	group.GET("", h.authMW, h.GetLevel)       // GET /api/v1/level
-	group.POST("/earn", h.authMW, h.EarnPoint) // POST /api/v1/level/earn
+	group.GET("", h.authMW, h.GetLevel)      // GET /api/v1/level
+	group.POST("/earn", h.authMW, h.EarnCoin) // POST /api/v1/level/earn
 }

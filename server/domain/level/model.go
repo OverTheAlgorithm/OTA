@@ -6,8 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Thresholds는 레벨별 누적 포인트 기준 (인덱스 = 레벨-1)
-// Lv1: 0pt~, Lv2: 50pt~, Lv3: 200pt~, Lv4: 500pt~, Lv5: 1000pt~
+// Thresholds는 레벨별 누적 코인 기준 (인덱스 = 레벨-1)
+// Lv1: 0~, Lv2: 50~, Lv3: 200~, Lv4: 500~, Lv5: 1000~
 var Thresholds = []int{0, 50, 200, 500, 1000}
 
 // Descriptions는 레벨별 설명
@@ -21,93 +21,93 @@ var Descriptions = []string{
 
 const MaxLevel = 5
 
-// Point constants for earn calculation.
+// Coin constants for earn calculation.
 const (
-	BasePointPreferred    = 5  // points for visiting a topic in a subscribed category
-	BasePointNonPreferred = 10 // points for visiting a topic outside subscribed categories
+	BaseCoinPreferred    = 5  // coins for visiting a topic in a subscribed category
+	BaseCoinNonPreferred = 10 // coins for visiting a topic outside subscribed categories
 )
 
-type UserPoints struct {
+type UserCoins struct {
 	UserID    string
-	Points    int
+	Coins     int
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-type PointLog struct {
+type CoinLog struct {
 	ID            uuid.UUID
 	UserID        string
 	RunID         uuid.UUID
 	ContextItemID uuid.UUID
-	PointsEarned  int
+	CoinsEarned   int
 	CreatedAt     time.Time
 }
 
 type LevelInfo struct {
 	Level           int    `json:"level"`
-	TotalPoints     int    `json:"total_points"`
+	TotalCoins      int    `json:"total_coins"`
 	CurrentProgress int    `json:"current_progress"`
-	PointsToNext    int    `json:"points_to_next"`
+	CoinsToNext     int    `json:"coins_to_next"`
 	Description     string `json:"description"`
 }
 
 type EarnResult struct {
 	Earned          bool `json:"earned"`
 	Level           int  `json:"level"`
-	TotalPoints     int  `json:"total_points"`
+	TotalCoins      int  `json:"total_coins"`
 	CurrentProgress int  `json:"current_progress"`
-	PointsToNext    int  `json:"points_to_next"`
+	CoinsToNext     int  `json:"coins_to_next"`
 	LeveledUp       bool `json:"leveled_up"`
-	PointsEarned    int  `json:"points_earned"`
+	CoinsEarned     int  `json:"coins_earned"`
 }
 
-// CalcLevel returns the level (1-5) for the given total accumulated points.
-func CalcLevel(totalPoints int) int {
+// CalcLevel returns the level (1-5) for the given total accumulated coins.
+func CalcLevel(totalCoins int) int {
 	lv := 1
 	for i := 1; i < len(Thresholds); i++ {
-		if totalPoints >= Thresholds[i] {
+		if totalCoins >= Thresholds[i] {
 			lv = i + 1
 		}
 	}
 	return lv
 }
 
-// CalcLevelInfo returns full level info for the given total accumulated points.
-func CalcLevelInfo(totalPoints int) LevelInfo {
-	lv := CalcLevel(totalPoints)
+// CalcLevelInfo returns full level info for the given total accumulated coins.
+func CalcLevelInfo(totalCoins int) LevelInfo {
+	lv := CalcLevel(totalCoins)
 	desc := Descriptions[lv-1]
 
 	if lv >= MaxLevel {
 		return LevelInfo{
 			Level:           lv,
-			TotalPoints:     totalPoints,
+			TotalCoins:      totalCoins,
 			CurrentProgress: 0,
-			PointsToNext:    0,
+			CoinsToNext:     0,
 			Description:     desc,
 		}
 	}
 
 	start := Thresholds[lv-1]
 	end := Thresholds[lv]
-	progress := totalPoints - start
+	progress := totalCoins - start
 	needed := end - start
 
 	return LevelInfo{
 		Level:           lv,
-		TotalPoints:     totalPoints,
+		TotalCoins:      totalCoins,
 		CurrentProgress: progress,
-		PointsToNext:    needed,
+		CoinsToNext:     needed,
 		Description:     desc,
 	}
 }
 
-// CalcPoints returns the points to award for visiting a topic.
+// CalcCoins returns the coins to award for visiting a topic.
 // preferred=true means the topic belongs to a category the user subscribes to.
-func CalcPoints(preferred bool) int {
+func CalcCoins(preferred bool) int {
 	if preferred {
-		return BasePointPreferred
+		return BaseCoinPreferred
 	}
-	return BasePointNonPreferred
+	return BaseCoinNonPreferred
 }
 
 // IsPreferredCategory returns true if the category is always shown (top/brief) or is in the user's subscriptions.

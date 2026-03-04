@@ -139,7 +139,7 @@ func renderNonPreferredDivider() string {
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f7ff;border-radius:16px;border:1px solid #7bc67e;">
           <tr><td style="padding:16px 24px;">
             <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#7bc67e;">🌱 시야를 넓힐 기회에요</p>
-            <p style="margin:0;font-size:12px;color:#6b8db5;">구독하지 않은 주제예요. 읽으면 더 많은 포인트를 얻어요!</p>
+            <p style="margin:0;font-size:12px;color:#6b8db5;">구독하지 않은 주제예요. 읽으면 더 많은 코인을 얻어요!</p>
           </td></tr>
         </table>
       </td></tr>
@@ -215,15 +215,15 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 
 	var progressText string
 	var progressPercent int
-	if info.PointsToNext == 0 {
+	if info.CoinsToNext == 0 {
 		progressText = `<p style="margin:0 0 5px;font-size:11px;color:#f0923b;font-weight:700;">MAX</p>`
 		progressPercent = 100
 	} else {
 		progressText = fmt.Sprintf(
 			`<p style="margin:0 0 5px;font-size:11px;color:#6b8db5;">%d / %d</p>`,
-			info.CurrentProgress, info.PointsToNext,
+			info.CurrentProgress, info.CoinsToNext,
 		)
-		progressPercent = int(float64(info.CurrentProgress) / float64(info.PointsToNext) * 100)
+		progressPercent = int(float64(info.CurrentProgress) / float64(info.CoinsToNext) * 100)
 	}
 
 	return fmt.Sprintf(`
@@ -246,7 +246,7 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
                     <div style="width:%d%%;height:100%%;background:linear-gradient(to right,#26b0ff,#7bc67e);border-radius:3px;"></div>
                   </div>
                   <p style="margin:0;font-size:11px;color:#6b8db5;">%s</p>
-                  <p style="margin:4px 0 0;font-size:10px;color:#a8bcc9;">🌈 토픽을 읽으면 포인트가 쌓여요</p>
+                  <p style="margin:4px 0 0;font-size:10px;color:#a8bcc9;">🌈 토픽을 읽으면 코인이 쌓여요</p>
                 </td>
               </tr>
             </table>
@@ -275,12 +275,12 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 
 		linkHTML := ""
 		if frontendURL != "" && len(item.Details) > 0 {
-			pts := calcPointsForLink(preferred, msgCtx)
-			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx, pts)
-			pointsLabel := buildPointsLabelFromPts(pts)
+			coins := calcCoinsForLink(preferred, msgCtx)
+			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx, coins)
+			coinsLabel := buildCoinsLabel(coins)
 			linkHTML = fmt.Sprintf(
 				`<p style="margin:10px 0 0;"><a href="%s" style="font-size:12px;color:#6b8db5;text-decoration:none;letter-spacing:0.01em;">%d개의 추가 정보가 있어요 →%s</a></p>`,
-				href, len(item.Details), pointsLabel,
+				href, len(item.Details), coinsLabel,
 			)
 		}
 
@@ -318,13 +318,13 @@ func renderEmailSection(title, accentColor string, items []collector.ContextItem
 `, accentColor, title, rows.String())
 }
 
-// calcPointsForLink returns the pre-calculated points value for embedding in links.
-// Returns 0 if msgCtx is nil (no point tracking).
-func calcPointsForLink(preferred bool, msgCtx *MessageContext) int {
+// calcCoinsForLink returns the pre-calculated coin value for embedding in links.
+// Returns 0 if msgCtx is nil (no coin tracking).
+func calcCoinsForLink(preferred bool, msgCtx *MessageContext) int {
 	if msgCtx == nil {
 		return 0
 	}
-	return level.CalcPoints(preferred)
+	return level.CalcCoins(preferred)
 }
 
 // buildTopicLink constructs the topic detail URL with optional uid/rid/pts tracking params.
@@ -340,12 +340,12 @@ func buildTopicLink(frontendURL, itemID string, msgCtx *MessageContext, pts int)
 	return link
 }
 
-// buildPointsLabelFromPts returns the " +Xpt" HTML span for the given points value.
-func buildPointsLabelFromPts(pts int) string {
-	if pts <= 0 {
+// buildCoinsLabel returns the " +X코인" HTML span for the given coin value.
+func buildCoinsLabel(coins int) string {
+	if coins <= 0 {
 		return ""
 	}
-	return fmt.Sprintf(`  <span style="font-size:11px;color:#7bc67e;font-weight:700;">+%dpt</span>`, pts)
+	return fmt.Sprintf(`  <span style="font-size:11px;color:#7bc67e;font-weight:700;">+%d코인</span>`, coins)
 }
 
 func groupByBrainCategory(items []collector.ContextItem) map[string][]collector.ContextItem {
@@ -365,13 +365,13 @@ func formatItemsAsText(items []collector.ContextItem, frontendURL string, prefer
 		}
 		line := fmt.Sprintf("%d. %s%s: %s", i+1, item.Topic, buzzStr, item.Summary)
 		if frontendURL != "" && len(item.Details) > 0 {
-			pts := calcPointsForLink(preferred, msgCtx)
-			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx, pts)
-			ptsLabel := ""
-			if pts > 0 {
-				ptsLabel = fmt.Sprintf(" +%dpt", pts)
+			coins := calcCoinsForLink(preferred, msgCtx)
+			href := buildTopicLink(frontendURL, item.ID.String(), msgCtx, coins)
+			coinsLabel := ""
+			if coins > 0 {
+				coinsLabel = fmt.Sprintf(" +%d코인", coins)
 			}
-			line += fmt.Sprintf("\n   👉 %d개의 추가 정보: %s%s", len(item.Details), href, ptsLabel)
+			line += fmt.Sprintf("\n   👉 %d개의 추가 정보: %s%s", len(item.Details), href, coinsLabel)
 		}
 		lines = append(lines, line)
 	}
