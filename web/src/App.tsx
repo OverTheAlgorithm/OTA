@@ -5,6 +5,8 @@ import { HomePage } from "@/pages/home";
 import { EmailVerificationPage } from "@/pages/email-verification";
 import { TopicPage } from "@/pages/topic";
 import { AdminPage } from "@/pages/admin";
+import { WithdrawalPage } from "@/pages/withdrawal";
+import { AdminWithdrawalsPage } from "@/pages/admin-withdrawals";
 
 function LoginRedirect() {
   const [searchParams] = useSearchParams();
@@ -23,6 +25,8 @@ function App() {
           <Route path="/email-verification" element={<EmailVerificationPage />} />
           <Route path="/topic/:id" element={<TopicPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/withdrawals" element={<AdminWithdrawalsPage />} />
+          <Route path="/withdrawal" element={<WithdrawalPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

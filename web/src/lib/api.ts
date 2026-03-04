@@ -203,12 +203,18 @@ export async function fetchTopicDetail(id: string): Promise<TopicDetail> {
 export async function earnCoinFromEmail(
   uid: string,
   runId: string,
-  contextItemId: string
+  contextItemId: string,
+  turnstileToken: string
 ): Promise<TopicEarnResult> {
   const res = await fetch(`${API_BASE}/api/v1/level/earn`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ uid, run_id: runId, context_item_id: contextItemId }),
+    body: JSON.stringify({
+      uid,
+      run_id: runId,
+      context_item_id: contextItemId,
+      turnstile_token: turnstileToken,
+    }),
   });
   if (!res.ok) throw new Error("earn_failed");
   const body: ApiResponse<TopicEarnResult> = await res.json();
@@ -371,4 +377,178 @@ export async function getUserLevel(): Promise<LevelInfo> {
   if (!res.ok) throw new Error("Failed to fetch level");
   const body: ApiResponse<LevelInfo> = await res.json();
   return body.data;
+}
+
+// ── 출금 ─────────────────────────────────────────────
+export interface BankAccount {
+  user_id: string;
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
+}
+
+export interface WithdrawalTransition {
+  id: string;
+  withdrawal_id: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  note: string;
+  actor_id: string;
+  actor_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WithdrawalDetail {
+  id: string;
+  user_id: string;
+  amount: number;
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
+  created_at: string;
+  current_status: "pending" | "approved" | "rejected" | "cancelled";
+  transitions: WithdrawalTransition[];
+}
+
+export interface WithdrawalListItem {
+  id: string;
+  user_id: string;
+  amount: number;
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
+  created_at: string;
+  current_status: "pending" | "approved" | "rejected" | "cancelled";
+  user_nickname: string;
+  user_email: string;
+}
+
+export interface WithdrawalInfo {
+  min_withdrawal_amount: number;
+}
+
+export async function getWithdrawalInfo(): Promise<WithdrawalInfo> {
+  const res = await fetch(`${API_BASE}/api/v1/withdrawal/info`, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to fetch withdrawal info");
+  const body: ApiResponse<WithdrawalInfo> = await res.json();
+  return body.data;
+}
+
+export async function getBankAccount(): Promise<BankAccount | null> {
+  const res = await fetch(`${API_BASE}/api/v1/withdrawal/bank-account`, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to fetch bank account");
+  const body: ApiResponse<BankAccount | null> = await res.json();
+  return body.data;
+}
+
+export async function saveBankAccount(data: Omit<BankAccount, "user_id">): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/withdrawal/bank-account`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "계좌 저장에 실패했습니다");
+  }
+}
+
+export async function requestWithdrawal(amount: number): Promise<WithdrawalDetail> {
+  const res = await fetch(`${API_BASE}/api/v1/withdrawal/request`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amount }),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "출금 신청에 실패했습니다");
+  }
+  const body: ApiResponse<WithdrawalDetail> = await res.json();
+  return body.data;
+}
+
+export async function getWithdrawalHistory(
+  limit: number,
+  offset: number
+): Promise<{ data: WithdrawalDetail[]; has_more: boolean }> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/withdrawal/history?limit=${limit}&offset=${offset}`,
+    { credentials: "include" }
+  );
+  if (!res.ok) throw new Error("Failed to fetch withdrawal history");
+  const body = await res.json();
+  return { data: body.data ?? [], has_more: body.has_more ?? false };
+}
+
+export async function cancelWithdrawal(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/withdrawal/${id}/cancel`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "출금 취소에 실패했습니다");
+  }
+}
+
+// ── 출금 관리자 ──────────────────────────────────────
+export async function getAdminWithdrawals(
+  status: string,
+  limit: number,
+  offset: number
+): Promise<{ data: WithdrawalListItem[]; total: number }> {
+  let url = `${API_BASE}/api/v1/admin/withdrawals?limit=${limit}&offset=${offset}`;
+  if (status) url += `&status=${encodeURIComponent(status)}`;
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to fetch admin withdrawals");
+  const body = await res.json();
+  return { data: body.data ?? [], total: body.total ?? 0 };
+}
+
+export async function getAdminWithdrawalDetail(id: string): Promise<WithdrawalDetail> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/withdrawals/${id}`, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to fetch withdrawal detail");
+  const body: ApiResponse<WithdrawalDetail> = await res.json();
+  return body.data;
+}
+
+export async function approveWithdrawal(id: string, note: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/withdrawals/${id}/approve`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "승인에 실패했습니다");
+  }
+}
+
+export async function rejectWithdrawal(id: string, note: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/withdrawals/${id}/reject`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "거절에 실패했습니다");
+  }
+}
+
+export async function updateTransitionNote(transitionId: string, note: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/withdrawals/transitions/${transitionId}/note`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "비고 수정에 실패했습니다");
+  }
 }

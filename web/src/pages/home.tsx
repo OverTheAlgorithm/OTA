@@ -104,7 +104,15 @@ export function HomePage() {
 
       <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 space-y-6">
         {levelInfo ? (
-          <LevelCard level={levelInfo} />
+          <div className="space-y-3">
+            <LevelCard level={levelInfo} />
+            <Link
+              to="/withdrawal"
+              className="block w-full text-center py-3 rounded-xl font-semibold text-sm transition-colors border border-[#4a9fe5]/30 bg-[#4a9fe5]/10 text-[#4a9fe5] hover:bg-[#4a9fe5]/20"
+            >
+              출금하기
+            </Link>
+          </div>
         ) : (
           <div className="rounded-2xl bg-gradient-to-br from-[#f0f7ff] to-[#e8f4fd] border border-[#d4e6f5] px-6 py-5 flex items-center justify-between">
             <div>

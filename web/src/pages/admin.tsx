@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import {
   triggerCollection,
@@ -290,6 +290,20 @@ export function AdminPage() {
             </button>
           </div>
         </div>
+
+        <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
+          <h2 className="text-lg font-semibold">출금 관리</h2>
+          <p className="text-sm text-[#6b8db5]">
+            유저의 출금 신청을 확인하고 승인/거절할 수 있습니다.
+          </p>
+          <Link
+            to="/admin/withdrawals"
+            className="inline-block px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors"
+            style={{ background: "var(--color-button-primary)", color: "white" }}
+          >
+            출금 관리 페이지로 이동
+          </Link>
+        </section>
 
         <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
           <h2 className="text-lg font-semibold">데이터 수집</h2>
