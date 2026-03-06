@@ -68,7 +68,7 @@ When writing summaries and details for each topic:
 
 3. **Categorize**: Assign each topic to one of these categories:
    - "top": Topics people actively discuss at work/school ("Did you hear about...?"). Must be 3-5 items.
-   - "brief": Important but not conversational (disasters, diplomacy, law changes). 0-2 items, 1-sentence summary, empty details [].
+   - "brief": Important but not conversational (disasters, diplomacy, law changes). 0-2 items, 1-sentence summary, shorter details (1 entry minimum).
    - Domain categories (optional, 1-3 each): "entertainment", "politics", "economy", "sports", "technology", "society"
 
    **IMPORTANT — Topic Diversity**:
@@ -86,9 +86,16 @@ When writing summaries and details for each topic:
    - Every topic MUST have a brain_category (do not leave it empty).
    - Multiple topics can share the same brain_category.
 
-5. **Write**: For each topic, produce a Korean summary in a friendly, polite tone.
-   - Read article URLs as needed to get specific details (quotes, numbers, context).
-   - For "top" items, always try to read at least one article URL to ensure accuracy.
+5. **Write (Chain-of-Thought — follow this order STRICTLY)**:
+   For each topic, build the output BOTTOM-UP. Each step uses ONLY the result of the previous step.
+
+   **Step A → sources**: Pick the most relevant article URLs from the collected data for this topic. Every topic MUST have at least 1 source. Copy-paste URLs verbatim.
+   **Step B → details**: Based ONLY on the selected sources, write structured detail entries. Read article URLs as needed for specifics (quotes, numbers, context). Every topic MUST have at least 1 entry.
+   **Step C → detail**: Summarize ONLY what is covered in the details entries into a cohesive 3-5 sentence paragraph.
+   **Step D → summary**: Condense ONLY the detail paragraph into 1-3 conversation-starter sentences.
+   **Step E → topic**: Create a specific, concise title that accurately reflects ONLY what summary covers. Do NOT mention anything in the title that is not backed by sources and details.
+
+   This order guarantees consistency: the title never promises content that details/sources cannot deliver.
 
 ## buzz_score Calculation Rules
 Calculate buzz_score (1-100) based on CONCRETE DATA, not gut feeling:
@@ -100,10 +107,10 @@ Calculate buzz_score (1-100) based on CONCRETE DATA, not gut feeling:
 - Cap at 100. The #1 "top" item must score >= 70.
 
 ## sources Rules
+- Every topic MUST have at least 1 source URL. A topic without sources is invalid and must be dropped.
 - ONLY use URLs that appear EXACTLY in the collected data above. Copy-paste them verbatim.
 - Do NOT modify, shorten, or reconstruct any URL.
 - Do NOT generate, guess, or hallucinate any URLs.
-- If a topic has no article URLs in the collected data, use an empty array [].
 - Google News redirect URLs (news.google.com/rss/articles/...) are acceptable — they will be resolved later.
 
 ## Output Format
@@ -138,15 +145,16 @@ Types of content for each entry:
 - Related statistics or numbers + what they mean in context
 - Connection to previous events + how this changes things
 - Expected next developments + what experts/insiders are saying
-MUST include at least 1 entry for all non-"brief" items — users tap into the detail page to read these and access source links.
-Empty array [] is only allowed for "brief" category. MUST NOT repeat summary or detail content.
+MUST include at least 1 entry for ALL items including "brief" — users tap into the detail page to read these and access source links.
+Empty array [] is NEVER allowed. MUST NOT repeat summary or detail content.
 
 ## Critical Rules
 1. Only use topics from the collected data. Do NOT add topics you found yourself.
 2. Every source URL must come from the collected data. No invented URLs.
 3. Write in Korean. Instructions are in English for precision, but all topic/summary/detail/details must be Korean.
 4. Pure JSON only. No markdown fences.
-5. Details must cover everything in the topic title. If the topic title mentions multiple subjects (e.g. "영화 X 흥행과 배우 Y 논란"), EVERY subject mentioned in the title MUST have at least one corresponding details entry. Users see the title first and expect details to explain it — a title claiming "배우 Y 논란" with no details about Y is a critical failure.`, dateStr, collectedData, formatBrainCategoryList(brainCategories), jsonFormatExample())
+5. Follow the Chain-of-Thought order (sources → details → detail → summary → topic). The topic title is generated LAST and must ONLY describe what is already covered in details and sources. A title that promises content not backed by details/sources is a critical failure.
+6. Every topic MUST have at least 1 source and at least 1 details entry. No empty arrays.`, dateStr, collectedData, formatBrainCategoryList(brainCategories), jsonFormatExample())
 }
 
 // jsonFormatExample returns the JSON schema example used in the AI prompt.
@@ -188,10 +196,12 @@ func jsonFormatExample() string {
       "rank": 1,
       "topic": "[사건/주제] 간단한 제목",
       "summary": "한 문장으로 요약. 대화 소재는 아니지만 알아두면 좋은 정보.",
-      "detail": "",
-      "details": [],
+      "detail": "사건의 핵심 배경과 의미를 2-3문장으로 설명해요.",
+      "details": [
+        {"title": "핵심 사실 요약", "content": "관련된 구체적 수치나 맥락을 1-2문장으로 설명해요."}
+      ],
       "buzz_score": 55,
-      "sources": []
+      "sources": ["https://news.example.com/article/12345"]
     },
     {
       "category": "entertainment",
@@ -204,7 +214,7 @@ func jsonFormatExample() string {
         {"title": "방송 직후 실시간 검색어 1위에 올랐어요", "content": "해당 장면이 캡처돼 온라인 커뮤니티에 퍼지면서 '이게 말이 돼?'라는 반응이 쏟아졌어요. 제작진도 예상 못한 전개였다는 후문이에요."}
       ],
       "buzz_score": 65,
-      "sources": []
+      "sources": ["https://entertain.example.com/news/67890"]
     }
   ]
 }`
