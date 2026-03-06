@@ -8,6 +8,7 @@ import {
   type TopicDetail,
   type TopicEarnResult,
 } from "@/lib/api";
+import { detectAdBlock } from "@/lib/adblock";
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"; // Dummy testing key if env not configured
 
@@ -274,32 +275,40 @@ export function TopicPage() {
 
     // 2. Init-earn (only when uid + rid provided)
     if (uid && rid) {
-      initEarn(uid, rid, id)
-        .then((result) => {
-          switch (result.status) {
-            case "PENDING": {
-              const n = result.required_seconds ?? 10;
-              startCountdown(n, id);
-              break;
+      detectAdBlock().then((blocked) => {
+        if (blocked) {
+          setToast({ kind: "info", message: "광고 차단을 해제해야 코인을 받을 수 있어요." });
+          toastClearRef.current = setTimeout(() => setToast(null), 5000);
+          return;
+        }
+
+        initEarn(uid, rid, id)
+          .then((result) => {
+            switch (result.status) {
+              case "PENDING": {
+                const n = result.required_seconds ?? 10;
+                startCountdown(n, id);
+                break;
+              }
+              case "EXPIRED":
+                setToast({ kind: "info", message: "코인 획득 기간이 지났어요." });
+                toastClearRef.current = setTimeout(() => setToast(null), 3200);
+                break;
+              case "DUPLICATE":
+                setToast({ kind: "info", message: "이미 이 주제의 코인을 받았어요." });
+                toastClearRef.current = setTimeout(() => setToast(null), 3200);
+                break;
+              case "DAILY_LIMIT":
+                setToast({ kind: "info", message: "오늘 코인 획득 한도를 채웠어요." });
+                toastClearRef.current = setTimeout(() => setToast(null), 3200);
+                break;
             }
-            case "EXPIRED":
-              setToast({ kind: "info", message: "코인 획득 기간이 지났어요." });
-              toastClearRef.current = setTimeout(() => setToast(null), 3200);
-              break;
-            case "DUPLICATE":
-              setToast({ kind: "info", message: "이미 이 주제의 코인을 받았어요." });
-              toastClearRef.current = setTimeout(() => setToast(null), 3200);
-              break;
-            case "DAILY_LIMIT":
-              setToast({ kind: "info", message: "오늘 코인 획득 한도를 채웠어요." });
-              toastClearRef.current = setTimeout(() => setToast(null), 3200);
-              break;
-          }
-        })
-        .catch(() => {
-          setToast({ kind: "error", message: "잠시 후 다시 시도해 주세요." });
-          toastClearRef.current = setTimeout(() => setToast(null), 3200);
-        });
+          })
+          .catch(() => {
+            setToast({ kind: "error", message: "잠시 후 다시 시도해 주세요." });
+            toastClearRef.current = setTimeout(() => setToast(null), 3200);
+          });
+      });
     }
 
     return () => clearTimers();
@@ -347,6 +356,14 @@ export function TopicPage() {
       </header>
 
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+        {topic.image_url && (
+          <img
+            src={topic.image_url}
+            alt=""
+            className="w-full rounded-xl"
+            style={{ maxHeight: "360px", objectFit: "cover" }}
+          />
+        )}
         <div>
           <p className="text-sm mb-3" style={{ color: "var(--color-text-secondary)" }}>
             {formatDate(topic.created_at)}
