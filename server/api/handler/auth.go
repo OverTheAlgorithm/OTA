@@ -15,22 +15,31 @@ import (
 
 const cookieName = "ota_token"
 
+// SignupBonusGranter grants bonus coins to newly registered users.
+type SignupBonusGranter interface {
+	SetCoins(ctx context.Context, userID string, coins int) error
+}
+
 type AuthHandler struct {
 	kakao            *kakao.Client
 	jwt              *auth.JWTManager
 	states           *auth.StateStore
 	userRepo         user.Repository
 	welcomeDeliverer delivery.WelcomeDeliverer
+	bonusGranter     SignupBonusGranter
+	signupBonus      int
 	frontendURL      string
 }
 
-func NewAuthHandler(kakao *kakao.Client, jwt *auth.JWTManager, states *auth.StateStore, userRepo user.Repository, welcomeDeliverer delivery.WelcomeDeliverer, frontendURL string) *AuthHandler {
+func NewAuthHandler(kakao *kakao.Client, jwt *auth.JWTManager, states *auth.StateStore, userRepo user.Repository, welcomeDeliverer delivery.WelcomeDeliverer, bonusGranter SignupBonusGranter, signupBonus int, frontendURL string) *AuthHandler {
 	return &AuthHandler{
 		kakao:            kakao,
 		jwt:              jwt,
 		states:           states,
 		userRepo:         userRepo,
 		welcomeDeliverer: welcomeDeliverer,
+		bonusGranter:     bonusGranter,
+		signupBonus:      signupBonus,
 		frontendURL:      frontendURL,
 	}
 }
@@ -105,16 +114,26 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 		SameSite: http.SameSiteNoneMode,
 	})
 
-	// Send welcome delivery to newly registered users
+	// Grant signup bonus coins and send welcome delivery to newly registered users
 	isNewUser := u.CreatedAt.Equal(u.UpdatedAt)
-	if isNewUser && u.Email != "" && h.welcomeDeliverer != nil {
-		go func() {
-			if err := h.welcomeDeliverer.DeliverToNewUser(context.Background(), u.ID, u.Email); err != nil {
-				log.Printf("welcome delivery failed for user %s: %v", u.ID, err)
+	if isNewUser {
+		if h.signupBonus > 0 && h.bonusGranter != nil {
+			if err := h.bonusGranter.SetCoins(c.Request.Context(), u.ID, h.signupBonus); err != nil {
+				log.Printf("signup bonus grant failed for user %s: %v", u.ID, err)
 			} else {
-				log.Printf("welcome delivery sent to new user %s (%s)", u.ID, u.Email)
+				log.Printf("granted %d signup bonus coins to new user %s", h.signupBonus, u.ID)
 			}
-		}()
+		}
+
+		if u.Email != "" && h.welcomeDeliverer != nil {
+			go func() {
+				if err := h.welcomeDeliverer.DeliverToNewUser(context.Background(), u.ID, u.Email); err != nil {
+					log.Printf("welcome delivery failed for user %s: %v", u.ID, err)
+				} else {
+					log.Printf("welcome delivery sent to new user %s (%s)", u.ID, u.Email)
+				}
+			}()
+		}
 	}
 
 	c.Redirect(http.StatusFound, h.frontendURL+"/home")

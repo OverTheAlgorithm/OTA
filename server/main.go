@@ -38,10 +38,10 @@ func (a *levelServiceAdapter) GetLevel(ctx context.Context, userID string) (deli
 		return delivery.UserLevelInfo{}, err
 	}
 	return delivery.UserLevelInfo{
-		Level:           info.Level,
-		CurrentProgress: info.CurrentProgress,
-		CoinsToNext:     info.CoinsToNext,
-		Description:     info.Description,
+		Level:       info.Level,
+		TotalCoins:  info.TotalCoins,
+		DailyLimit:  info.DailyLimit,
+		Description: info.Description,
 	}, nil
 }
 
@@ -108,6 +108,19 @@ func main() {
 	brainCategoryRepo := storage.NewBrainCategoryRepository(pool)
 	collectorService.WithBrainCategoryRepo(brainCategoryRepo)
 
+	// Image generation (optional — only if model is configured)
+	const imageBaseDir = "data/images"
+	if cfg.ImageGenerationModel != "" {
+		imgClient, imgErr := gemini.NewImageClient(ctx, cfg.GeminiAPIKey, cfg.ImageGenerationModel)
+		if imgErr != nil {
+			log.Printf("warning: image generation disabled — %v", imgErr)
+		} else {
+			imageGen := collector.NewImageGenerator(imgClient, imageBaseDir)
+			collectorService.WithImageGenerator(imageGen)
+			log.Printf("image generation initialized (model: %s)", cfg.ImageGenerationModel)
+		}
+	}
+
 	// Message delivery
 	emailSender := email.NewSMTPSender(email.SMTPConfig{
 		Host:     cfg.SMTPHost,
@@ -123,7 +136,8 @@ func main() {
 
 	// Level
 	levelRepo := storage.NewLevelRepository(pool)
-	levelService := level.NewService(levelRepo, cfg.DailyCoinLimit)
+	levelCfg := level.NewLevelConfig(cfg.CoinCap, cfg.CoinsPerLevel)
+	levelService := level.NewService(levelRepo, levelCfg, cfg.DailyCoinLimit, cfg.ExtraCoinLimitPerLevel)
 
 	// Withdrawal
 	withdrawalRepo := storage.NewWithdrawalRepository(pool)
@@ -154,7 +168,7 @@ func main() {
 	kakaoClient := kakao.NewClient(cfg.KakaoClientID, cfg.KakaoClientSecret, cfg.KakaoRedirectURI)
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
 	stateStore := auth.NewStateStore()
-	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, cfg.FrontendURL)
+	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, levelRepo, cfg.SignupBonusCoins, cfg.FrontendURL)
 	brainCategoryHandler := handler.NewBrainCategoryHandler(brainCategoryRepo)
 	deliveryHandler := api.NewDeliveryHandler(deliveryService, api.AuthMiddleware(jwtManager))
 	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo, deliveryService, userRepo)
@@ -248,6 +262,9 @@ func main() {
 			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
 		},
 	})
+
+	// Serve generated images from local disk
+	r.Static("/api/v1/images", imageBaseDir)
 
 	log.Printf("server starting on :%s", cfg.ServerPort)
 	if err := r.Run(":" + cfg.ServerPort); err != nil {

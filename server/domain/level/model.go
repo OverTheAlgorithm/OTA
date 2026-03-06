@@ -6,11 +6,43 @@ import (
 	"github.com/google/uuid"
 )
 
-// Thresholds는 레벨별 누적 코인 기준 (인덱스 = 레벨-1)
-// Lv1: 0~, Lv2: 50~, Lv3: 200~, Lv4: 500~, Lv5: 1000~
-var Thresholds = []int{0, 50, 200, 500, 1000}
+// LevelConfig holds dynamic level thresholds computed from environment config.
+type LevelConfig struct {
+	CoinCap       int   // maximum coins a user can hold
+	CoinsPerLevel int   // coins per level transition
+	MaxLevel      int   // derived: CoinCap / CoinsPerLevel
+	Thresholds    []int // derived: [0, coinsPerLevel, 2*coinsPerLevel, ...]
+}
 
-// Descriptions는 레벨별 설명
+// NewLevelConfig creates a LevelConfig from coinCap and coinsPerLevel.
+// Example: coinCap=5000, coinsPerLevel=1000 → MaxLevel=5, Thresholds=[0,1000,2000,3000,4000]
+func NewLevelConfig(coinCap, coinsPerLevel int) LevelConfig {
+	maxLevel := coinCap / coinsPerLevel
+	thresholds := make([]int, maxLevel)
+	for i := range thresholds {
+		thresholds[i] = i * coinsPerLevel
+	}
+	return LevelConfig{
+		CoinCap:       coinCap,
+		CoinsPerLevel: coinsPerLevel,
+		MaxLevel:      maxLevel,
+		Thresholds:    thresholds,
+	}
+}
+
+// CalcLevel returns the level (1..MaxLevel) for the given total coins.
+func (lc LevelConfig) CalcLevel(totalCoins int) int {
+	lv := 1
+	for i := 1; i < len(lc.Thresholds); i++ {
+		if totalCoins >= lc.Thresholds[i] {
+			lv = i + 1
+		}
+	}
+	return lv
+}
+
+// Descriptions are level descriptions indexed by level-1.
+// When MaxLevel exceeds len(Descriptions), the last entry is reused.
 var Descriptions = []string{
 	"알고리즘 속에 갇혀 있어요",
 	"구름 너머를 엿보기 시작했어요",
@@ -19,7 +51,14 @@ var Descriptions = []string{
 	"알고리즘을 완전히 넘어섰어요!",
 }
 
-const MaxLevel = 5
+// Description returns the description string for the given level.
+func (lc LevelConfig) Description(lv int) string {
+	idx := lv - 1
+	if idx >= len(Descriptions) {
+		idx = len(Descriptions) - 1
+	}
+	return Descriptions[idx]
+}
 
 // Coin constants for earn calculation.
 const (
@@ -51,66 +90,48 @@ type CoinLog struct {
 }
 
 type LevelInfo struct {
-	Level           int    `json:"level"`
-	TotalCoins      int    `json:"total_coins"`
-	CurrentProgress int    `json:"current_progress"`
-	CoinsToNext     int    `json:"coins_to_next"`
-	Description     string `json:"description"`
+	Level       int    `json:"level"`
+	TotalCoins  int    `json:"total_coins"`
+	DailyLimit  int    `json:"daily_limit"`
+	CoinCap     int    `json:"coin_cap"`
+	Thresholds  []int  `json:"thresholds"`
+	Description string `json:"description"`
 }
 
 type EarnResult struct {
-	Earned          bool   `json:"earned"`
-	Reason          string `json:"reason"`
-	Level           int    `json:"level"`
-	TotalCoins      int    `json:"total_coins"`
-	CurrentProgress int    `json:"current_progress"`
-	CoinsToNext     int    `json:"coins_to_next"`
-	LeveledUp       bool   `json:"leveled_up"`
-	CoinsEarned     int    `json:"coins_earned"`
+	Earned      bool   `json:"earned"`
+	Reason      string `json:"reason"`
+	Level       int    `json:"level"`
+	TotalCoins  int    `json:"total_coins"`
+	DailyLimit  int    `json:"daily_limit"`
+	LeveledUp   bool   `json:"leveled_up"`
+	CoinsEarned int    `json:"coins_earned"`
 }
 
-// CalcLevel returns the level (1-5) for the given total accumulated coins.
-func CalcLevel(totalCoins int) int {
-	lv := 1
-	for i := 1; i < len(Thresholds); i++ {
-		if totalCoins >= Thresholds[i] {
-			lv = i + 1
-		}
+// CalcDailyLimit returns the daily coin earning limit for the given level.
+// Formula: baseDailyLimit + (level * extraPerLevel).
+// Returns 0 (unlimited) when baseDailyLimit is 0.
+func CalcDailyLimit(level, baseDailyLimit, extraPerLevel int) int {
+	if baseDailyLimit == 0 {
+		return 0
 	}
-	return lv
+	return baseDailyLimit + (level * extraPerLevel)
 }
 
-// CalcLevelInfo returns full level info for the given total accumulated coins.
-func CalcLevelInfo(totalCoins int) LevelInfo {
-	lv := CalcLevel(totalCoins)
-	desc := Descriptions[lv-1]
-
-	if lv >= MaxLevel {
-		return LevelInfo{
-			Level:           lv,
-			TotalCoins:      totalCoins,
-			CurrentProgress: 0,
-			CoinsToNext:     0,
-			Description:     desc,
-		}
-	}
-
-	start := Thresholds[lv-1]
-	end := Thresholds[lv]
-	progress := totalCoins - start
-	needed := end - start
-
+// CalcLevelInfo returns full level info using the given LevelConfig.
+func CalcLevelInfo(totalCoins int, lc LevelConfig, baseDailyLimit, extraPerLevel int) LevelInfo {
+	lv := lc.CalcLevel(totalCoins)
 	return LevelInfo{
-		Level:           lv,
-		TotalCoins:      totalCoins,
-		CurrentProgress: progress,
-		CoinsToNext:     needed,
-		Description:     desc,
+		Level:       lv,
+		TotalCoins:  totalCoins,
+		DailyLimit:  CalcDailyLimit(lv, baseDailyLimit, extraPerLevel),
+		CoinCap:     lc.CoinCap,
+		Thresholds:  lc.Thresholds,
+		Description: lc.Description(lv),
 	}
 }
 
 // CalcCoins returns the coins to award for visiting a topic.
-// preferred=true means the topic belongs to a category the user subscribes to.
 func CalcCoins(preferred bool) int {
 	if preferred {
 		return BaseCoinPreferred

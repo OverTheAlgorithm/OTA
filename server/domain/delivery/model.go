@@ -101,10 +101,10 @@ type EligibleUser struct {
 
 // UserLevelInfo holds per-user level data for email rendering. Nil = no level card.
 type UserLevelInfo struct {
-	Level           int
-	CurrentProgress int
-	CoinsToNext     int
-	Description     string
+	Level       int
+	TotalCoins  int
+	DailyLimit  int
+	Description string
 }
 
 // MessageContext holds per-user context for personalized link generation and coin display.

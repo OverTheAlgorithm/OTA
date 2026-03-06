@@ -172,7 +172,7 @@ func TestEarnCoin_Success_Preferred(t *testing.T) {
 		topic:   &collector.TopicDetail{ID: topicID, Category: "sports", Topic: "스포츠"},
 		isToday: true,
 	}
-	svc := level.NewService(&mockLevelRepo{coins: 0}, 0)
+	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
 	sub := &mockSubGetterLevel{subs: []string{"sports"}}
 
 	// Pre-populate cache to simulate N-seconds having elapsed
@@ -209,7 +209,7 @@ func TestEarnCoin_TooEarly_NoCache(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{topic: &collector.TopicDetail{ID: topicID, Category: "top"}, isToday: true}
-	svc := level.NewService(&mockLevelRepo{coins: 0}, 0)
+	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	// Empty cache — no init-earn was called
 	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
@@ -229,7 +229,7 @@ func TestEarnCoin_Expired(t *testing.T) {
 		topic:   &collector.TopicDetail{ID: topicID, Category: "top", Topic: "오래된 주제"},
 		isToday: false,
 	}
-	svc := level.NewService(&mockLevelRepo{coins: 0}, 0)
+	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	mc := newMockCache()
 	cacheKey := fmt.Sprintf("earn:%s:%s", userID, topicID)
@@ -263,7 +263,7 @@ func TestEarnCoin_Duplicate(t *testing.T) {
 		topic:   &collector.TopicDetail{ID: topicID, Category: "top", Topic: "이미 읽음"},
 		isToday: true,
 	}
-	svc := level.NewService(&mockLevelRepo{coins: 5, alreadyEarned: true}, 0)
+	svc := level.NewService(&mockLevelRepo{coins: 5, alreadyEarned: true}, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	mc := newMockCache()
 	cacheKey := fmt.Sprintf("earn:%s:%s", userID, topicID)
@@ -289,7 +289,7 @@ func TestEarnCoin_Duplicate(t *testing.T) {
 }
 
 func TestEarnCoin_InvalidUUIDs(t *testing.T) {
-	svc := level.NewService(&mockLevelRepo{}, 0)
+	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
 	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
 
 	w := postEarn(r, uuid.New().String(), "not-a-uuid", uuid.New().String(), "dummy-token")
@@ -304,7 +304,7 @@ func TestEarnCoin_InvalidUUIDs(t *testing.T) {
 }
 
 func TestEarnCoin_MissingFields(t *testing.T) {
-	svc := level.NewService(&mockLevelRepo{}, 0)
+	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
 	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
 
 	body, _ := json.Marshal(map[string]string{})
@@ -327,7 +327,7 @@ func TestEarnCoin_InvalidTurnstileToken(t *testing.T) {
 		topic:   &collector.TopicDetail{ID: topicID, Category: "top"},
 		isToday: true,
 	}
-	svc := level.NewService(&mockLevelRepo{coins: 0}, 0)
+	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	mc := newMockCache()
 	cacheKey := fmt.Sprintf("earn:%s:%s", userID, topicID)
@@ -360,7 +360,7 @@ func TestEarnCoin_ContextItemNotFound(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{topic: nil, isToday: true}
-	svc := level.NewService(&mockLevelRepo{}, 0)
+	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	mc := newMockCache()
 	cacheKey := fmt.Sprintf("earn:%s:%s", userID, topicID)
@@ -390,7 +390,7 @@ func TestInitEarn_Success(t *testing.T) {
 		topic:   &collector.TopicDetail{ID: topicID, Category: "top", Topic: "테스트"},
 		isToday: true,
 	}
-	svc := level.NewService(&mockLevelRepo{coins: 0}, 0)
+	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 10*time.Second)
 	w := postInitEarn(r, userID, runID.String(), topicID.String())
@@ -418,7 +418,7 @@ func TestInitEarn_Expired(t *testing.T) {
 		topic:   &collector.TopicDetail{ID: topicID, Category: "top"},
 		isToday: false,
 	}
-	svc := level.NewService(&mockLevelRepo{}, 0)
+	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
 	w := postInitEarn(r, userID, runID.String(), topicID.String())
@@ -444,7 +444,7 @@ func TestInitEarn_Duplicate(t *testing.T) {
 		isToday: true,
 	}
 	// hasEarned=true simulates a coin_logs entry already existing
-	svc := level.NewService(&mockLevelRepo{hasEarned: true}, 0)
+	svc := level.NewService(&mockLevelRepo{hasEarned: true}, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
 	w := postInitEarn(r, userID, runID.String(), topicID.String())
@@ -469,7 +469,7 @@ func TestInitEarn_TimerReset(t *testing.T) {
 		topic:   &collector.TopicDetail{ID: topicID, Category: "top"},
 		isToday: true,
 	}
-	svc := level.NewService(&mockLevelRepo{}, 0)
+	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
 	mc := newMockCache()
 
 	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second)
@@ -494,7 +494,7 @@ func TestInitEarn_TimerReset(t *testing.T) {
 }
 
 func TestInitEarn_MissingFields(t *testing.T) {
-	svc := level.NewService(&mockLevelRepo{}, 0)
+	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
 	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
 
 	body, _ := json.Marshal(map[string]string{})

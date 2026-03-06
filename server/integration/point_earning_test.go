@@ -55,7 +55,7 @@ func TestCoinEarning_FirstEarn(t *testing.T) {
 	// 4. 코인 적립 실행
 	levelRepo := storage.NewLevelRepository(db.Pool)
 	historyRepo := storage.NewHistoryRepository(db.Pool)
-	svc := level.NewService(levelRepo, 0)
+	svc := level.NewService(levelRepo, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	// run이 오늘 생성됐는지 확인
 	isToday, err := historyRepo.IsRunCreatedToday(ctx, runID)
@@ -152,7 +152,7 @@ func TestCoinEarning_DuplicateEarnBlocked(t *testing.T) {
 	}
 
 	levelRepo := storage.NewLevelRepository(db.Pool)
-	svc := level.NewService(levelRepo, 0)
+	svc := level.NewService(levelRepo, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	// 첫 번째 적립
 	result1, err := svc.EarnCoin(ctx, userID, runID, itemID, true)
@@ -225,7 +225,7 @@ func TestCoinEarning_NonPreferredHigherCoins(t *testing.T) {
 	}
 
 	levelRepo := storage.NewLevelRepository(db.Pool)
-	svc := level.NewService(levelRepo, 0)
+	svc := level.NewService(levelRepo, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	// 비선호 카테고리로 코인 적립
 	result, err := svc.EarnCoin(ctx, userID, runID, itemID, false)
@@ -297,11 +297,11 @@ func TestCoinEarning_LevelUp(t *testing.T) {
 	}
 
 	levelRepo := storage.NewLevelRepository(db.Pool)
-	svc := level.NewService(levelRepo, 0)
+	svc := level.NewService(levelRepo, level.NewLevelConfig(5000, 1000), 0, 0)
 
-	// 레벨 1→2 경계(50코인)에 가깝게 사전 설정 (비선호 10코인 → 40+10=50 → lv2)
-	// level.Thresholds 기준: 0=lv1, 50=lv2, 200=lv3, 500=lv4, 1000=lv5
-	if err := levelRepo.SetCoins(ctx, userID, 40); err != nil {
+	// 레벨 1→2 경계(1000코인)에 가깝게 사전 설정 (비선호 10코인 → 990+10=1000 → lv2)
+	// NewLevelConfig(5000,1000) 기준: 0=lv1, 1000=lv2, 2000=lv3, 3000=lv4, 4000=lv5
+	if err := levelRepo.SetCoins(ctx, userID, 990); err != nil {
 		t.Fatalf("SetCoins error: %v", err)
 	}
 
@@ -325,7 +325,7 @@ func TestCoinEarning_LevelUp(t *testing.T) {
 		t.Fatalf("failed to create item: %v", err)
 	}
 
-	// 비선호(10코인) 클릭 → 40+10=50코인 → lv2
+	// 비선호(10코인) 클릭 → 990+10=1000코인 → lv2
 	result, err := svc.EarnCoin(ctx, userID, runID, itemID, false)
 	if err != nil {
 		t.Fatalf("EarnCoin error: %v", err)

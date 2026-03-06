@@ -31,6 +31,8 @@ type Config struct {
 	OpenAIAPIKey string
 	OpenAIModel  string
 
+	ImageGenerationModel string // Gemini model for topic thumbnail generation
+
 	TurnstileSecretKey string // Cloudflare Turnstile Secret Key
 
 	SMTPHost     string
@@ -45,7 +47,11 @@ type Config struct {
 
 	EarnMinDurationSec int // EARN_MIN_DURATION_SEC: minimum seconds user must stay on page before earning; default 10
 
-	MinWithdrawalAmount int // MIN_WITHDRAWAL_AMOUNT: minimum coins required to request withdrawal; default 1000
+	MinWithdrawalAmount    int // MIN_WITHDRAWAL_AMOUNT: minimum coins required to request withdrawal; default 1000
+	ExtraCoinLimitPerLevel int // EXTRA_COIN_LIMIT_PER_LEVEL: additional daily coins per level; default 0
+	SignupBonusCoins       int // SIGNUP_BONUS_COINS: coins granted to new users on registration; default 0
+	CoinCap                int // COIN_CAP: maximum coins a user can hold; default 5000
+	CoinsPerLevel          int // COINS_PER_LEVEL: coins needed per level transition; default 1000
 
 	ServerPort  string
 	FrontendURL string
@@ -85,6 +91,8 @@ func Load() (Config, error) {
 		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
 		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-4o"),
 
+		ImageGenerationModel: getEnv("IMAGE_GENERATION_MODEL", ""),
+
 		TurnstileSecretKey: getEnv("TURNSTILE_SECRET_KEY", "1x0000000000000000000000000000000AA"), // Default to test key if missing
 
 		SMTPHost:     getEnv("SMTP_HOST", "smtp.gmail.com"),
@@ -95,9 +103,13 @@ func Load() (Config, error) {
 
 		SlackWebhookURL: getEnv("SLACK_WEBHOOK_URL", ""),
 
-		DailyCoinLimit:      getEnvInt("DAILY_COIN_LIMIT", 10),
-		EarnMinDurationSec:  getEnvInt("EARN_MIN_DURATION_SEC", 10),
-		MinWithdrawalAmount: getEnvInt("MIN_WITHDRAWAL_AMOUNT", 1000),
+		DailyCoinLimit:         getEnvInt("DAILY_COIN_LIMIT", 10),
+		EarnMinDurationSec:    getEnvInt("EARN_MIN_DURATION_SEC", 10),
+		MinWithdrawalAmount:   getEnvInt("MIN_WITHDRAWAL_AMOUNT", 1000),
+		ExtraCoinLimitPerLevel: getEnvInt("EXTRA_COIN_LIMIT_PER_LEVEL", 0),
+		SignupBonusCoins:       getEnvInt("SIGNUP_BONUS_COINS", 0),
+		CoinCap:                getEnvInt("COIN_CAP", 5000),
+		CoinsPerLevel:          getEnvInt("COINS_PER_LEVEL", 1000),
 
 		ServerPort:  getEnv("SERVER_PORT", "8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),

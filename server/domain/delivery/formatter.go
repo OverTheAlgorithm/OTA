@@ -213,28 +213,28 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 	}
 	imgURL := fmt.Sprintf("%s/rainbow_lv%d.png", frontendURL, lv)
 
-	var progressText string
-	var progressPercent int
-	if info.CoinsToNext == 0 {
-		progressText = `<p style="margin:0 0 5px;font-size:11px;color:#f0923b;font-weight:700;">MAX</p>`
-		progressPercent = 100
-	} else {
-		progressText = fmt.Sprintf(
-			`<p style="margin:0 0 5px;font-size:11px;color:#6b8db5;">%d / %d</p>`,
-			info.CurrentProgress, info.CoinsToNext,
+	coinsText := fmt.Sprintf(
+		`<p style="margin:0 0 5px;font-size:13px;font-weight:700;color:#1e3a5f;">%d 코인</p>`,
+		info.TotalCoins,
+	)
+
+	dailyLimitText := ""
+	if info.DailyLimit > 0 {
+		dailyLimitText = fmt.Sprintf(
+			`<p style="margin:2px 0 0;font-size:10px;color:#a8bcc9;">오늘 획득 한도: %d 코인</p>`,
+			info.DailyLimit,
 		)
-		progressPercent = int(float64(info.CurrentProgress) / float64(info.CoinsToNext) * 100)
 	}
 
 	return fmt.Sprintf(`
       <!-- Level Card -->
       <tr><td style="padding-bottom:24px;">
-        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f7ff;border-radius:16px;border:1px solid #d4e6f5;">
+        <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f7ff;border-radius:16px;border:1px solid #d4e6f5;">
           <tr><td style="padding:10px 16px;border-bottom:1px solid #d4e6f5;">
             <p style="margin:0;font-size:10px;font-weight:700;color:#26b0ff;letter-spacing:0.08em;">🌈 나의 레벨</p>
           </td></tr>
           <tr><td style="padding:12px 16px;">
-            <table width="100%%" cellpadding="0" cellspacing="0" border="0">
+            <table width="100%%%%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td width="72" style="vertical-align:middle;">
                   <img src="%s" alt="Lv.%d" width="72" style="display:block;">
@@ -242,18 +242,16 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
                 <td style="padding-left:10px;vertical-align:middle;">
                   <p style="margin:0 0 2px;font-size:17px;font-weight:700;color:#1e3a5f;">Lv.%d</p>
                   %s
-                  <div style="width:100%%;height:5px;background-color:#d4e6f5;border-radius:3px;overflow:hidden;margin-bottom:6px;">
-                    <div style="width:%d%%;height:100%%;background:linear-gradient(to right,#26b0ff,#7bc67e);border-radius:3px;"></div>
-                  </div>
                   <p style="margin:0;font-size:11px;color:#6b8db5;">%s</p>
                   <p style="margin:4px 0 0;font-size:10px;color:#a8bcc9;">🌈 토픽을 읽으면 코인이 쌓여요</p>
+                  %s
                 </td>
               </tr>
             </table>
           </td></tr>
         </table>
       </td></tr>`,
-		imgURL, lv, lv, progressText, progressPercent, info.Description,
+		imgURL, lv, lv, coinsText, info.Description, dailyLimitText,
 	)
 }
 

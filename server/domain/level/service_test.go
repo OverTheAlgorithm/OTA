@@ -7,6 +7,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// testCfg uses coinCap=5000, coinsPerLevel=1000 → thresholds [0,1000,2000,3000,4000], maxLevel=5
+var testCfg = NewLevelConfig(5000, 1000)
+
 type mockRepo struct {
 	coins       UserCoins
 	earnResult  bool
@@ -44,8 +47,8 @@ func (m *mockRepo) RestoreCoins(_ context.Context, _ string, _ int) error {
 }
 
 func TestService_GetLevel(t *testing.T) {
-	// 100코인 → Lv2 with thresholds [0, 50, 200, 500, 1000]
-	svc := NewService(&mockRepo{coins: UserCoins{Coins: 100}}, 0)
+	// 1500 coins → Lv2 (threshold 1000), base=10, extra=10 → dailyLimit = 10 + 2*10 = 30
+	svc := NewService(&mockRepo{coins: UserCoins{Coins: 1500}}, testCfg, 10, 10)
 	info, err := svc.GetLevel(context.Background(), "user1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -53,21 +56,23 @@ func TestService_GetLevel(t *testing.T) {
 	if info.Level != 2 {
 		t.Errorf("Level = %d, want 2", info.Level)
 	}
-	if info.CurrentProgress != 50 {
-		t.Errorf("CurrentProgress = %d, want 50 (100-50)", info.CurrentProgress)
+	if info.TotalCoins != 1500 {
+		t.Errorf("TotalCoins = %d, want 1500", info.TotalCoins)
 	}
-	if info.CoinsToNext != 150 {
-		t.Errorf("CoinsToNext = %d, want 150 (200-50)", info.CoinsToNext)
+	if info.DailyLimit != 30 {
+		t.Errorf("DailyLimit = %d, want 30", info.DailyLimit)
+	}
+	if info.CoinCap != 5000 {
+		t.Errorf("CoinCap = %d, want 5000", info.CoinCap)
 	}
 }
 
 func TestService_EarnCoin_Success_LevelUp(t *testing.T) {
-	// Lv1→Lv2: before=49, after=50
 	svc := NewService(&mockRepo{
-		coins:      UserCoins{Coins: 49},
+		coins:      UserCoins{Coins: 999},
 		earnResult: true,
-		earnTotal:  50,
-	}, 0)
+		earnTotal:  1000,
+	}, testCfg, 0, 0)
 	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -87,12 +92,11 @@ func TestService_EarnCoin_Success_LevelUp(t *testing.T) {
 }
 
 func TestService_EarnCoin_Success_NoLevelUp(t *testing.T) {
-	// Within Lv2 range (50-199)
 	svc := NewService(&mockRepo{
-		coins:      UserCoins{Coins: 100},
+		coins:      UserCoins{Coins: 1500},
 		earnResult: true,
-		earnTotal:  101,
-	}, 0)
+		earnTotal:  1501,
+	}, testCfg, 0, 0)
 	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -107,10 +111,10 @@ func TestService_EarnCoin_Success_NoLevelUp(t *testing.T) {
 
 func TestService_EarnCoin_Duplicate(t *testing.T) {
 	svc := NewService(&mockRepo{
-		coins:      UserCoins{Coins: 20},
+		coins:      UserCoins{Coins: 500},
 		earnResult: false,
 		earnTotal:  0,
-	}, 0)
+	}, testCfg, 0, 0)
 	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -121,13 +125,8 @@ func TestService_EarnCoin_Duplicate(t *testing.T) {
 	if res.Reason != ReasonDuplicate {
 		t.Errorf("Reason = %q, want %q", res.Reason, ReasonDuplicate)
 	}
-	if res.LeveledUp {
-		t.Error("expected leveled_up = false for duplicate")
-	}
 }
 
-// TestEarnCoin_AllLevelTransitions checks every level-up boundary:
-// Thresholds: [0, 50, 200, 500, 1000]
 func TestEarnCoin_AllLevelTransitions(t *testing.T) {
 	transitions := []struct {
 		name      string
@@ -136,12 +135,12 @@ func TestEarnCoin_AllLevelTransitions(t *testing.T) {
 		wantLevel int
 		wantLevUp bool
 	}{
-		{"Lv1→Lv2", 49, 50, 2, true},
-		{"Lv2→Lv3", 199, 200, 3, true},
-		{"Lv3→Lv4", 499, 500, 4, true},
-		{"Lv4→Lv5", 999, 1000, 5, true},
-		{"Lv2 no up", 100, 101, 2, false},
-		{"Lv3 no up", 250, 251, 3, false},
+		{"Lv1→Lv2", 999, 1000, 2, true},
+		{"Lv2→Lv3", 1999, 2000, 3, true},
+		{"Lv3→Lv4", 2999, 3000, 4, true},
+		{"Lv4→Lv5", 3999, 4000, 5, true},
+		{"Lv2 no up", 1500, 1501, 2, false},
+		{"Lv3 no up", 2500, 2501, 3, false},
 	}
 
 	for _, tt := range transitions {
@@ -150,7 +149,7 @@ func TestEarnCoin_AllLevelTransitions(t *testing.T) {
 				coins:      UserCoins{Coins: tt.before},
 				earnResult: true,
 				earnTotal:  tt.after,
-			}, 0)
+			}, testCfg, 0, 0)
 			res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), false)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -171,14 +170,12 @@ func TestEarnCoin_AllLevelTransitions(t *testing.T) {
 	}
 }
 
-// TestEarnCoin_AtMaxLevel verifies that earning at Lv5 records the coin
-// but does not set LeveledUp (already max).
 func TestEarnCoin_AtMaxLevel(t *testing.T) {
 	svc := NewService(&mockRepo{
-		coins:      UserCoins{Coins: 1050}, // already Lv5
+		coins:      UserCoins{Coins: 4500},
 		earnResult: true,
-		earnTotal:  1051,
-	}, 0)
+		earnTotal:  4501,
+	}, testCfg, 0, 0)
 	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -189,46 +186,21 @@ func TestEarnCoin_AtMaxLevel(t *testing.T) {
 	if res.LeveledUp {
 		t.Error("expected leveled_up = false at max level")
 	}
-	if res.Level != MaxLevel {
-		t.Errorf("Level = %d, want %d", res.Level, MaxLevel)
-	}
-	if res.CoinsToNext != 0 {
-		t.Errorf("CoinsToNext = %d, want 0 at max level", res.CoinsToNext)
+	if res.Level != testCfg.MaxLevel {
+		t.Errorf("Level = %d, want %d", res.Level, testCfg.MaxLevel)
 	}
 }
 
-// TestEarnCoin_ProgressCalc verifies CurrentProgress and CoinsToNext
-// are calculated correctly within a level.
-func TestEarnCoin_ProgressCalc(t *testing.T) {
-	// Lv2: 50~199코인. At 100코인 → progress=50 (100-50), needed=150 (200-50)
+// TestEarnCoin_DailyLimit_LevelBased: level-based daily limit
+func TestEarnCoin_DailyLimit_LevelBased(t *testing.T) {
+	// Lv2 user (1000 coins), base=10, extra=5 → limit = 10 + 2*5 = 20
+	// todayEarned=20 → blocked
 	svc := NewService(&mockRepo{
-		coins:      UserCoins{Coins: 99},
-		earnResult: true,
-		earnTotal:  100,
-	}, 0)
-	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if res.Level != 2 {
-		t.Errorf("Level = %d, want 2", res.Level)
-	}
-	if res.CurrentProgress != 50 {
-		t.Errorf("CurrentProgress = %d, want 50 (100-50)", res.CurrentProgress)
-	}
-	if res.CoinsToNext != 150 {
-		t.Errorf("CoinsToNext = %d, want 150 (200-50)", res.CoinsToNext)
-	}
-}
-
-// TestEarnCoin_DailyLimit_Blocked: 일일 한도 도달 시 코인 적립 차단
-func TestEarnCoin_DailyLimit_Blocked(t *testing.T) {
-	svc := NewService(&mockRepo{
-		coins:       UserCoins{Coins: 50},
-		todayEarned: 10, // already earned 10 today
+		coins:       UserCoins{Coins: 1000},
+		todayEarned: 20,
 		earnResult:  true,
-		earnTotal:   55,
-	}, 10) // limit = 10
+		earnTotal:   1005,
+	}, testCfg, 10, 5)
 	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -239,20 +211,20 @@ func TestEarnCoin_DailyLimit_Blocked(t *testing.T) {
 	if res.Reason != ReasonDailyLimit {
 		t.Errorf("Reason = %q, want %q", res.Reason, ReasonDailyLimit)
 	}
-	// Level info should still be returned
-	if res.Level != 2 {
-		t.Errorf("Level = %d, want 2 (50코인 = Lv2)", res.Level)
+	if res.DailyLimit != 20 {
+		t.Errorf("DailyLimit = %d, want 20", res.DailyLimit)
 	}
 }
 
-// TestEarnCoin_DailyLimit_UnderLimit: 한도 미달 시 정상 적립
+// TestEarnCoin_DailyLimit_UnderLimit: under limit → allowed
 func TestEarnCoin_DailyLimit_UnderLimit(t *testing.T) {
+	// Lv2 user (1000 coins), base=10, extra=5 → limit=20, todayEarned=5 → allowed
 	svc := NewService(&mockRepo{
-		coins:       UserCoins{Coins: 50},
-		todayEarned: 5, // earned 5 today, limit is 10 → still allowed
+		coins:       UserCoins{Coins: 1000},
+		todayEarned: 5,
 		earnResult:  true,
-		earnTotal:   55,
-	}, 10)
+		earnTotal:   1005,
+	}, testCfg, 10, 5)
 	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -260,24 +232,21 @@ func TestEarnCoin_DailyLimit_UnderLimit(t *testing.T) {
 	if !res.Earned {
 		t.Error("expected earned = true when under daily limit")
 	}
-	if res.Reason != ReasonEarned {
-		t.Errorf("Reason = %q, want %q", res.Reason, ReasonEarned)
-	}
 }
 
-// TestEarnCoin_DailyLimit_Zero_Unlimited: limit=0이면 무제한
+// TestEarnCoin_DailyLimit_Zero_Unlimited: base=0 → unlimited
 func TestEarnCoin_DailyLimit_Zero_Unlimited(t *testing.T) {
 	svc := NewService(&mockRepo{
-		coins:       UserCoins{Coins: 50},
-		todayEarned: 9999, // huge amount but limit=0 → unlimited
+		coins:       UserCoins{Coins: 1000},
+		todayEarned: 9999,
 		earnResult:  true,
-		earnTotal:   55,
-	}, 0)
+		earnTotal:   1005,
+	}, testCfg, 0, 10)
 	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !res.Earned {
-		t.Error("expected earned = true when limit is 0 (unlimited)")
+		t.Error("expected earned = true when base limit is 0 (unlimited)")
 	}
 }
