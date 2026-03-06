@@ -42,6 +42,7 @@ type ContextItem struct {
 	Details         []DetailItem `json:"details"`
 	BuzzScore       int          `json:"buzz_score"`
 	Sources         []string     `json:"sources"`
+	ImagePath       *string      `json:"-"` // local file path, not included in AI JSON
 }
 
 type CollectionResult struct {

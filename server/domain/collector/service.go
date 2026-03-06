@@ -23,6 +23,7 @@ type Service struct {
 	trendingRepo    TrendingItemRepository    // optional: persists raw trending data
 	brainCatRepo    BrainCategoryRepository   // optional: loads brain categories for AI prompt
 	urlDecoder      URLDecoder                // optional: decodes redirect URLs (e.g. Google News)
+	imageGen        *ImageGenerator           // optional: generates thumbnail images for items
 }
 
 func NewService(aiClient AIClient, repo Repository) *Service {
@@ -53,6 +54,12 @@ func (s *Service) WithBrainCategoryRepo(repo BrainCategoryRepository) *Service {
 // WithURLDecoder sets the URL decoder for resolving redirect URLs (e.g. Google News).
 func (s *Service) WithURLDecoder(decoder URLDecoder) *Service {
 	s.urlDecoder = decoder
+	return s
+}
+
+// WithImageGenerator sets the image generator for creating topic thumbnails.
+func (s *Service) WithImageGenerator(gen *ImageGenerator) *Service {
+	s.imageGen = gen
 	return s
 }
 
@@ -135,6 +142,9 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 
 	// Stage 3: validate source URLs — remove invalid ones.
 	items = s.validateAndRemoveSources(ctx, run.ID, items)
+
+	// Stage 4: generate thumbnail images (optional, best-effort).
+	items = s.generateImages(ctx, run.ID, items)
 
 	if err := s.repo.SaveContextItems(ctx, items); err != nil {
 		errMsg := err.Error()
@@ -361,6 +371,31 @@ func (s *Service) validateAndRemoveSources(ctx context.Context, runID uuid.UUID,
 
 	log.Printf("collection run %s: stage 3 done — removed %d invalid URL(s)", runID, len(invalid))
 	return removeInvalidSources(items, invalid)
+}
+
+// generateImages creates thumbnail images for each item using the image generator.
+// Returns a new slice with ImagePath populated for items that succeeded.
+func (s *Service) generateImages(ctx context.Context, runID uuid.UUID, items []ContextItem) []ContextItem {
+	if s.imageGen == nil {
+		return items
+	}
+
+	log.Printf("collection run %s: stage 4 — generating thumbnail images", runID)
+
+	pathMap := s.imageGen.GenerateForItems(ctx, items)
+
+	result := make([]ContextItem, len(items))
+	copy(result, items)
+	generated := 0
+	for i, item := range result {
+		if p, ok := pathMap[item.ID]; ok {
+			result[i].ImagePath = &p
+			generated++
+		}
+	}
+
+	log.Printf("collection run %s: stage 4 done — %d/%d images generated", runID, generated, len(items))
+	return result
 }
 
 // removeInvalidSources strips all invalid URLs from items. Returns a new slice.

@@ -181,6 +181,7 @@ export interface TopicDetail {
   sources: string[];
   brain_category: string;
   created_at: string;
+  image_url: string | null;
 }
 
 export interface TopicEarnResult {
@@ -365,8 +366,9 @@ export async function sendTestEmail(): Promise<TestEmailResult> {
 export interface LevelInfo {
   level: number;
   total_coins: number;
-  current_progress: number;
-  coins_to_next: number;
+  daily_limit: number;
+  coin_cap: number;
+  thresholds: number[];
   description: string;
 }
 

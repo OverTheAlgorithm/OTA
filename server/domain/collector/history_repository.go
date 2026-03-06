@@ -36,6 +36,7 @@ type TopicDetail struct {
 	Sources       []string     `json:"sources"`
 	BrainCategory string       `json:"brain_category"`
 	CreatedAt     time.Time    `json:"created_at"`
+	ImageURL      *string      `json:"image_url"`
 }
 
 type HistoryRepository interface {

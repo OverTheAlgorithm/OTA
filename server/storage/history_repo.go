@@ -95,11 +95,12 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID) (*collector.TopicDetail, error) {
 	var item collector.TopicDetail
 	var detailsJSON []byte
+	var imagePath *string
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, category, topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'), COALESCE(brain_category, ''), created_at
+		SELECT id, category, topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'), COALESCE(brain_category, ''), created_at, image_path
 		FROM context_items
 		WHERE id = $1
-	`, id).Scan(&item.ID, &item.Category, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt)
+	`, id).Scan(&item.ID, &item.Category, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt, &imagePath)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -107,6 +108,10 @@ func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID
 		return nil, err
 	}
 	item.Details = collector.UnmarshalDetails(detailsJSON)
+	if imagePath != nil {
+		url := "/api/v1/images/" + *imagePath
+		item.ImageURL = &url
+	}
 	return &item, nil
 }
 
