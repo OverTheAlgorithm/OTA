@@ -70,7 +70,7 @@ export function LevelCard({ level }: { level: LevelInfo }) {
         </div>
 
         {/* Level labels under the bar */}
-        <div className="relative w-full flex text-[10px] text-[#94a3b8] mb-1">
+        <div className="relative w-full flex text-[10px] text-[#94a3b8] mb-4">
           {thresholds.map((th, i) => {
             const pos = (th / coin_cap) * 100;
             return (

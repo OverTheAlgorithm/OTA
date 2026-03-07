@@ -210,9 +210,9 @@ var levelSegmentColors = []string{
 	"#ef4444", // Lv5 — red
 }
 
-// renderLevelProgressBar builds an email-safe segmented progress bar using table cells.
-// Each level segment is a <td> with a background color; filled segments show the level
-// color while empty segments show light gray. A 2px white gap separates segments.
+// renderLevelProgressBar builds an email-safe segmented progress bar.
+// Uses nested tables with explicit width/height and &nbsp; content to ensure
+// email clients (Gmail, Outlook) render the colored blocks correctly.
 func renderLevelProgressBar(info *UserLevelInfo) string {
 	if info == nil || info.CoinCap == 0 || len(info.Thresholds) == 0 {
 		return ""
@@ -222,6 +222,8 @@ func renderLevelProgressBar(info *UserLevelInfo) string {
 	coinCap := info.CoinCap
 	totalCoins := info.TotalCoins
 	maxLevel := len(thresholds)
+
+	segWidthPct := 100 / maxLevel
 
 	var cells strings.Builder
 	for i := 0; i < maxLevel; i++ {
@@ -235,31 +237,38 @@ func renderLevelProgressBar(info *UserLevelInfo) string {
 
 		color := "#e2e8f0" // unfilled — light gray
 		if totalCoins >= segEnd {
-			// fully filled segment
 			if i < len(levelSegmentColors) {
 				color = levelSegmentColors[i]
 			}
 		} else if totalCoins > segStart {
-			// partially filled — still show segment color (email can't do partial fills easily)
 			if i < len(levelSegmentColors) {
 				color = levelSegmentColors[i]
 			}
 		}
 
-		// 2px white gap between segments (not before first)
-		paddingLeft := "2px"
-		if i == 0 {
-			paddingLeft = "0"
+		// 2px gap between segments via padding on wrapping td
+		gap := ""
+		if i > 0 {
+			gap = `padding-left:2px;`
 		}
 		cells.WriteString(fmt.Sprintf(
-			`<td style="padding-left:%s;"><div style="height:8px;background-color:%s;border-radius:4px;"></div></td>`,
-			paddingLeft, color,
+			`<td width="%d%%" style="%s"><table cellpadding="0" cellspacing="0" border="0" width="100%%" style="border-radius:4px;"><tr><td style="background-color:%s;height:8px;line-height:8px;font-size:1px;" height="8">&nbsp;</td></tr></table></td>`,
+			segWidthPct, gap, color,
+		))
+	}
+
+	// Level labels row under the bar
+	var labels strings.Builder
+	for i := 0; i < maxLevel; i++ {
+		labels.WriteString(fmt.Sprintf(
+			`<td width="%d%%" style="font-size:9px;color:#94a3b8;padding-top:2px;">Lv%d</td>`,
+			segWidthPct, i+1,
 		))
 	}
 
 	return fmt.Sprintf(
-		`<table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 4px;"><tr>%s</tr></table>`,
-		cells.String(),
+		`<table width="100%%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 4px;"><tr>%s</tr><tr>%s</tr></table>`,
+		cells.String(), labels.String(),
 	)
 }
 
@@ -294,12 +303,12 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 	return fmt.Sprintf(`
       <!-- Level Card -->
       <tr><td style="padding-bottom:24px;">
-        <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f7ff;border-radius:16px;border:1px solid #d4e6f5;">
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f7ff;border-radius:16px;border:1px solid #d4e6f5;">
           <tr><td style="padding:10px 16px;border-bottom:1px solid #d4e6f5;">
             <p style="margin:0;font-size:10px;font-weight:700;color:#26b0ff;letter-spacing:0.08em;">🌈 나의 레벨</p>
           </td></tr>
           <tr><td style="padding:12px 16px;">
-            <table width="100%%%%" cellpadding="0" cellspacing="0" border="0">
+            <table width="100%%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td width="72" style="vertical-align:middle;">
                   <img src="%s" alt="Lv.%d" width="72" style="display:block;">
