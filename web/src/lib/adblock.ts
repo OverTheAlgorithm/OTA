@@ -1,3 +1,9 @@
+declare global {
+  interface Window {
+    __ad_loaded__?: boolean;
+  }
+}
+
 /**
  * Detect whether an ad blocker is active by attempting to load a bait script.
  * Returns a promise that resolves to `true` if ads are blocked.
@@ -5,7 +11,7 @@
 export function detectAdBlock(): Promise<boolean> {
   return new Promise((resolve) => {
     // Check 1: bait script flag
-    if ((window as unknown as Record<string, unknown>).__ad_loaded__) {
+    if (window.__ad_loaded__) {
       resolve(false);
       return;
     }
@@ -16,7 +22,7 @@ export function detectAdBlock(): Promise<boolean> {
     script.async = true;
 
     script.onload = () => {
-      resolve(!(window as unknown as Record<string, unknown>).__ad_loaded__);
+      resolve(!window.__ad_loaded__);
       script.remove();
     };
 
