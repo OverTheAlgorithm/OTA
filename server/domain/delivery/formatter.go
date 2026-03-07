@@ -320,7 +320,7 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 	dailyLimitText := ""
 	if info.DailyLimit > 0 {
 		dailyLimitText = fmt.Sprintf(
-			`<p style="margin:2px 0 0;font-size:10px;color:#a8bcc9;">오늘 획득 한도: %d 코인</p>`,
+			`<p style="margin:4px 0 0;font-size:13px;color:#4a6a8a;">오늘 획득 한도: %d 코인</p>`,
 			info.DailyLimit,
 		)
 	}
@@ -342,8 +342,8 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
                   <p style="margin:0 0 2px;font-size:17px;font-weight:700;color:#1e3a5f;">Lv.%d</p>
                   %s
                   %s
-                  <p style="margin:0;font-size:11px;color:#6b8db5;">%s</p>
-                  <p style="margin:4px 0 0;font-size:10px;color:#a8bcc9;">🌈 토픽을 읽으면 코인이 쌓여요</p>
+                  <p style="margin:0;font-size:13px;color:#4a6a8a;">%s</p>
+                  <p style="margin:4px 0 0;font-size:13px;color:#335071;">레벨이 올라가면 하루에 얻을 수 있는 코인의 양이 늘어나요!</p>
                   %s
                 </td>
               </tr>

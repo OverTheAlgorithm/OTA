@@ -89,8 +89,13 @@ export function LevelCard({ level }: { level: LevelInfo }) {
           {level.description}
         </p>
         <p className="text-xs text-[#335071] mt-1">
-          🌈 Over the Algorithm 토픽을 읽으면 코인이 쌓여요
+          레벨이 올라가면 하루에 얻을 수 있는 코인의 양이 늘어나요!
         </p>
+        {level.daily_limit > 0 && (
+          <p className="text-xs text-[#6b8db5] mt-0.5">
+            오늘 획득 한도: {level.daily_limit} 코인
+          </p>
+        )}
       </div>
     </div>
   );
