@@ -225,6 +225,8 @@ func renderLevelProgressBar(info *UserLevelInfo) string {
 
 	segWidthPct := 100 / maxLevel
 
+	emptyColor := "#e2e8f0"
+
 	var cells strings.Builder
 	for i := 0; i < maxLevel; i++ {
 		segStart := thresholds[i]
@@ -235,15 +237,9 @@ func renderLevelProgressBar(info *UserLevelInfo) string {
 			segEnd = coinCap
 		}
 
-		color := "#e2e8f0" // unfilled — light gray
-		if totalCoins >= segEnd {
-			if i < len(levelSegmentColors) {
-				color = levelSegmentColors[i]
-			}
-		} else if totalCoins > segStart {
-			if i < len(levelSegmentColors) {
-				color = levelSegmentColors[i]
-			}
+		segColor := emptyColor
+		if i < len(levelSegmentColors) {
+			segColor = levelSegmentColors[i]
 		}
 
 		// 2px gap between segments via padding on wrapping td
@@ -251,9 +247,38 @@ func renderLevelProgressBar(info *UserLevelInfo) string {
 		if i > 0 {
 			gap = `padding-left:2px;`
 		}
+
+		// Calculate fill ratio within this segment
+		var innerHTML string
+		if totalCoins >= segEnd {
+			// fully filled
+			innerHTML = fmt.Sprintf(
+				`<td style="background-color:%s;height:8px;line-height:8px;font-size:1px;" height="8">&nbsp;</td>`,
+				segColor,
+			)
+		} else if totalCoins > segStart {
+			// partially filled — split into filled + unfilled cells
+			segRange := segEnd - segStart
+			filledPct := (totalCoins - segStart) * 100 / segRange
+			if filledPct < 1 {
+				filledPct = 1
+			}
+			innerHTML = fmt.Sprintf(
+				`<td width="%d%%" style="background-color:%s;height:8px;line-height:8px;font-size:1px;" height="8">&nbsp;</td>`+
+					`<td width="%d%%" style="background-color:%s;height:8px;line-height:8px;font-size:1px;" height="8">&nbsp;</td>`,
+				filledPct, segColor, 100-filledPct, emptyColor,
+			)
+		} else {
+			// unfilled
+			innerHTML = fmt.Sprintf(
+				`<td style="background-color:%s;height:8px;line-height:8px;font-size:1px;" height="8">&nbsp;</td>`,
+				emptyColor,
+			)
+		}
+
 		cells.WriteString(fmt.Sprintf(
-			`<td width="%d%%" style="%s"><table cellpadding="0" cellspacing="0" border="0" width="100%%" style="border-radius:4px;"><tr><td style="background-color:%s;height:8px;line-height:8px;font-size:1px;" height="8">&nbsp;</td></tr></table></td>`,
-			segWidthPct, gap, color,
+			`<td width="%d%%" style="%s"><table cellpadding="0" cellspacing="0" border="0" width="100%%" style="border-radius:4px;overflow:hidden;"><tr>%s</tr></table></td>`,
+			segWidthPct, gap, innerHTML,
 		))
 	}
 
