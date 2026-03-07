@@ -317,12 +317,17 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 
 	progressBar := renderLevelProgressBar(info)
 
-	dailyLimitText := ""
+	dailyLimitHTML := ""
 	if info.DailyLimit > 0 {
-		dailyLimitText = fmt.Sprintf(
-			`<p style="margin:4px 0 0;font-size:13px;color:#4a6a8a;">오늘 획득 한도: %d 코인</p>`,
-			info.DailyLimit,
-		)
+		dailyLimitHTML = fmt.Sprintf(`
+          <tr><td style="padding:0 16px 12px;">
+            <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#e8f4fd;border-radius:8px;">
+              <tr><td style="padding:8px 12px;">
+                <p style="margin:0;font-size:13px;font-weight:700;color:#1e3a5f;">오늘 획득 한도: %d 코인</p>
+                <p style="margin:2px 0 0;font-size:12px;color:#4a6a8a;">레벨이 올라가면 하루에 얻을 수 있는 코인의 양이 늘어나요!</p>
+              </td></tr>
+            </table>
+          </td></tr>`, info.DailyLimit)
 	}
 
 	return fmt.Sprintf(`
@@ -342,16 +347,14 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
                   <p style="margin:0 0 2px;font-size:17px;font-weight:700;color:#1e3a5f;">Lv.%d</p>
                   %s
                   %s
-                  <p style="margin:0;font-size:13px;color:#4a6a8a;">%s</p>
-                  <p style="margin:4px 0 0;font-size:13px;color:#335071;">레벨이 올라가면 하루에 얻을 수 있는 코인의 양이 늘어나요!</p>
-                  %s
                 </td>
               </tr>
             </table>
           </td></tr>
+          %s
         </table>
       </td></tr>`,
-		imgURL, lv, lv, coinsText, progressBar, info.Description, dailyLimitText,
+		imgURL, lv, lv, coinsText, progressBar, dailyLimitHTML,
 	)
 }
 
