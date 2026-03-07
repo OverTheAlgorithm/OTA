@@ -104,6 +104,8 @@ type UserLevelInfo struct {
 	Level       int
 	TotalCoins  int
 	DailyLimit  int
+	CoinCap     int
+	Thresholds  []int
 	Description string
 }
 

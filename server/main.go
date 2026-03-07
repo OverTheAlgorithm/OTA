@@ -41,6 +41,8 @@ func (a *levelServiceAdapter) GetLevel(ctx context.Context, userID string) (deli
 		Level:       info.Level,
 		TotalCoins:  info.TotalCoins,
 		DailyLimit:  info.DailyLimit,
+		CoinCap:     info.CoinCap,
+		Thresholds:  info.Thresholds,
 		Description: info.Description,
 	}, nil
 }

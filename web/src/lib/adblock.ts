@@ -5,7 +5,7 @@
 export function detectAdBlock(): Promise<boolean> {
   return new Promise((resolve) => {
     // Check 1: bait script flag
-    if ((window as Record<string, unknown>).__ad_loaded__) {
+    if ((window as unknown as Record<string, unknown>).__ad_loaded__) {
       resolve(false);
       return;
     }
@@ -16,7 +16,7 @@ export function detectAdBlock(): Promise<boolean> {
     script.async = true;
 
     script.onload = () => {
-      resolve(!(window as Record<string, unknown>).__ad_loaded__);
+      resolve(!(window as unknown as Record<string, unknown>).__ad_loaded__);
       script.remove();
     };
 

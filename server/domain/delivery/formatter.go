@@ -200,6 +200,69 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
 </html>`, logoURL, levelCardRow, content)
 }
 
+// levelSegmentColors maps level index (0-based) to a hex color.
+// Calm greens → intense reds, matching the frontend level card.
+var levelSegmentColors = []string{
+	"#4ade80", // Lv1 — green
+	"#facc15", // Lv2 — yellow
+	"#fb923c", // Lv3 — orange
+	"#f87171", // Lv4 — red-light
+	"#ef4444", // Lv5 — red
+}
+
+// renderLevelProgressBar builds an email-safe segmented progress bar using table cells.
+// Each level segment is a <td> with a background color; filled segments show the level
+// color while empty segments show light gray. A 2px white gap separates segments.
+func renderLevelProgressBar(info *UserLevelInfo) string {
+	if info == nil || info.CoinCap == 0 || len(info.Thresholds) == 0 {
+		return ""
+	}
+
+	thresholds := info.Thresholds
+	coinCap := info.CoinCap
+	totalCoins := info.TotalCoins
+	maxLevel := len(thresholds)
+
+	var cells strings.Builder
+	for i := 0; i < maxLevel; i++ {
+		segStart := thresholds[i]
+		var segEnd int
+		if i+1 < maxLevel {
+			segEnd = thresholds[i+1]
+		} else {
+			segEnd = coinCap
+		}
+
+		color := "#e2e8f0" // unfilled — light gray
+		if totalCoins >= segEnd {
+			// fully filled segment
+			if i < len(levelSegmentColors) {
+				color = levelSegmentColors[i]
+			}
+		} else if totalCoins > segStart {
+			// partially filled — still show segment color (email can't do partial fills easily)
+			if i < len(levelSegmentColors) {
+				color = levelSegmentColors[i]
+			}
+		}
+
+		// 2px white gap between segments (not before first)
+		paddingLeft := "2px"
+		if i == 0 {
+			paddingLeft = "0"
+		}
+		cells.WriteString(fmt.Sprintf(
+			`<td style="padding-left:%s;"><div style="height:8px;background-color:%s;border-radius:4px;"></div></td>`,
+			paddingLeft, color,
+		))
+	}
+
+	return fmt.Sprintf(
+		`<table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 4px;"><tr>%s</tr></table>`,
+		cells.String(),
+	)
+}
+
 // renderHeaderLevelRow returns a full <tr> for the level card placed below the logo row.
 // Returns an empty string if levelInfo is nil.
 func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
@@ -214,9 +277,11 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 	imgURL := fmt.Sprintf("%s/rainbow_lv%d.png", frontendURL, lv)
 
 	coinsText := fmt.Sprintf(
-		`<p style="margin:0 0 5px;font-size:13px;font-weight:700;color:#1e3a5f;">%d 코인</p>`,
-		info.TotalCoins,
+		`<p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#1e3a5f;">%d / %d 코인</p>`,
+		info.TotalCoins, info.CoinCap,
 	)
+
+	progressBar := renderLevelProgressBar(info)
 
 	dailyLimitText := ""
 	if info.DailyLimit > 0 {
@@ -242,6 +307,7 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
                 <td style="padding-left:10px;vertical-align:middle;">
                   <p style="margin:0 0 2px;font-size:17px;font-weight:700;color:#1e3a5f;">Lv.%d</p>
                   %s
+                  %s
                   <p style="margin:0;font-size:11px;color:#6b8db5;">%s</p>
                   <p style="margin:4px 0 0;font-size:10px;color:#a8bcc9;">🌈 토픽을 읽으면 코인이 쌓여요</p>
                   %s
@@ -251,7 +317,7 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
           </td></tr>
         </table>
       </td></tr>`,
-		imgURL, lv, lv, coinsText, info.Description, dailyLimitText,
+		imgURL, lv, lv, coinsText, progressBar, info.Description, dailyLimitText,
 	)
 }
 
