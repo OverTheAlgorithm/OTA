@@ -121,6 +121,8 @@ func main() {
 			collectorService.WithImageGenerator(imageGen)
 			log.Printf("image generation initialized (model: %s)", cfg.ImageGenerationModel)
 		}
+	} else {
+		log.Printf("warning: IMAGE_GENERATION_MODEL not set — thumbnail generation disabled")
 	}
 
 	// Message delivery

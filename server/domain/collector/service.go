@@ -337,6 +337,7 @@ func parseContextItems(outputText string, runID uuid.UUID) ([]ContextItem, error
 // to their original article URLs. Only decodes the URLs selected by the AI, not all collected URLs.
 func (s *Service) decodeSourceURLs(ctx context.Context, runID uuid.UUID, items []ContextItem) []ContextItem {
 	if s.urlDecoder == nil {
+		log.Printf("collection run %s: stage 2 skipped — urlDecoder is nil", runID)
 		return items
 	}
 
@@ -377,6 +378,7 @@ func (s *Service) validateAndRemoveSources(ctx context.Context, runID uuid.UUID,
 // Returns a new slice with ImagePath populated for items that succeeded.
 func (s *Service) generateImages(ctx context.Context, runID uuid.UUID, items []ContextItem) []ContextItem {
 	if s.imageGen == nil {
+		log.Printf("collection run %s: stage 4 skipped — imageGen is nil (IMAGE_GENERATION_MODEL not configured or client init failed)", runID)
 		return items
 	}
 
