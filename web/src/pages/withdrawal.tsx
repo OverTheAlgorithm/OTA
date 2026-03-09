@@ -213,8 +213,8 @@ export function WithdrawalPage() {
         style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-bg)" }}
       >
         <div className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button onClick={() => navigate("/home")} className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors">
-            ← 홈으로
+          <button onClick={() => navigate("/mypage")} className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors">
+            &larr; 마이 페이지
           </button>
           <h1 className="text-lg font-bold text-[#1e3a5f]">출금</h1>
           <div className="w-16" />

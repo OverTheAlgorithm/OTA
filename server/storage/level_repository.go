@@ -146,6 +146,83 @@ func (r *LevelRepository) RestoreCoins(ctx context.Context, userID string, amoun
 	return nil
 }
 
+// InsertCoinEvent logs a non-topic coin event.
+// actorID is the admin/user who triggered it; empty string stores NULL.
+func (r *LevelRepository) InsertCoinEvent(ctx context.Context, userID string, amount int, eventType, memo, actorID string) error {
+	var actor interface{}
+	if actorID != "" {
+		actor = actorID
+	}
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO coin_events (user_id, amount, type, memo, actor_id) VALUES ($1, $2, $3, $4, $5)`,
+		userID, amount, eventType, memo, actor,
+	)
+	if err != nil {
+		return fmt.Errorf("insert coin event: %w", err)
+	}
+	return nil
+}
+
+// GetCoinHistory returns a unified paginated timeline of all coin balance changes.
+func (r *LevelRepository) GetCoinHistory(ctx context.Context, userID string, limit, offset int) ([]level.CoinTransaction, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, amount, type, description, created_at FROM (
+			-- Topic view earnings
+			SELECT cl.id::text, cl.coins_earned AS amount, 'earn' AS type,
+				COALESCE(ci.topic, '토픽 열람') AS description, cl.created_at
+			FROM coin_logs cl
+			LEFT JOIN context_items ci ON ci.id = cl.context_item_id
+			WHERE cl.user_id = $1
+
+			UNION ALL
+
+			-- General coin events (signup bonus, etc.)
+			SELECT ce.id::text, ce.amount, ce.type,
+				COALESCE(ce.memo, ce.type) AS description, ce.created_at
+			FROM coin_events ce
+			WHERE ce.user_id = $1
+
+			UNION ALL
+
+			-- Withdrawal deductions (negative amount)
+			SELECT w.id::text, -w.amount AS amount, 'withdrawal' AS type,
+				'출금 신청' AS description, w.created_at
+			FROM withdrawals w
+			INNER JOIN withdrawal_transitions wt ON wt.withdrawal_id = w.id AND wt.status = 'pending'
+			WHERE w.user_id = $1
+
+			UNION ALL
+
+			-- Withdrawal refunds (rejected/cancelled → coins restored)
+			SELECT wt.id::text, w.amount AS amount, 'refund' AS type,
+				CASE wt.status
+					WHEN 'rejected' THEN '출금 거절 (환불)'
+					WHEN 'cancelled' THEN '출금 취소 (환불)'
+				END AS description,
+				wt.created_at
+			FROM withdrawal_transitions wt
+			INNER JOIN withdrawals w ON w.id = wt.withdrawal_id
+			WHERE w.user_id = $1 AND wt.status IN ('rejected', 'cancelled')
+		) AS combined
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`, userID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("get coin history: %w", err)
+	}
+	defer rows.Close()
+
+	var txns []level.CoinTransaction
+	for rows.Next() {
+		var t level.CoinTransaction
+		if err := rows.Scan(&t.ID, &t.Amount, &t.Type, &t.Description, &t.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan coin history: %w", err)
+		}
+		txns = append(txns, t)
+	}
+	return txns, nil
+}
+
 // CreateMockOTAItem inserts a fake collection_run and a context_item for
 // testing level progression. Returns the context_item UUID.
 func (r *LevelRepository) CreateMockOTAItem(ctx context.Context) (uuid.UUID, error) {

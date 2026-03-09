@@ -22,4 +22,9 @@ type Repository interface {
 	DeductCoins(ctx context.Context, userID string, amount int) error
 	// RestoreCoins adds coins back to a user's balance (e.g. withdrawal cancellation/rejection).
 	RestoreCoins(ctx context.Context, userID string, amount int) error
+	// InsertCoinEvent logs a non-topic coin event (signup bonus, promotion, admin adjustment, etc.).
+	// actorID is the admin/user who triggered the event; empty string means system-triggered.
+	InsertCoinEvent(ctx context.Context, userID string, amount int, eventType, memo, actorID string) error
+	// GetCoinHistory returns a unified, paginated timeline of all coin changes.
+	GetCoinHistory(ctx context.Context, userID string, limit, offset int) ([]CoinTransaction, error)
 }

@@ -82,6 +82,14 @@ func (m *mockLevelRepo) RestoreCoins(_ context.Context, _ string, _ int) error {
 	return nil
 }
 
+func (m *mockLevelRepo) InsertCoinEvent(_ context.Context, _ string, _ int, _, _, _ string) error {
+	return nil
+}
+
+func (m *mockLevelRepo) GetCoinHistory(_ context.Context, _ string, _, _ int) ([]level.CoinTransaction, error) {
+	return nil, nil
+}
+
 type mockSubGetterLevel struct {
 	subs    []string
 	subsErr error

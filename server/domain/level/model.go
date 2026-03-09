@@ -89,6 +89,25 @@ type CoinLog struct {
 	CreatedAt     time.Time
 }
 
+// CoinEvent represents a non-topic coin balance change (signup bonus, promotion, etc.).
+type CoinEvent struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Amount    int       `json:"amount"`
+	Type      string    `json:"type"`
+	Memo      string    `json:"memo"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CoinTransaction is a unified view combining coin_logs + coin_events + withdrawals.
+type CoinTransaction struct {
+	ID          string    `json:"id"`
+	Amount      int       `json:"amount"`
+	Type        string    `json:"type"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type LevelInfo struct {
 	Level       int    `json:"level"`
 	TotalCoins  int    `json:"total_coins"`

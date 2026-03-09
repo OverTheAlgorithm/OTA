@@ -107,10 +107,10 @@ export function HomePage() {
           <div className="space-y-3">
             <LevelCard level={levelInfo} />
             <Link
-              to="/withdrawal"
+              to="/mypage"
               className="block w-full text-center py-3 rounded-xl font-semibold text-sm transition-colors border border-[#4a9fe5]/30 bg-[#4a9fe5]/10 text-[#4a9fe5] hover:bg-[#4a9fe5]/20"
             >
-              출금하기
+              마이 페이지
             </Link>
           </div>
         ) : (

@@ -75,6 +75,31 @@ func (s *Service) IsAtDailyLimit(ctx context.Context, userID string) (bool, erro
 	return todayEarned >= limit, nil
 }
 
+// AdjustCoins sets a user's coins to a new value and logs the change as a coin event.
+// Returns the delta (newCoins - oldCoins) and the updated LevelInfo.
+func (s *Service) AdjustCoins(ctx context.Context, userID string, newCoins int, memo, actorID string) (int, LevelInfo, error) {
+	uc, err := s.repo.GetUserCoins(ctx, userID)
+	if err != nil {
+		return 0, LevelInfo{}, fmt.Errorf("adjust coins get current: %w", err)
+	}
+
+	delta := newCoins - uc.Coins
+	if err := s.repo.SetCoins(ctx, userID, newCoins); err != nil {
+		return 0, LevelInfo{}, fmt.Errorf("adjust coins set: %w", err)
+	}
+
+	if err := s.repo.InsertCoinEvent(ctx, userID, delta, "admin_adjustment", memo, actorID); err != nil {
+		return 0, LevelInfo{}, fmt.Errorf("adjust coins log: %w", err)
+	}
+
+	return delta, s.calcInfo(newCoins), nil
+}
+
+// GetCoinHistory returns a unified paginated timeline of all coin changes.
+func (s *Service) GetCoinHistory(ctx context.Context, userID string, limit, offset int) ([]CoinTransaction, error) {
+	return s.repo.GetCoinHistory(ctx, userID, limit, offset)
+}
+
 // EarnCoin awards coins for visiting a topic.
 func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, preferred bool) (EarnResult, error) {
 	coins := CalcCoins(preferred)
