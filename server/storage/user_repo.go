@@ -38,6 +38,22 @@ func (r *UserRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64, ema
 	return u, nil
 }
 
+func (r *UserRepository) FindByKakaoID(ctx context.Context, kakaoID int64) (user.User, bool, error) {
+	query := `SELECT id, kakao_id, email, email_verified, nickname, profile_image, role, created_at, updated_at FROM users WHERE kakao_id = $1`
+
+	var u user.User
+	err := r.pool.QueryRow(ctx, query, kakaoID).Scan(
+		&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return user.User{}, false, nil
+		}
+		return user.User{}, false, fmt.Errorf("find user by kakao id: %w", err)
+	}
+	return u, true, nil
+}
+
 func (r *UserRepository) FindByID(ctx context.Context, id string) (user.User, error) {
 	query := `SELECT id, kakao_id, email, email_verified, nickname, profile_image, role, created_at, updated_at FROM users WHERE id = $1`
 
@@ -50,6 +66,22 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (user.User, er
 			return user.User{}, fmt.Errorf("user not found")
 		}
 		return user.User{}, fmt.Errorf("find user: %w", err)
+	}
+	return u, nil
+}
+
+func (r *UserRepository) FindByEmail(ctx context.Context, email string) (user.User, error) {
+	query := `SELECT id, kakao_id, email, email_verified, nickname, profile_image, role, created_at, updated_at FROM users WHERE email = $1`
+
+	var u user.User
+	err := r.pool.QueryRow(ctx, query, email).Scan(
+		&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return user.User{}, fmt.Errorf("user not found")
+		}
+		return user.User{}, fmt.Errorf("find user by email: %w", err)
 	}
 	return u, nil
 }

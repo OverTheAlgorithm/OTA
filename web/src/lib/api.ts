@@ -495,6 +495,103 @@ export async function cancelWithdrawal(id: string): Promise<void> {
   }
 }
 
+// ── 이용 약관 ─────────────────────────────────────────
+export interface Term {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  active: boolean;
+  required: boolean;
+  version: string;
+  created_at: string;
+}
+
+export async function getActiveTerms(): Promise<Term[]> {
+  const res = await fetch(`${API_BASE}/api/v1/terms/active`);
+  if (!res.ok) throw new Error("약관 목록을 불러올 수 없습니다");
+  const body: ApiResponse<Term[]> = await res.json();
+  return body.data;
+}
+
+export async function completeSignup(
+  signupKey: string,
+  agreedTermIds: string[]
+): Promise<User> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/complete-signup`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ signup_key: signupKey, agreed_term_ids: agreedTermIds }),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "회원가입에 실패했습니다");
+  }
+  const body: ApiResponse<User> = await res.json();
+  return body.data;
+}
+
+// ── 이용 약관 관리자 ──────────────────────────────────
+export async function getAdminTerms(): Promise<Term[]> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/terms`, { credentials: "include" });
+  if (!res.ok) throw new Error("약관 목록을 불러올 수 없습니다");
+  const body: ApiResponse<Term[]> = await res.json();
+  return body.data;
+}
+
+export async function createTerm(
+  term: Omit<Term, "id" | "created_at">
+): Promise<Term> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/terms`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(term),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "약관 생성에 실패했습니다");
+  }
+  const body: ApiResponse<Term> = await res.json();
+  return body.data;
+}
+
+export async function updateTermActive(termId: string, active: boolean): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/terms/${termId}/active`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ active }),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "활성 상태 변경에 실패했습니다");
+  }
+}
+
+// ── 마이페이지 ──────────────────────────────────────
+export interface CoinTransaction {
+  id: string;
+  amount: number;
+  type: string;
+  description: string;
+  created_at: string;
+}
+
+export async function getCoinHistory(
+  limit: number,
+  offset: number
+): Promise<{ data: CoinTransaction[]; has_more: boolean }> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/mypage/coin-history?limit=${limit}&offset=${offset}`,
+    { credentials: "include" }
+  );
+  if (!res.ok) throw new Error("코인 내역을 불러올 수 없습니다");
+  const body = await res.json();
+  return { data: body.data ?? [], has_more: body.has_more ?? false };
+}
+
 // ── 출금 관리자 ──────────────────────────────────────
 export async function getAdminWithdrawals(
   status: string,
@@ -553,4 +650,52 @@ export async function updateTransitionNote(transitionId: string, note: string): 
     const err: ApiError = await res.json();
     throw new Error(err.error || "비고 수정에 실패했습니다");
   }
+}
+
+// ── 관리자 코인 조정 ─────────────────────────────────
+export interface AdminUserSearchResult {
+  user: User;
+  level: LevelInfo;
+}
+
+export async function adminSearchUser(
+  type: "id" | "email",
+  query: string
+): Promise<AdminUserSearchResult> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/admin/coins/search?type=${type}&q=${encodeURIComponent(query)}`,
+    { credentials: "include" }
+  );
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "유저 검색에 실패했습니다");
+  }
+  const body: ApiResponse<AdminUserSearchResult> = await res.json();
+  return body.data;
+}
+
+export interface AdjustCoinsResult {
+  user_id: string;
+  delta: number;
+  new_coins: number;
+  level: LevelInfo;
+}
+
+export async function adminAdjustCoins(
+  userId: string,
+  newCoins: number,
+  memo: string
+): Promise<AdjustCoinsResult> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/coins/adjust`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, new_coins: newCoins, memo }),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "코인 수정에 실패했습니다");
+  }
+  const body: ApiResponse<AdjustCoinsResult> = await res.json();
+  return body.data;
 }

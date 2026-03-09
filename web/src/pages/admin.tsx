@@ -291,6 +291,19 @@ export function AdminPage() {
           </div>
         </div>
 
+        <section className="rounded-2xl border border-[#ff5442]/20 bg-[#ff5442]/5 p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-[#ff5442]">코인 수정</h2>
+          <p className="text-sm text-[#6b8db5]">
+            유저의 코인 보유량을 직접 수정합니다. 장애 보상, 오류 수정 등 최후의 수단으로만 사용하세요.
+          </p>
+          <Link
+            to="/admin/coins"
+            className="inline-block px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors bg-[#ff5442] text-white hover:bg-[#e04030]"
+          >
+          코인 수정
+          </Link>
+        </section>
+
         <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
           <h2 className="text-lg font-semibold">출금 관리</h2>
           <p className="text-sm text-[#6b8db5]">
@@ -301,7 +314,21 @@ export function AdminPage() {
             className="inline-block px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors"
             style={{ background: "var(--color-button-primary)", color: "white" }}
           >
-            출금 관리 페이지로 이동
+          출금 관리
+          </Link>
+        </section>
+
+        <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
+          <h2 className="text-lg font-semibold">이용 약관 관리</h2>
+          <p className="text-sm text-[#6b8db5]">
+            서비스 이용 약관을 관리하고 새 약관을 추가할 수 있습니다.
+          </p>
+          <Link
+            to="/admin/terms"
+            className="inline-block px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors"
+            style={{ background: "var(--color-button-primary)", color: "white" }}
+          >
+          이용 약관 관리
           </Link>
         </section>
 

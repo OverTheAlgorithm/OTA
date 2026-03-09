@@ -15,6 +15,7 @@ import (
 	"ota/domain/collector"
 	"ota/domain/delivery"
 	"ota/domain/level"
+	"ota/domain/terms"
 	"ota/domain/user"
 	"ota/domain/withdrawal"
 	"ota/platform/email"
@@ -166,13 +167,24 @@ func main() {
 	defer sched.Stop()
 	log.Println("scheduler started (collection 4-6 AM, delivery 7:00-7:15 AM, retry 7:30-8:30 AM KST)")
 
+	// Terms of service
+	termsRepo := storage.NewTermsRepository(pool)
+	termsService := terms.NewService(termsRepo)
+	signupCache, err := cache.New(1_000)
+	if err != nil {
+		log.Fatalf("failed to create signup cache: %v", err)
+	}
+	defer signupCache.Close()
+
 	// Handlers
 	userRepo := storage.NewUserRepository(pool)
 	subscriptionRepo := storage.NewSubscriptionRepository(pool)
 	kakaoClient := kakao.NewClient(cfg.KakaoClientID, cfg.KakaoClientSecret, cfg.KakaoRedirectURI)
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
 	stateStore := auth.NewStateStore()
-	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, levelRepo, cfg.SignupBonusCoins, cfg.FrontendURL)
+	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, levelRepo, cfg.SignupBonusCoins, cfg.FrontendURL, signupCache, termsService)
+	termsHandler := handler.NewTermsHandler(termsService)
+	termsAdminHandler := handler.NewTermsAdminHandler(termsService)
 	brainCategoryHandler := handler.NewBrainCategoryHandler(brainCategoryRepo)
 	deliveryHandler := api.NewDeliveryHandler(deliveryService, api.AuthMiddleware(jwtManager))
 	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo, deliveryService, userRepo)
@@ -202,6 +214,10 @@ func main() {
 
 	withdrawalHandler := handler.NewWithdrawalHandler(withdrawalService, api.AuthMiddleware(jwtManager))
 	withdrawalAdminHandler := handler.NewWithdrawalAdminHandler(withdrawalService)
+
+	mypageHandler := handler.NewMypageHandler(levelService, api.AuthMiddleware(jwtManager))
+
+	adminCoinHandler := handler.NewAdminCoinHandler(userRepo, levelService)
 
 	adminHandler := handler.NewAdminHandler(collectorService, cfg.SlackWebhookURL, brainCategoryHandler).
 		WithLevelService(levelService).
@@ -263,6 +279,26 @@ func main() {
 		{
 			GroupName:   "admin/withdrawals",
 			Handler:     withdrawalAdminHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
+		},
+		{
+			GroupName:   "terms",
+			Handler:     termsHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "admin/terms",
+			Handler:     termsAdminHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
+		},
+		{
+			GroupName:   "mypage",
+			Handler:     mypageHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "admin/coins",
+			Handler:     adminCoinHandler,
 			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
 		},
 	})
