@@ -4,20 +4,36 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"ota/auth"
+	"ota/cache"
 	"ota/domain/delivery"
+	"ota/domain/terms"
 	"ota/domain/user"
 	"ota/platform/kakao"
 )
 
 const cookieName = "ota_token"
 
+// signupCacheTTL is the duration a pending signup entry lives in cache.
+const signupCacheTTL = 3 * time.Minute
+
+// PendingSignup holds Kakao profile data while the user reviews terms.
+type PendingSignup struct {
+	KakaoID         int64
+	Email           string
+	Nickname        string
+	ProfileImageURL string
+}
+
 // SignupBonusGranter grants bonus coins to newly registered users.
 type SignupBonusGranter interface {
 	SetCoins(ctx context.Context, userID string, coins int) error
+	InsertCoinEvent(ctx context.Context, userID string, amount int, eventType, memo, actorID string) error
 }
 
 type AuthHandler struct {
@@ -29,9 +45,22 @@ type AuthHandler struct {
 	bonusGranter     SignupBonusGranter
 	signupBonus      int
 	frontendURL      string
+	signupCache      cache.Cache
+	termsService     *terms.Service
 }
 
-func NewAuthHandler(kakao *kakao.Client, jwt *auth.JWTManager, states *auth.StateStore, userRepo user.Repository, welcomeDeliverer delivery.WelcomeDeliverer, bonusGranter SignupBonusGranter, signupBonus int, frontendURL string) *AuthHandler {
+func NewAuthHandler(
+	kakao *kakao.Client,
+	jwt *auth.JWTManager,
+	states *auth.StateStore,
+	userRepo user.Repository,
+	welcomeDeliverer delivery.WelcomeDeliverer,
+	bonusGranter SignupBonusGranter,
+	signupBonus int,
+	frontendURL string,
+	signupCache cache.Cache,
+	termsService *terms.Service,
+) *AuthHandler {
 	return &AuthHandler{
 		kakao:            kakao,
 		jwt:              jwt,
@@ -41,6 +70,8 @@ func NewAuthHandler(kakao *kakao.Client, jwt *auth.JWTManager, states *auth.Stat
 		bonusGranter:     bonusGranter,
 		signupBonus:      signupBonus,
 		frontendURL:      frontendURL,
+		signupCache:      signupCache,
+		termsService:     termsService,
 	}
 }
 
@@ -84,23 +115,147 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 		return
 	}
 
-	u, err := h.userRepo.UpsertByKakaoID(
-		c.Request.Context(),
-		kakaoUser.ID,
-		kakaoUser.Account.Email,
-		kakaoUser.Account.Profile.Nickname,
-		kakaoUser.Account.Profile.ProfileImageURL,
-	)
+	// Check if user already exists
+	_, found, err := h.userRepo.FindByKakaoID(c.Request.Context(), kakaoUser.ID)
 	if err != nil {
-		log.Printf("failed to upsert user: %v", err)
+		log.Printf("failed to check existing user: %v", err)
 		c.Redirect(http.StatusFound, h.frontendURL+"/login?error=db_error")
 		return
 	}
 
+	if found {
+		// Returning user — update profile and login directly
+		u, err := h.userRepo.UpsertByKakaoID(
+			c.Request.Context(),
+			kakaoUser.ID,
+			kakaoUser.Account.Email,
+			kakaoUser.Account.Profile.Nickname,
+			kakaoUser.Account.Profile.ProfileImageURL,
+		)
+		if err != nil {
+			log.Printf("failed to upsert user: %v", err)
+			c.Redirect(http.StatusFound, h.frontendURL+"/login?error=db_error")
+			return
+		}
+
+		jwtToken, err := h.jwt.Generate(u.ID, u.Role)
+		if err != nil {
+			log.Printf("failed to generate JWT: %v", err)
+			c.Redirect(http.StatusFound, h.frontendURL+"/login?error=jwt_error")
+			return
+		}
+
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     cookieName,
+			Value:    jwtToken,
+			MaxAge:   7 * 24 * 3600,
+			Path:     "/",
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+		})
+
+		c.Redirect(http.StatusFound, h.frontendURL+"/home")
+		return
+	}
+
+	// New user — cache Kakao data and redirect to terms consent
+	signupKey := uuid.New().String()
+	h.signupCache.Set(signupKey, PendingSignup{
+		KakaoID:         kakaoUser.ID,
+		Email:           kakaoUser.Account.Email,
+		Nickname:        kakaoUser.Account.Profile.Nickname,
+		ProfileImageURL: kakaoUser.Account.Profile.ProfileImageURL,
+	}, signupCacheTTL)
+
+	log.Printf("new user signup pending — kakao_id=%d, signup_key=%s", kakaoUser.ID, signupKey)
+	c.Redirect(http.StatusFound, h.frontendURL+"/terms-consent?signup_key="+signupKey)
+}
+
+type completeSignupRequest struct {
+	SignupKey      string   `json:"signup_key"`
+	AgreedTermIDs []string `json:"agreed_term_ids"`
+}
+
+// CompleteSignup finishes the two-phase signup after terms consent.
+func (h *AuthHandler) CompleteSignup(c *gin.Context) {
+	var req completeSignupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
+		return
+	}
+
+	if req.SignupKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "signup_key는 필수입니다"})
+		return
+	}
+
+	// Retrieve and immediately bust the cache entry
+	cached, found := h.signupCache.Get(req.SignupKey)
+	h.signupCache.Delete(req.SignupKey)
+
+	if !found {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "세션이 만료되었습니다. 다시 로그인해주세요."})
+		return
+	}
+
+	pending, ok := cached.(PendingSignup)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "내부 오류가 발생했습니다"})
+		return
+	}
+
+	// Validate terms consent
+	if err := h.termsService.ValidateConsents(c.Request.Context(), req.AgreedTermIDs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Create user
+	u, err := h.userRepo.UpsertByKakaoID(
+		c.Request.Context(),
+		pending.KakaoID,
+		pending.Email,
+		pending.Nickname,
+		pending.ProfileImageURL,
+	)
+	if err != nil {
+		log.Printf("failed to create user during signup: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "회원가입에 실패했습니다"})
+		return
+	}
+
+	// Save term consents
+	if err := h.termsService.SaveConsents(c.Request.Context(), u.ID, req.AgreedTermIDs); err != nil {
+		log.Printf("failed to save consents for user %s: %v", u.ID, err)
+	}
+
+	// Grant signup bonus
+	if h.signupBonus > 0 && h.bonusGranter != nil {
+		if err := h.bonusGranter.SetCoins(c.Request.Context(), u.ID, h.signupBonus); err != nil {
+			log.Printf("signup bonus grant failed for user %s: %v", u.ID, err)
+		} else {
+			_ = h.bonusGranter.InsertCoinEvent(c.Request.Context(), u.ID, h.signupBonus, "signup_bonus", "회원가입 보너스", "")
+			log.Printf("granted %d signup bonus coins to new user %s", h.signupBonus, u.ID)
+		}
+	}
+
+	// Send welcome delivery
+	if u.Email != "" && h.welcomeDeliverer != nil {
+		go func() {
+			if err := h.welcomeDeliverer.DeliverToNewUser(context.Background(), u.ID, u.Email); err != nil {
+				log.Printf("welcome delivery failed for user %s: %v", u.ID, err)
+			} else {
+				log.Printf("welcome delivery sent to new user %s (%s)", u.ID, u.Email)
+			}
+		}()
+	}
+
+	// Generate JWT and set cookie
 	jwtToken, err := h.jwt.Generate(u.ID, u.Role)
 	if err != nil {
 		log.Printf("failed to generate JWT: %v", err)
-		c.Redirect(http.StatusFound, h.frontendURL+"/login?error=jwt_error")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "로그인 처리에 실패했습니다"})
 		return
 	}
 
@@ -114,29 +269,8 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 		SameSite: http.SameSiteNoneMode,
 	})
 
-	// Grant signup bonus coins and send welcome delivery to newly registered users
-	isNewUser := u.CreatedAt.Equal(u.UpdatedAt)
-	if isNewUser {
-		if h.signupBonus > 0 && h.bonusGranter != nil {
-			if err := h.bonusGranter.SetCoins(c.Request.Context(), u.ID, h.signupBonus); err != nil {
-				log.Printf("signup bonus grant failed for user %s: %v", u.ID, err)
-			} else {
-				log.Printf("granted %d signup bonus coins to new user %s", h.signupBonus, u.ID)
-			}
-		}
-
-		if u.Email != "" && h.welcomeDeliverer != nil {
-			go func() {
-				if err := h.welcomeDeliverer.DeliverToNewUser(context.Background(), u.ID, u.Email); err != nil {
-					log.Printf("welcome delivery failed for user %s: %v", u.ID, err)
-				} else {
-					log.Printf("welcome delivery sent to new user %s (%s)", u.ID, u.Email)
-				}
-			}()
-		}
-	}
-
-	c.Redirect(http.StatusFound, h.frontendURL+"/home")
+	log.Printf("new user signup completed — user_id=%s, kakao_id=%d, consents=%d", u.ID, pending.KakaoID, len(req.AgreedTermIDs))
+	c.JSON(http.StatusOK, gin.H{"data": u})
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
@@ -172,6 +306,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/kakao/login", h.KakaoLogin)
 	group.GET("/kakao/callback", h.KakaoCallback)
+	group.POST("/complete-signup", h.CompleteSignup)
 	group.POST("/logout", h.Logout)
 
 	protected := group.Group("")

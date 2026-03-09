@@ -103,7 +103,7 @@ func TestAPI_AuthFlow(t *testing.T) {
 	// Create handlers (Kakao won't be called in these tests, but needed for initialization)
 	kakaoClient := kakao.NewClient("dummy-id", "dummy-secret", "http://localhost/callback")
 	stateStore := auth.NewStateStore()
-	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, nil, nil, 0, "http://localhost:5173")
+	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, nil, nil, 0, "http://localhost:5173", nil, nil)
 
 	gin.SetMode(gin.TestMode)
 	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, []api.RouteModule{
