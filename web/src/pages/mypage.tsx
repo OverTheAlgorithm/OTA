@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
+import { LevelCard } from "@/components/level-card";
 import {
   getCoinHistory,
   getUserLevel,
@@ -79,7 +80,7 @@ export function MypagePage() {
   if (authLoading || !user || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--color-bg)" }}>
-        <p className="text-[#6b8db5]">loading...</p>
+        <p className="text-[#6b8db5]">로딩 중...</p>
       </div>
     );
   }
@@ -92,59 +93,65 @@ export function MypagePage() {
       >
         <div className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
           <button onClick={() => navigate("/home")} className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors">
-            &larr; home
+            &larr; 홈으로
           </button>
-          <h1 className="text-lg font-bold text-[#1e3a5f]">my page</h1>
+          <h1 className="text-lg font-bold text-[#1e3a5f]">마이페이지</h1>
           <div className="w-16" />
         </div>
       </header>
 
       <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 space-y-6">
-        {/* coin balance summary */}
-        <div className="rounded-2xl bg-gradient-to-br from-[#f0f7ff] to-[#e8f4fd] border border-[#d4e6f5] px-6 py-5">
-          <p className="text-xs text-[#6b8db5]">my coins</p>
-          <p className="text-3xl font-bold text-[#1e3a5f]">
-            {(levelInfo?.total_coins ?? 0).toLocaleString()}
-          </p>
-          <p className="text-xs text-[#6b8db5] mt-1">
-            Lv.{levelInfo?.level ?? 1}
-          </p>
-        </div>
+        {levelInfo && <LevelCard level={levelInfo} />}
 
         {/* withdrawal link */}
         <Link
           to="/withdrawal"
           className="block w-full text-center py-3 rounded-xl font-semibold text-sm transition-colors border border-[#4a9fe5]/30 bg-[#4a9fe5]/10 text-[#4a9fe5] hover:bg-[#4a9fe5]/20"
         >
-          withdraw
+          출금하기
         </Link>
 
         {/* coin history */}
         <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-[#1e3a5f]">coin history</h2>
+          <h2 className="text-lg font-semibold text-[#1e3a5f]">코인 획득 내역</h2>
           {transactions.length === 0 ? (
-            <p className="text-sm text-[#6b8db5]">no coin transactions found.</p>
+            <p className="text-sm text-[#6b8db5]">코인 내역이 없습니다.</p>
           ) : (
             <div className="space-y-2">
-              {transactions.map((tx) => (
-                <div key={tx.id} className="flex items-center justify-between rounded-xl border border-[#d4e6f5] bg-white px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-[#1e3a5f] truncate">
-                      {tx.description || TYPE_LABEL[tx.type] || tx.type}
-                    </p>
-                    <p className="text-xs text-[#6b8db5]">{formatDate(tx.created_at)}</p>
+              {transactions.map((tx) => {
+                const inner = (
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-[#1e3a5f] truncate">
+                        {tx.description || TYPE_LABEL[tx.type] || tx.type}
+                      </p>
+                      <p className="text-xs text-[#6b8db5]">{formatDate(tx.created_at)}</p>
+                    </div>
+                    <span className={`text-sm font-bold whitespace-nowrap ml-3 ${tx.amount > 0 ? (TYPE_COLOR[tx.type] || "text-green-600") : "text-[#ff5442]"}`}>
+                      {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()}
+                    </span>
+                  </>
+                );
+                return tx.link_id ? (
+                  <Link
+                    key={tx.id}
+                    to={`/topic/${tx.link_id}`}
+                    className="flex items-center justify-between rounded-xl border border-[#d4e6f5] bg-white px-4 py-3 hover:bg-[#f0f7ff] transition-colors"
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={tx.id} className="flex items-center justify-between rounded-xl border border-[#d4e6f5] bg-white px-4 py-3">
+                    {inner}
                   </div>
-                  <span className={`text-sm font-bold whitespace-nowrap ml-3 ${tx.amount > 0 ? (TYPE_COLOR[tx.type] || "text-green-600") : "text-[#ff5442]"}`}>
-                    {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
               {hasMore && (
                 <button
                   onClick={loadMore}
                   className="w-full py-2 text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
                 >
-                  see more
+                  더 보기
                 </button>
               )}
             </div>

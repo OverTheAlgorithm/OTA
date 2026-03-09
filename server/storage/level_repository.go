@@ -166,10 +166,11 @@ func (r *LevelRepository) InsertCoinEvent(ctx context.Context, userID string, am
 // GetCoinHistory returns a unified paginated timeline of all coin balance changes.
 func (r *LevelRepository) GetCoinHistory(ctx context.Context, userID string, limit, offset int) ([]level.CoinTransaction, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, amount, type, description, created_at FROM (
+		SELECT id, amount, type, description, link_id, created_at FROM (
 			-- Topic view earnings
 			SELECT cl.id::text, cl.coins_earned AS amount, 'earn' AS type,
-				COALESCE(ci.topic, '토픽 열람') AS description, cl.created_at
+				COALESCE(ci.topic, '토픽 열람') AS description,
+				cl.context_item_id::text AS link_id, cl.created_at
 			FROM coin_logs cl
 			LEFT JOIN context_items ci ON ci.id = cl.context_item_id
 			WHERE cl.user_id = $1
@@ -178,7 +179,8 @@ func (r *LevelRepository) GetCoinHistory(ctx context.Context, userID string, lim
 
 			-- General coin events (signup bonus, etc.)
 			SELECT ce.id::text, ce.amount, ce.type,
-				COALESCE(ce.memo, ce.type) AS description, ce.created_at
+				COALESCE(ce.memo, ce.type) AS description,
+				'' AS link_id, ce.created_at
 			FROM coin_events ce
 			WHERE ce.user_id = $1
 
@@ -186,7 +188,8 @@ func (r *LevelRepository) GetCoinHistory(ctx context.Context, userID string, lim
 
 			-- Withdrawal deductions (negative amount)
 			SELECT w.id::text, -w.amount AS amount, 'withdrawal' AS type,
-				'출금 신청' AS description, w.created_at
+				'출금 신청' AS description,
+				'' AS link_id, w.created_at
 			FROM withdrawals w
 			INNER JOIN withdrawal_transitions wt ON wt.withdrawal_id = w.id AND wt.status = 'pending'
 			WHERE w.user_id = $1
@@ -199,6 +202,7 @@ func (r *LevelRepository) GetCoinHistory(ctx context.Context, userID string, lim
 					WHEN 'rejected' THEN '출금 거절 (환불)'
 					WHEN 'cancelled' THEN '출금 취소 (환불)'
 				END AS description,
+				'' AS link_id,
 				wt.created_at
 			FROM withdrawal_transitions wt
 			INNER JOIN withdrawals w ON w.id = wt.withdrawal_id
@@ -215,7 +219,7 @@ func (r *LevelRepository) GetCoinHistory(ctx context.Context, userID string, lim
 	var txns []level.CoinTransaction
 	for rows.Next() {
 		var t level.CoinTransaction
-		if err := rows.Scan(&t.ID, &t.Amount, &t.Type, &t.Description, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Amount, &t.Type, &t.Description, &t.LinkID, &t.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan coin history: %w", err)
 		}
 		txns = append(txns, t)

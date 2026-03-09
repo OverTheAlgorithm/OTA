@@ -105,6 +105,7 @@ type CoinTransaction struct {
 	Amount      int       `json:"amount"`
 	Type        string    `json:"type"`
 	Description string    `json:"description"`
+	LinkID      string    `json:"link_id,omitempty"` // context_item_id for topic earn entries
 	CreatedAt   time.Time `json:"created_at"`
 }
 

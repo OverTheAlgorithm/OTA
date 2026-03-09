@@ -576,6 +576,7 @@ export interface CoinTransaction {
   amount: number;
   type: string;
   description: string;
+  link_id?: string;
   created_at: string;
 }
 
