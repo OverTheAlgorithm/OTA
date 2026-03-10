@@ -319,3 +319,22 @@ func (r *WithdrawalRepository) GetWithdrawalOwner(ctx context.Context, withdrawa
 	}
 	return userID, nil
 }
+
+func (r *WithdrawalRepository) HasPendingWithdrawals(ctx context.Context, userID string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM withdrawals w
+			WHERE w.user_id = $1
+			AND (
+				SELECT wt.status FROM withdrawal_transitions wt
+				WHERE wt.withdrawal_id = w.id
+				ORDER BY wt.created_at DESC LIMIT 1
+			) = 'pending'
+		)`, userID,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check pending withdrawals: %w", err)
+	}
+	return exists, nil
+}

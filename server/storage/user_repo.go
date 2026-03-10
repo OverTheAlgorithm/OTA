@@ -97,3 +97,15 @@ func (r *UserRepository) UpdateEmail(ctx context.Context, userID string, email s
 	}
 	return nil
 }
+
+func (r *UserRepository) DeleteByID(ctx context.Context, userID string) error {
+	query := `DELETE FROM users WHERE id = $1`
+	tag, err := r.pool.Exec(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user not found: %s", userID)
+	}
+	return nil
+}

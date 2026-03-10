@@ -28,4 +28,7 @@ type Repository interface {
 
 	// Ownership
 	GetWithdrawalOwner(ctx context.Context, withdrawalID uuid.UUID) (string, error)
+
+	// HasPendingWithdrawals checks if a user has any pending withdrawal requests.
+	HasPendingWithdrawals(ctx context.Context, userID string) (bool, error)
 }

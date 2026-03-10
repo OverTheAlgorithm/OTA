@@ -653,6 +653,18 @@ export async function updateTransitionNote(transitionId: string, note: string): 
   }
 }
 
+// ── 회원 탈퇴 ───────────────────────────────────────
+export async function deleteAccount(): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/delete-account`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "계정 삭제에 실패했습니다");
+  }
+}
+
 // ── 관리자 코인 조정 ─────────────────────────────────
 export interface AdminUserSearchResult {
   user: User;

@@ -5,6 +5,7 @@ import { LevelCard } from "@/components/level-card";
 import {
   getCoinHistory,
   getUserLevel,
+  deleteAccount,
   type CoinTransaction,
   type LevelInfo,
 } from "@/lib/api";
@@ -75,6 +76,25 @@ export function MypagePage() {
     const { data, has_more } = await getCoinHistory(20, transactions.length);
     setTransactions((prev) => [...prev, ...data]);
     setHasMore(has_more);
+  };
+
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      "정말로 계정을 삭제하시겠습니까?\n\n" +
+      "삭제된 계정은 복구할 수 없으며, 보유 중인 코인과 모든 데이터가 영구적으로 삭제됩니다."
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      await deleteAccount();
+      window.location.href = "/";
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "계정 삭제에 실패했습니다");
+      setDeleting(false);
+    }
   };
 
   if (authLoading || !user || loading) {
@@ -157,6 +177,17 @@ export function MypagePage() {
             </div>
           )}
         </section>
+
+        {/* 회원 탈퇴 */}
+        <div className="pt-4">
+          <button
+            onClick={handleDeleteAccount}
+            disabled={deleting}
+            className="text-sm text-[#ff5442]/70 hover:text-[#ff5442] transition-colors disabled:opacity-50"
+          >
+            {deleting ? "처리 중..." : "회원 탈퇴"}
+          </button>
+        </div>
       </main>
     </div>
   );

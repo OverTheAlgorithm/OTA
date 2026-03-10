@@ -36,17 +36,23 @@ type SignupBonusGranter interface {
 	InsertCoinEvent(ctx context.Context, userID string, amount int, eventType, memo, actorID string) error
 }
 
+// WithdrawalChecker checks for pending withdrawals before account deletion.
+type WithdrawalChecker interface {
+	HasPendingWithdrawals(ctx context.Context, userID string) (bool, error)
+}
+
 type AuthHandler struct {
-	kakao            *kakao.Client
-	jwt              *auth.JWTManager
-	states           *auth.StateStore
-	userRepo         user.Repository
-	welcomeDeliverer delivery.WelcomeDeliverer
-	bonusGranter     SignupBonusGranter
-	signupBonus      int
-	frontendURL      string
-	signupCache      cache.Cache
-	termsService     *terms.Service
+	kakao              *kakao.Client
+	jwt                *auth.JWTManager
+	states             *auth.StateStore
+	userRepo           user.Repository
+	welcomeDeliverer   delivery.WelcomeDeliverer
+	bonusGranter       SignupBonusGranter
+	signupBonus        int
+	frontendURL        string
+	signupCache        cache.Cache
+	termsService       *terms.Service
+	withdrawalChecker  WithdrawalChecker
 }
 
 func NewAuthHandler(
@@ -73,6 +79,11 @@ func NewAuthHandler(
 		signupCache:      signupCache,
 		termsService:     termsService,
 	}
+}
+
+func (h *AuthHandler) WithWithdrawalChecker(wc WithdrawalChecker) *AuthHandler {
+	h.withdrawalChecker = wc
+	return h
 }
 
 func (h *AuthHandler) KakaoLogin(c *gin.Context) {
@@ -303,6 +314,50 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
 
+func (h *AuthHandler) DeleteAccount(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	uid := userID.(string)
+
+	// Block deletion if there are pending withdrawals
+	if h.withdrawalChecker != nil {
+		hasPending, err := h.withdrawalChecker.HasPendingWithdrawals(c.Request.Context(), uid)
+		if err != nil {
+			log.Printf("failed to check pending withdrawals for user %s: %v", uid, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "계정 삭제 중 오류가 발생했습니다"})
+			return
+		}
+		if hasPending {
+			c.JSON(http.StatusConflict, gin.H{"error": "처리 대기 중인 출금 신청이 있습니다. 출금 완료 또는 취소 후 탈퇴해주세요."})
+			return
+		}
+	}
+
+	if err := h.userRepo.DeleteByID(c.Request.Context(), uid); err != nil {
+		log.Printf("failed to delete user %s: %v", uid, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "계정 삭제에 실패했습니다"})
+		return
+	}
+
+	// Clear auth cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     cookieName,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
+	})
+
+	log.Printf("user account deleted — user_id=%s", uid)
+	c.JSON(http.StatusOK, gin.H{"message": "계정이 삭제되었습니다"})
+}
+
 func (h *AuthHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/kakao/login", h.KakaoLogin)
 	group.GET("/kakao/callback", h.KakaoCallback)
@@ -313,6 +368,7 @@ func (h *AuthHandler) RegisterRoutes(group *gin.RouterGroup) {
 	protected.Use(h.authMiddleware())
 	{
 		protected.GET("/me", h.Me)
+		protected.DELETE("/delete-account", h.DeleteAccount)
 	}
 }
 

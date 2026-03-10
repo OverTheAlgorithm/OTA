@@ -182,7 +182,8 @@ func main() {
 	kakaoClient := kakao.NewClient(cfg.KakaoClientID, cfg.KakaoClientSecret, cfg.KakaoRedirectURI)
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
 	stateStore := auth.NewStateStore()
-	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, levelRepo, cfg.SignupBonusCoins, cfg.FrontendURL, signupCache, termsService)
+	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, levelRepo, cfg.SignupBonusCoins, cfg.FrontendURL, signupCache, termsService).
+		WithWithdrawalChecker(withdrawalRepo)
 	termsHandler := handler.NewTermsHandler(termsService)
 	termsAdminHandler := handler.NewTermsAdminHandler(termsService)
 	brainCategoryHandler := handler.NewBrainCategoryHandler(brainCategoryRepo)

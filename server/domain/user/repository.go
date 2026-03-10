@@ -8,4 +8,5 @@ type Repository interface {
 	FindByKakaoID(ctx context.Context, kakaoID int64) (User, bool, error)
 	FindByEmail(ctx context.Context, email string) (User, error)
 	UpdateEmail(ctx context.Context, userID string, email string) error
+	DeleteByID(ctx context.Context, userID string) error
 }

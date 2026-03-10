@@ -70,6 +70,10 @@ func (m *mockUserRepoSignup) UpdateEmail(_ context.Context, _ string, _ string) 
 	return nil
 }
 
+func (m *mockUserRepoSignup) DeleteByID(_ context.Context, _ string) error {
+	return nil
+}
+
 type mockTermsRepoSignup struct {
 	requiredTerms []terms.Term
 	savedConsents map[string][]string
