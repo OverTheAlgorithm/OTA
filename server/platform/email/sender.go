@@ -2,6 +2,8 @@ package email
 
 import (
 	"fmt"
+	"mime"
+	"net/mail"
 	"net/smtp"
 	"strings"
 )
@@ -35,8 +37,14 @@ func NewSMTPSender(config SMTPConfig) *SMTPSender {
 
 // Send sends an email via SMTP
 func (s *SMTPSender) Send(to string, subject string, textBody string, htmlBody string) error {
+	// Parse From field: supports both "Name <email>" and plain "email" formats.
+	// The display name is RFC 2047-encoded to handle non-ASCII characters (e.g. Korean).
+	// The bare email address is used as the SMTP envelope sender (MAIL FROM),
+	// which Gmail requires to match the authenticated account.
+	fromHeader, envelopeFrom := parseFrom(s.config.From)
+
 	// Build MIME message
-	message := buildMIMEMessage(s.config.From, to, subject, textBody, htmlBody)
+	message := buildMIMEMessage(fromHeader, to, subject, textBody, htmlBody)
 
 	// SMTP server address
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
@@ -48,7 +56,7 @@ func (s *SMTPSender) Send(to string, subject string, textBody string, htmlBody s
 	err := smtp.SendMail(
 		addr,
 		auth,
-		s.config.From,
+		envelopeFrom,
 		[]string{to},
 		[]byte(message),
 	)
@@ -58,6 +66,21 @@ func (s *SMTPSender) Send(to string, subject string, textBody string, htmlBody s
 	}
 
 	return nil
+}
+
+// parseFrom parses a From value like "Name <email>" or plain "email".
+// Returns (RFC2047-encoded From header value, bare email for SMTP envelope).
+func parseFrom(from string) (header string, envelope string) {
+	addr, err := mail.ParseAddress(from)
+	if err != nil {
+		// Fallback: treat the whole value as a plain email address
+		return from, from
+	}
+	if addr.Name == "" {
+		return addr.Address, addr.Address
+	}
+	encoded := mime.QEncoding.Encode("utf-8", addr.Name)
+	return encoded + " <" + addr.Address + ">", addr.Address
 }
 
 // buildMIMEMessage constructs a multipart MIME email message
