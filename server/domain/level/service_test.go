@@ -46,6 +46,14 @@ func (m *mockRepo) RestoreCoins(_ context.Context, _ string, _ int) error {
 	return nil
 }
 
+func (m *mockRepo) InsertCoinEvent(_ context.Context, _ string, _ int, _, _, _ string) error {
+	return nil
+}
+
+func (m *mockRepo) GetCoinHistory(_ context.Context, _ string, _, _ int) ([]CoinTransaction, error) {
+	return nil, nil
+}
+
 func TestService_GetLevel(t *testing.T) {
 	// 1500 coins → Lv2 (threshold 1000), base=10, extra=10 → dailyLimit = 10 + 2*10 = 30
 	svc := NewService(&mockRepo{coins: UserCoins{Coins: 1500}}, testCfg, 10, 10)
