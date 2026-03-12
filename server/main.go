@@ -85,13 +85,6 @@ func main() {
 		aiClient = openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAIModel)
 	}
 	collectorRepo := storage.NewCollectorRepository(pool)
-	collectorService := collector.NewService(aiClient, collectorRepo)
-	if fallbackAIClient != nil {
-		collectorService.WithFallback(fallbackAIClient)
-		log.Printf("collector service initialized (provider: %s, model: %s, fallback: %s)", cfg.AIProvider, cfg.GeminiModel, cfg.GeminiModelFallback)
-	} else {
-		log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
-	}
 
 	earnCache, err := cache.New(10_000)
 	if err != nil {
@@ -102,29 +95,32 @@ func main() {
 	// Structured source collectors (Google Trends + Google News)
 	trendsCollector := googletrends.NewCollector()
 	newsCollector := googlenews.NewCollector(googlenews.DefaultTopics())
-	aggregator := collector.NewAggregator([]collector.SourceCollector{trendsCollector, newsCollector})
+	aggregator := collector.NewAggregator(trendsCollector, newsCollector)
 	trendingRepo := storage.NewTrendingItemRepository(pool)
-	collectorService.WithAggregator(aggregator).WithTrendingRepo(trendingRepo).WithURLDecoder(googlenews.ReplaceArticleURLs)
-	log.Println("structured source pipeline initialized (google_trends + google_news)")
 
 	// Brain categories (for AI prompt + admin management)
 	brainCategoryRepo := storage.NewBrainCategoryRepository(pool)
-	collectorService.WithBrainCategoryRepo(brainCategoryRepo)
 
-	// Image generation (optional — only if model is configured)
+	// Image generation
 	const imageBaseDir = "data/images"
-	if cfg.ImageGenerationModel != "" {
-		imgClient, imgErr := gemini.NewImageClient(ctx, cfg.GeminiAPIKey, cfg.ImageGenerationModel)
-		if imgErr != nil {
-			log.Printf("warning: image generation disabled — %v", imgErr)
-		} else {
-			imageGen := collector.NewImageGenerator(imgClient, imageBaseDir)
-			collectorService.WithImageGenerator(imageGen)
-			log.Printf("image generation initialized (model: %s)", cfg.ImageGenerationModel)
-		}
-	} else {
-		log.Printf("warning: IMAGE_GENERATION_MODEL not set — thumbnail generation disabled")
+	if cfg.ImageGenerationModel == "" {
+		log.Fatalf("IMAGE_GENERATION_MODEL is required")
 	}
+	imgClient, imgErr := gemini.NewImageClient(ctx, cfg.GeminiAPIKey, cfg.ImageGenerationModel)
+	if imgErr != nil {
+		log.Fatalf("failed to initialize image generation: %v", imgErr)
+	}
+	imageGen := collector.NewImageGenerator(imgClient, imageBaseDir)
+	log.Printf("image generation initialized (model: %s)", cfg.ImageGenerationModel)
+
+	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, imageGen)
+	if fallbackAIClient != nil {
+		collectorService.WithFallback(fallbackAIClient)
+		log.Printf("collector service initialized (provider: %s, model: %s, fallback: %s)", cfg.AIProvider, cfg.GeminiModel, cfg.GeminiModelFallback)
+	} else {
+		log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
+	}
+	log.Println("structured source pipeline initialized (google_trends + google_news)")
 
 	// Message delivery
 	emailSender := email.NewSMTPSender(email.SMTPConfig{

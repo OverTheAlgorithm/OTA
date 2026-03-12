@@ -157,12 +157,13 @@ func TestAIClient_RetryLogic(t *testing.T) {
 	}
 
 	repo := storage.NewCollectorRepository(db.Pool)
+	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
+	brainCatRepo := storage.NewBrainCategoryRepository(db.Pool)
 	sc := &e2eSourceCollector{items: []collector.TrendingItem{
 		{Keyword: "test", Source: "test", Traffic: 100},
 	}}
-	agg := collector.NewAggregator([]collector.SourceCollector{sc})
-	service := collector.NewService(failingClient, repo)
-	service.WithAggregator(agg)
+	agg := collector.NewAggregator(sc, sc)
+	service := collector.NewService(failingClient, repo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
 
 	result, err := service.CollectFromSources(context.Background())
 	if err != nil {
@@ -190,12 +191,13 @@ func TestAIClient_NoRetryOnFormatError(t *testing.T) {
 	}
 
 	repo := storage.NewCollectorRepository(db.Pool)
+	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
+	brainCatRepo := storage.NewBrainCategoryRepository(db.Pool)
 	sc := &e2eSourceCollector{items: []collector.TrendingItem{
 		{Keyword: "test", Source: "test", Traffic: 100},
 	}}
-	agg := collector.NewAggregator([]collector.SourceCollector{sc})
-	service := collector.NewService(failingClient, repo)
-	service.WithAggregator(agg)
+	agg := collector.NewAggregator(sc, sc)
+	service := collector.NewService(failingClient, repo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
 
 	_, err := service.CollectFromSources(context.Background())
 	if err == nil {
@@ -296,6 +298,19 @@ type e2eSourceCollector struct {
 func (m *e2eSourceCollector) Name() string { return "e2e_test" }
 func (m *e2eSourceCollector) Collect(_ context.Context) ([]collector.TrendingItem, error) {
 	return m.items, nil
+}
+
+// noopURLDecoder is a no-op URL decoder for tests.
+func noopURLDecoder(_ context.Context, _ ...[]string) int { return 0 }
+
+type noopImageClient struct{}
+
+func (n *noopImageClient) Generate(_ context.Context, _ string) ([]byte, string, error) {
+	return nil, "", nil
+}
+
+func noopImageGen() *collector.ImageGenerator {
+	return collector.NewImageGenerator(&noopImageClient{}, "testdata/images")
 }
 
 // Helper functions and types

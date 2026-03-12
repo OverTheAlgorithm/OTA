@@ -39,7 +39,7 @@ func TestAggregator_Collect_Success(t *testing.T) {
 		},
 	}
 
-	agg := NewAggregator([]SourceCollector{trends, news})
+	agg := NewAggregator(trends, news)
 	data, err := agg.Collect(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -53,7 +53,6 @@ func TestAggregator_Collect_Success(t *testing.T) {
 		t.Error("expected non-empty formatted text")
 	}
 
-	// Verify formatted text contains source headers
 	if !strings.Contains(data.FormattedText, "## Source: google_trends") {
 		t.Error("formatted text missing google_trends header")
 	}
@@ -75,7 +74,7 @@ func TestAggregator_Collect_PartialFailure(t *testing.T) {
 		err:   fmt.Errorf("network error"),
 	}
 
-	agg := NewAggregator([]SourceCollector{good, bad})
+	agg := NewAggregator(good, bad)
 	data, err := agg.Collect(context.Background())
 	if err != nil {
 		t.Fatalf("expected success on partial failure, got: %v", err)
@@ -90,14 +89,14 @@ func TestAggregator_Collect_AllFail(t *testing.T) {
 	bad1 := &mockSourceCollector{name: "source1", err: fmt.Errorf("fail1")}
 	bad2 := &mockSourceCollector{name: "source2", err: fmt.Errorf("fail2")}
 
-	agg := NewAggregator([]SourceCollector{bad1, bad2})
+	agg := NewAggregator(bad1, bad2)
 	_, err := agg.Collect(context.Background())
 	if err == nil {
 		t.Error("expected error when all sources fail")
 	}
 }
 
-func TestFormatForAI(t *testing.T) {
+func TestFormatTrends(t *testing.T) {
 	items := []TrendingItem{
 		{
 			Keyword:       "RTX 5090",
@@ -108,11 +107,27 @@ func TestFormatForAI(t *testing.T) {
 			PublishedAt:   time.Date(2026, 2, 23, 0, 0, 0, 0, time.UTC),
 		},
 		{
-			Keyword:  "날씨",
-			Source:   "google_trends",
-			Traffic:  200,
-			Category: "",
+			Keyword: "날씨",
+			Source:  "google_trends",
+			Traffic: 200,
 		},
+	}
+
+	result := FormatTrends(items)
+
+	if !strings.Contains(result, "## Source: google_trends (2 items)") {
+		t.Error("missing google_trends header with count")
+	}
+	if !strings.Contains(result, "**RTX 5090** [traffic: 500]") {
+		t.Error("missing RTX 5090 with traffic")
+	}
+	if !strings.Contains(result, "Related articles (1)") {
+		t.Error("missing related articles count")
+	}
+}
+
+func TestFormatNews(t *testing.T) {
+	items := []TrendingItem{
 		{
 			Keyword:       "엔비디아 신제품",
 			Source:        "google_news",
@@ -122,17 +137,10 @@ func TestFormatForAI(t *testing.T) {
 		},
 	}
 
-	result := FormatForAI(items)
+	result := FormatNews(items)
 
-	// Verify structure
-	if !strings.Contains(result, "## Source: google_trends (2 items)") {
-		t.Error("missing google_trends header with count")
-	}
 	if !strings.Contains(result, "## Source: google_news (1 items)") {
 		t.Error("missing google_news header with count")
-	}
-	if !strings.Contains(result, "**RTX 5090** [traffic: 500]") {
-		t.Error("missing RTX 5090 with traffic")
 	}
 	if !strings.Contains(result, "[category: technology]") {
 		t.Error("missing category tag")
@@ -142,8 +150,15 @@ func TestFormatForAI(t *testing.T) {
 	}
 }
 
-func TestFormatForAI_Empty(t *testing.T) {
-	result := FormatForAI(nil)
+func TestFormatTrends_Empty(t *testing.T) {
+	result := FormatTrends(nil)
+	if result != "" {
+		t.Errorf("expected empty string for nil items, got: %q", result)
+	}
+}
+
+func TestFormatNews_Empty(t *testing.T) {
+	result := FormatNews(nil)
 	if result != "" {
 		t.Errorf("expected empty string for nil items, got: %q", result)
 	}

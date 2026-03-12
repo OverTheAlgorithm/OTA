@@ -85,13 +85,37 @@ func (m *mockTrendingRepo) GetTrendingItemsByRunID(_ context.Context, _ uuid.UUI
 	return m.savedItems, nil
 }
 
+// mockBrainCatRepo is a no-op brain category repository for tests.
+type mockBrainCatRepo struct{}
+
+func (m *mockBrainCatRepo) GetAll(_ context.Context) ([]BrainCategory, error) { return nil, nil }
+func (m *mockBrainCatRepo) Create(_ context.Context, _ BrainCategory) error   { return nil }
+func (m *mockBrainCatRepo) Update(_ context.Context, _ BrainCategory) error   { return nil }
+func (m *mockBrainCatRepo) Delete(_ context.Context, _ string) error          { return nil }
+
+// noopURLDecoder is a no-op URL decoder for tests.
+func noopURLDecoder(_ context.Context, _ ...[]string) int { return 0 }
+
+type noopImageClient struct{}
+
+func (n *noopImageClient) Generate(_ context.Context, _ string) ([]byte, string, error) {
+	return nil, "", nil
+}
+
+func noopImageGen() *ImageGenerator {
+	return NewImageGenerator(&noopImageClient{}, "testdata/images")
+}
+
 // --- helpers ---
 
-func newTestService(aiClient AIClient, repo *mockRepo, collectors []SourceCollector) *Service {
-	svc := NewService(aiClient, repo)
-	agg := NewAggregator(collectors)
-	svc.WithAggregator(agg)
-	return svc
+func newTestService(aiClient AIClient, repo *mockRepo, sc SourceCollector) *Service {
+	agg := NewAggregator(sc, sc)
+	return NewService(aiClient, repo, agg, &mockTrendingRepo{}, &mockBrainCatRepo{}, noopURLDecoder, noopImageGen())
+}
+
+func newTestServiceWithTrendingRepo(aiClient AIClient, repo *mockRepo, sc SourceCollector, trendingRepo TrendingItemRepository) *Service {
+	agg := NewAggregator(sc, sc)
+	return NewService(aiClient, repo, agg, trendingRepo, &mockBrainCatRepo{}, noopURLDecoder, noopImageGen())
 }
 
 var testTrendingItems = []TrendingItem{
@@ -110,7 +134,7 @@ func TestCollectFromSources_Success(t *testing.T) {
 	}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	svc := newTestService(aiClient, repo, collector)
 	result, err := svc.CollectFromSources(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -138,7 +162,7 @@ func TestCollectFromSources_AIFailure(t *testing.T) {
 	aiClient := &mockAIClient{errs: []error{errors.New("ai down")}}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	svc := newTestService(aiClient, repo, collector)
 	_, err := svc.CollectFromSources(context.Background())
 	if err == nil {
 		t.Fatal("expected error when AI fails")
@@ -155,7 +179,7 @@ func TestCollectFromSources_MalformedAIResponse(t *testing.T) {
 	}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	svc := newTestService(aiClient, repo, collector)
 	_, err := svc.CollectFromSources(context.Background())
 	if err == nil {
 		t.Fatal("expected error for malformed AI response")
@@ -173,30 +197,19 @@ func TestCollectFromSources_CreateRunFailure(t *testing.T) {
 	aiClient := &mockAIClient{}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	svc := newTestService(aiClient, repo, collector)
 	_, err := svc.CollectFromSources(context.Background())
 	if err == nil {
 		t.Fatal("expected error when CreateRun fails")
 	}
 }
 
-func TestCollectFromSources_NoAggregator(t *testing.T) {
+func TestCollectFromSources_SourceCollectionFails_BothDown(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{}
-	svc := NewService(aiClient, repo)
+	badCollector := &mockSourceCollector{name: "bad_source", err: errors.New("rss down")}
 
-	_, err := svc.CollectFromSources(context.Background())
-	if err == nil {
-		t.Fatal("expected error when aggregator not configured")
-	}
-}
-
-func TestCollectFromSources_SourceCollectionFails(t *testing.T) {
-	repo := &mockRepo{}
-	aiClient := &mockAIClient{}
-	collector := &mockSourceCollector{name: "test_source", err: errors.New("rss down")}
-
-	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	svc := newTestService(aiClient, repo, badCollector)
 	_, err := svc.CollectFromSources(context.Background())
 	if err == nil {
 		t.Fatal("expected error when all sources fail")
@@ -205,6 +218,7 @@ func TestCollectFromSources_SourceCollectionFails(t *testing.T) {
 		t.Errorf("expected repo completed with failed, got %s", repo.completedStatus)
 	}
 }
+
 
 func TestCollectFromSources_SkipsInvalidItems(t *testing.T) {
 	repo := &mockRepo{}
@@ -222,7 +236,7 @@ func TestCollectFromSources_SkipsInvalidItems(t *testing.T) {
 	}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	svc := newTestService(aiClient, repo, collector)
 	result, err := svc.CollectFromSources(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -242,24 +256,24 @@ func TestCollectFromSources_SavesTrendingItems(t *testing.T) {
 	}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := newTestService(aiClient, repo, []SourceCollector{collector})
-	svc.WithTrendingRepo(trendingRepo)
+	svc := newTestServiceWithTrendingRepo(aiClient, repo, collector, trendingRepo)
 
 	_, err := svc.CollectFromSources(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(trendingRepo.savedItems) != 2 {
-		t.Errorf("expected 2 trending items saved, got %d", len(trendingRepo.savedItems))
+	// Items are collected from both trends and news (same mock), so 2*2=4
+	if len(trendingRepo.savedItems) != 4 {
+		t.Errorf("expected 4 trending items saved, got %d", len(trendingRepo.savedItems))
 	}
 }
 
 func TestCollectFromSourcesIfNeeded_AlreadyRun(t *testing.T) {
 	repo := &mockRepo{canRunToday: false}
 	aiClient := &mockAIClient{}
+	sc := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := NewService(aiClient, repo)
-	svc.WithAggregator(NewAggregator(nil))
+	svc := newTestService(aiClient, repo, sc)
 	result, err := svc.CollectFromSourcesIfNeeded(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -278,7 +292,7 @@ func TestCollectFromSourcesIfNeeded_CanRun(t *testing.T) {
 	}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 
-	svc := newTestService(aiClient, repo, []SourceCollector{collector})
+	svc := newTestService(aiClient, repo, collector)
 	result, err := svc.CollectFromSourcesIfNeeded(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

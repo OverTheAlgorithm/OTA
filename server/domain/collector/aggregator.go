@@ -4,18 +4,18 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 )
 
-// Aggregator runs all SourceCollectors in parallel and produces
+// Aggregator runs source collectors and produces
 // a formatted text block suitable for AI prompt input.
 type Aggregator struct {
-	collectors []SourceCollector
+	trends SourceCollector
+	news   SourceCollector
 }
 
-// NewAggregator creates an Aggregator with the given source collectors.
-func NewAggregator(collectors []SourceCollector) *Aggregator {
-	return &Aggregator{collectors: collectors}
+// NewAggregator creates an Aggregator with dedicated trends and news collectors.
+func NewAggregator(trends, news SourceCollector) *Aggregator {
+	return &Aggregator{trends: trends, news: news}
 }
 
 // CollectedData holds the raw trending items and the AI-ready formatted text.
@@ -24,7 +24,7 @@ type CollectedData struct {
 	FormattedText string         // human-readable text for AI prompt
 }
 
-// Collect runs all source collectors in parallel and returns merged data.
+// Collect runs trends and news collectors, formats each separately, and merges.
 // Partial failures are tolerated — if at least one source succeeds, results are returned.
 func (a *Aggregator) Collect(ctx context.Context) (CollectedData, error) {
 	type result struct {
@@ -32,83 +32,116 @@ func (a *Aggregator) Collect(ctx context.Context) (CollectedData, error) {
 		err   error
 	}
 
-	var wg sync.WaitGroup
-	results := make([]result, len(a.collectors))
+	trendsCh := make(chan result, 1)
+	newsCh := make(chan result, 1)
 
-	for i, c := range a.collectors {
-		wg.Go(func() {
-			items, err := c.Collect(ctx)
-			results[i] = result{items: items, err: err}
-		})
-	}
-	wg.Wait()
+	go func() {
+		items, err := a.trends.Collect(ctx)
+		trendsCh <- result{items: items, err: err}
+	}()
+	go func() {
+		items, err := a.news.Collect(ctx)
+		newsCh <- result{items: items, err: err}
+	}()
+
+	trendsResult := <-trendsCh
+	newsResult := <-newsCh
 
 	var allItems []TrendingItem
 	var errs []string
-	for i, r := range results {
-		if r.err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", a.collectors[i].Name(), r.err))
-			continue
-		}
-		allItems = append(allItems, r.items...)
+	var parts []string
+
+	if trendsResult.err != nil {
+		errs = append(errs, fmt.Sprintf("%s: %v", a.trends.Name(), trendsResult.err))
+	} else {
+		allItems = append(allItems, trendsResult.items...)
+		parts = append(parts, FormatTrends(trendsResult.items))
+	}
+
+	if newsResult.err != nil {
+		errs = append(errs, fmt.Sprintf("%s: %v", a.news.Name(), newsResult.err))
+	} else {
+		allItems = append(allItems, newsResult.items...)
+		parts = append(parts, FormatNews(newsResult.items))
 	}
 
 	if len(allItems) == 0 {
 		return CollectedData{}, fmt.Errorf("all sources failed: %s", strings.Join(errs, "; "))
 	}
 
-	formatted := FormatForAI(allItems)
 	return CollectedData{
 		Items:         allItems,
-		FormattedText: formatted,
+		FormattedText: strings.Join(parts, "\n"),
 	}, nil
 }
 
-// FormatForAI converts collected trending items into a structured text block
-// that provides the AI with concrete data for clustering and summarization.
-func FormatForAI(items []TrendingItem) string {
-	var b strings.Builder
-
-	// Group by source
-	bySource := make(map[string][]TrendingItem)
-	var sourceOrder []string
-	for _, item := range items {
-		if _, exists := bySource[item.Source]; !exists {
-			sourceOrder = append(sourceOrder, item.Source)
-		}
-		bySource[item.Source] = append(bySource[item.Source], item)
+// FormatTrends formats Google Trends items into a structured text block for AI.
+func FormatTrends(items []TrendingItem) string {
+	if len(items) == 0 {
+		return ""
 	}
 
-	for _, source := range sourceOrder {
-		sourceItems := bySource[source]
-		b.WriteString(fmt.Sprintf("## Source: %s (%d items)\n\n", source, len(sourceItems)))
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("## Source: google_trends (%d items)\n\n", len(items)))
 
-		for i, item := range sourceItems {
-			b.WriteString(fmt.Sprintf("%d. **%s**", i+1, item.Keyword))
-			if item.Traffic > 0 {
-				b.WriteString(fmt.Sprintf(" [traffic: %d]", item.Traffic))
-			}
-			if item.Category != "" {
-				b.WriteString(fmt.Sprintf(" [category: %s]", item.Category))
-			}
-			b.WriteString("\n")
+	for i, item := range items {
+		b.WriteString(fmt.Sprintf("%d. **%s**", i+1, item.Keyword))
+		if item.Traffic > 0 {
+			b.WriteString(fmt.Sprintf(" [traffic: %d]", item.Traffic))
+		}
+		b.WriteString("\n")
 
-			if len(item.ArticleURLs) > 0 {
-				b.WriteString(fmt.Sprintf("   Related articles (%d):\n", len(item.ArticleURLs)))
-				for j, url := range item.ArticleURLs {
-					title := ""
-					if j < len(item.ArticleTitles) {
-						title = item.ArticleTitles[j]
-					}
-					if title != "" {
-						b.WriteString(fmt.Sprintf("   - %s (%s)\n", title, url))
-					} else {
-						b.WriteString(fmt.Sprintf("   - %s\n", url))
-					}
+		if len(item.ArticleURLs) > 0 {
+			b.WriteString(fmt.Sprintf("   Related articles (%d):\n", len(item.ArticleURLs)))
+			for j, url := range item.ArticleURLs {
+				title := ""
+				if j < len(item.ArticleTitles) {
+					title = item.ArticleTitles[j]
+				}
+				if title != "" {
+					b.WriteString(fmt.Sprintf("   - %s (%s)\n", title, url))
+				} else {
+					b.WriteString(fmt.Sprintf("   - %s\n", url))
 				}
 			}
-			b.WriteString("\n")
 		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+// FormatNews formats Google News items into a structured text block for AI.
+func FormatNews(items []TrendingItem) string {
+	if len(items) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("## Source: google_news (%d items)\n\n", len(items)))
+
+	for i, item := range items {
+		b.WriteString(fmt.Sprintf("%d. **%s**", i+1, item.Keyword))
+		if item.Category != "" {
+			b.WriteString(fmt.Sprintf(" [category: %s]", item.Category))
+		}
+		b.WriteString("\n")
+
+		if len(item.ArticleURLs) > 0 {
+			b.WriteString(fmt.Sprintf("   Related articles (%d):\n", len(item.ArticleURLs)))
+			for j, url := range item.ArticleURLs {
+				title := ""
+				if j < len(item.ArticleTitles) {
+					title = item.ArticleTitles[j]
+				}
+				if title != "" {
+					b.WriteString(fmt.Sprintf("   - %s (%s)\n", title, url))
+				} else {
+					b.WriteString(fmt.Sprintf("   - %s\n", url))
+				}
+			}
+		}
+		b.WriteString("\n")
 	}
 
 	return b.String()

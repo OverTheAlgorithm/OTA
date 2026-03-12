@@ -38,12 +38,12 @@ func TestCollector_E2E_WithRealAPI(t *testing.T) {
 	aiClient := gemini.NewClient(apiKey, model)
 	trendsCollector := googletrends.NewCollector()
 	newsCollector := googlenews.NewCollector(googlenews.DefaultTopics())
-	aggregator := collector.NewAggregator([]collector.SourceCollector{trendsCollector, newsCollector})
+	aggregator := collector.NewAggregator(trendsCollector, newsCollector)
 
 	repo := storage.NewCollectorRepository(db.Pool)
 	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
-	service := collector.NewService(aiClient, repo)
-	service.WithAggregator(aggregator).WithTrendingRepo(trendingRepo)
+	brainCatRepo := storage.NewBrainCategoryRepository(db.Pool)
+	service := collector.NewService(aiClient, repo, aggregator, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
 
 	// Execute collection
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
@@ -163,12 +163,12 @@ func TestCollector_E2E_IdempotencyCheck(t *testing.T) {
 	aiClient := gemini.NewClient(apiKey, model)
 	trendsCollector := googletrends.NewCollector()
 	newsCollector := googlenews.NewCollector(googlenews.DefaultTopics())
-	aggregator := collector.NewAggregator([]collector.SourceCollector{trendsCollector, newsCollector})
+	aggregator := collector.NewAggregator(trendsCollector, newsCollector)
 
 	repo := storage.NewCollectorRepository(db.Pool)
 	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
-	service := collector.NewService(aiClient, repo)
-	service.WithAggregator(aggregator).WithTrendingRepo(trendingRepo)
+	brainCatRepo := storage.NewBrainCategoryRepository(db.Pool)
+	service := collector.NewService(aiClient, repo, aggregator, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()

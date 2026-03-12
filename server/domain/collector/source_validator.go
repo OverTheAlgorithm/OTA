@@ -54,6 +54,7 @@ var notFoundPatterns = []string{
 	"서비스가 종료",
 	"잘못된 접근",
 	"더 이상 제공되지 않",
+	"잘못된 웹 주소로",
 	"404 not found",
 	"page not found",
 	"not found",

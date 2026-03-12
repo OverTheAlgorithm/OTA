@@ -16,51 +16,34 @@ import (
 type URLDecoder func(ctx context.Context, urlSlices ...[]string) int
 
 type Service struct {
-	ai              AIClient
-	fallbackAI      AIClient // optional: used when primary fails with 5xx after all retries
-	repo            Repository
-	aggregator      *Aggregator
-	trendingRepo    TrendingItemRepository    // optional: persists raw trending data
-	brainCatRepo    BrainCategoryRepository   // optional: loads brain categories for AI prompt
-	urlDecoder      URLDecoder                // optional: decodes redirect URLs (e.g. Google News)
-	imageGen        *ImageGenerator           // optional: generates thumbnail images for items
+	ai           AIClient
+	fallbackAI   AIClient // optional: used when primary fails with 5xx after all retries
+	repo         Repository
+	aggregator   *Aggregator
+	trendingRepo TrendingItemRepository
+	brainCatRepo BrainCategoryRepository
+	urlDecoder   URLDecoder
+	imageGen     *ImageGenerator
 }
 
-func NewService(aiClient AIClient, repo Repository) *Service {
+func NewService(
+	aiClient AIClient,
+	repo Repository,
+	aggregator *Aggregator,
+	trendingRepo TrendingItemRepository,
+	brainCatRepo BrainCategoryRepository,
+	urlDecoder URLDecoder,
+	imageGen *ImageGenerator,
+) *Service {
 	return &Service{
-		ai:   aiClient,
-		repo: repo,
+		ai:           aiClient,
+		repo:         repo,
+		aggregator:   aggregator,
+		trendingRepo: trendingRepo,
+		brainCatRepo: brainCatRepo,
+		urlDecoder:   urlDecoder,
+		imageGen:     imageGen,
 	}
-}
-
-// WithAggregator sets the source aggregator for the new structured pipeline.
-func (s *Service) WithAggregator(agg *Aggregator) *Service {
-	s.aggregator = agg
-	return s
-}
-
-// WithTrendingRepo sets the repository for persisting raw trending data.
-func (s *Service) WithTrendingRepo(repo TrendingItemRepository) *Service {
-	s.trendingRepo = repo
-	return s
-}
-
-// WithBrainCategoryRepo sets the repository for loading brain categories into the AI prompt.
-func (s *Service) WithBrainCategoryRepo(repo BrainCategoryRepository) *Service {
-	s.brainCatRepo = repo
-	return s
-}
-
-// WithURLDecoder sets the URL decoder for resolving redirect URLs (e.g. Google News).
-func (s *Service) WithURLDecoder(decoder URLDecoder) *Service {
-	s.urlDecoder = decoder
-	return s
-}
-
-// WithImageGenerator sets the image generator for creating topic thumbnails.
-func (s *Service) WithImageGenerator(gen *ImageGenerator) *Service {
-	s.imageGen = gen
-	return s
 }
 
 // WithFallback sets a fallback AI client to use when the primary model returns
@@ -77,10 +60,6 @@ func (s *Service) WithFallback(fallbackAI AIClient) *Service {
 // Stage 2: Decode redirect URLs (e.g. Google News) to original article URLs
 // Stage 3: Validate source URLs — remove invalid ones
 func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, error) {
-	if s.aggregator == nil {
-		return CollectionResult{}, fmt.Errorf("aggregator not configured — call WithAggregator()")
-	}
-
 	run := CollectionRun{
 		ID:        uuid.New(),
 		StartedAt: time.Now().UTC(),
@@ -102,21 +81,16 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	log.Printf("collection run %s: stage 0 done — %d items from sources", run.ID, len(data.Items))
 
 	// Persist raw trending data for tracking/analysis.
-	if s.trendingRepo != nil {
-		if err := s.trendingRepo.SaveTrendingItems(ctx, run.ID, data.Items); err != nil {
-			log.Printf("warning: failed to save trending items: %v", err)
-			// Non-fatal — continue pipeline
-		}
+	if err := s.trendingRepo.SaveTrendingItems(ctx, run.ID, data.Items); err != nil {
+		log.Printf("warning: failed to save trending items: %v", err)
+		// Non-fatal — continue pipeline
 	}
 
 	// Load brain categories for AI prompt injection.
-	var brainCategories []BrainCategory
-	if s.brainCatRepo != nil {
-		brainCategories, err = s.brainCatRepo.GetAll(ctx)
-		if err != nil {
-			log.Printf("warning: failed to load brain categories: %v — proceeding without them", err)
-			brainCategories = nil
-		}
+	brainCategories, err := s.brainCatRepo.GetAll(ctx)
+	if err != nil {
+		log.Printf("warning: failed to load brain categories: %v — proceeding without them", err)
+		brainCategories = nil
 	}
 
 	// Stage 1: AI clustering + summarization (data-grounded, no hallucination).
@@ -336,11 +310,6 @@ func parseContextItems(outputText string, runID uuid.UUID) ([]ContextItem, error
 // decodeSourceURLs resolves redirect URLs (e.g. Google News) in ContextItem.Sources
 // to their original article URLs. Only decodes the URLs selected by the AI, not all collected URLs.
 func (s *Service) decodeSourceURLs(ctx context.Context, runID uuid.UUID, items []ContextItem) []ContextItem {
-	if s.urlDecoder == nil {
-		log.Printf("collection run %s: stage 2 skipped — urlDecoder is nil", runID)
-		return items
-	}
-
 	log.Printf("collection run %s: stage 2 — decoding redirect URLs", runID)
 
 	result := make([]ContextItem, len(items))
@@ -377,11 +346,6 @@ func (s *Service) validateAndRemoveSources(ctx context.Context, runID uuid.UUID,
 // generateImages creates thumbnail images for each item using the image generator.
 // Returns a new slice with ImagePath populated for items that succeeded.
 func (s *Service) generateImages(ctx context.Context, runID uuid.UUID, items []ContextItem) []ContextItem {
-	if s.imageGen == nil {
-		log.Printf("collection run %s: stage 4 skipped — imageGen is nil (IMAGE_GENERATION_MODEL not configured or client init failed)", runID)
-		return items
-	}
-
 	log.Printf("collection run %s: stage 4 — generating thumbnail images", runID)
 
 	pathMap := s.imageGen.GenerateForItems(ctx, items)

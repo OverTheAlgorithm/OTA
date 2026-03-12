@@ -57,15 +57,28 @@ var testTrendingItems = []collector.TrendingItem{
 	{Keyword: "테스트 주제 3", Source: "google_news", Category: "economy", ArticleURLs: []string{"https://example3.com"}, ArticleTitles: []string{"테스트 기사 3"}},
 }
 
-func newIntegrationService(aiClient *mockAIClient, pool interface{ Close() }, db *TestDB) *collector.Service {
+// noopURLDecoder is a no-op URL decoder for tests.
+func noopURLDecoder(_ context.Context, _ ...[]string) int { return 0 }
+
+// noopImageGen returns a no-op ImageGenerator for tests.
+func noopImageGen() *collector.ImageGenerator {
+	return collector.NewImageGenerator(&noopImageClient{}, "testdata/images")
+}
+
+type noopImageClient struct{}
+
+func (n *noopImageClient) Generate(_ context.Context, _ string) ([]byte, string, error) {
+	return nil, "", nil
+}
+
+func newIntegrationService(aiClient *mockAIClient, _ interface{ Close() }, db *TestDB) *collector.Service {
 	repo := storage.NewCollectorRepository(db.Pool)
 	sc := &mockSourceCollector{name: "test_source", items: testTrendingItems}
-	agg := collector.NewAggregator([]collector.SourceCollector{sc})
+	agg := collector.NewAggregator(sc, sc)
 	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
+	brainCatRepo := storage.NewBrainCategoryRepository(db.Pool)
 
-	svc := collector.NewService(aiClient, repo)
-	svc.WithAggregator(agg).WithTrendingRepo(trendingRepo)
-	return svc
+	return collector.NewService(aiClient, repo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
 }
 
 func TestCollector_FullFlow(t *testing.T) {
