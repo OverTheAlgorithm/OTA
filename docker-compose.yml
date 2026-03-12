@@ -31,6 +31,8 @@ services:
       - ./server/.env
     environment:
       DB_HOST: postgres
+    volumes:
+      - server_images:/app/data/images
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,5 +53,6 @@ services:
 
 volumes:
   pgdata:
+  server_images:
   caddy_data:
   caddy_config:
