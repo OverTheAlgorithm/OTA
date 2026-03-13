@@ -79,6 +79,7 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	}
 
 	failRun := func(err error, rawResp *string) (CollectionResult, error) {
+		log.Printf("collection run %s: FAILED — %v", run.ID, err)
 		errMsg := err.Error()
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, rawResp)
 		return CollectionResult{}, err
@@ -171,6 +172,7 @@ func (s *Service) CollectFromSourcesIfNeeded(ctx context.Context) (*CollectionRe
 	}
 
 	if !canRun {
+		log.Printf("collection skipped — already collected today")
 		return nil, nil
 	}
 
@@ -204,13 +206,18 @@ func parsePhase1Response(outputText string) ([]Phase1Topic, error) {
 	valid := make([]Phase1Topic, 0, len(payload.Topics))
 	for _, t := range payload.Topics {
 		if t.TopicHint == "" || t.Category == "" || len(t.Sources) == 0 {
+			log.Printf("Phase 1: dropping invalid topic (hint=%q, category=%q, sources=%d)", t.TopicHint, t.Category, len(t.Sources))
 			continue
 		}
 		valid = append(valid, t)
 	}
 
 	if len(valid) == 0 {
-		return nil, fmt.Errorf("no valid topics after filtering")
+		return nil, fmt.Errorf("no valid topics after filtering (raw count: %d)", len(payload.Topics))
+	}
+
+	for _, t := range valid {
+		log.Printf("Phase 1 topic: %q [%s] brain=%s buzz=%d sources=%d", t.TopicHint, t.Category, t.BrainCategory, t.BuzzScore, len(t.Sources))
 	}
 	return valid, nil
 }
@@ -252,6 +259,24 @@ func (s *Service) fetchArticlesForTopics(ctx context.Context, topics []Phase1Top
 	result := make(map[int][]FetchedArticle, len(topics))
 	for i, t := range topics {
 		articles := s.articleFetcher(ctx, t.Sources)
+		ok, fail := 0, 0
+		for _, a := range articles {
+			if a.Err != nil || a.Body == "" {
+				fail++
+			} else {
+				ok++
+			}
+		}
+		if fail > 0 {
+			for _, a := range articles {
+				if a.Err != nil {
+					log.Printf("  article fetch failed: %s — %v", a.URL, a.Err)
+				} else if a.Body == "" {
+					log.Printf("  article fetch empty body: %s", a.URL)
+				}
+			}
+		}
+		log.Printf("  topic %q: %d/%d articles fetched (ok=%d, fail=%d)", t.TopicHint, len(articles), len(t.Sources), ok, fail)
 		result[i] = articles
 	}
 	return result
@@ -297,7 +322,8 @@ func (s *Service) runPhase2(
 				}
 			}
 			if !hasContent {
-				log.Printf("collection run %s: dropping topic %q — no article content available", runID, t.TopicHint)
+				log.Printf("collection run %s: dropping topic %q [%s] buzz=%d sources=%v — no article content available",
+					runID, t.TopicHint, t.Category, t.BuzzScore, t.Sources)
 				results <- phase2Output{index: idx, err: fmt.Errorf("no article content for topic %q", t.TopicHint)}
 				return
 			}
@@ -493,6 +519,9 @@ func (s *Service) validateAndRemoveSources(ctx context.Context, runID uuid.UUID,
 		return items
 	}
 
+	for _, inv := range invalid {
+		log.Printf("  invalid source: item[%d] %q — %s", inv.ItemIndex, inv.URL, inv.Reason)
+	}
 	log.Printf("collection run %s: stage 5 done — removed %d invalid URL(s)", runID, len(invalid))
 	return removeInvalidSources(items, invalid)
 }

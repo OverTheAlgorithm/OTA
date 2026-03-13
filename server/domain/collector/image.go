@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -39,18 +40,21 @@ func (g *ImageGenerator) GenerateForItems(ctx context.Context, items []ContextIt
 	for _, item := range items {
 		select {
 		case <-ctx.Done():
+			log.Printf("image generation cancelled by context — %d/%d completed", len(result), len(items))
 			return result
 		default:
 		}
 
 		path, err := g.generateOne(ctx, item)
 		if err != nil {
-			fmt.Printf("image generation failed for item %s (%s): %v\n", item.ID, item.Topic, err)
+			log.Printf("  image generation failed: %s [%s] %q — %v", item.ID, item.Category, item.Topic, err)
 			continue
 		}
-		if path != "" {
-			result[item.ID] = path
+		if path == "" {
+			log.Printf("  image generation returned nil data: %s [%s] %q", item.ID, item.Category, item.Topic)
+			continue
 		}
+		result[item.ID] = path
 	}
 
 	return result
