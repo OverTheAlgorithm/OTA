@@ -18,6 +18,26 @@ type CollectState =
   | { status: "requested" }
   | { status: "error"; message: string };
 
+function InstructionPreview({ instruction }: { instruction: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const firstLine = instruction.split("\n")[0];
+  const isLong = instruction.length > 80 || instruction.includes("\n");
+
+  return (
+    <p className="text-xs text-[#4a9fe5] mt-1 ml-8">
+      지시: {expanded ? instruction : firstLine.slice(0, 80)}{!expanded && isLong && "…"}
+      {isLong && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="ml-1 text-[#6b8db5] hover:text-[#1e3a5f] underline"
+        >
+          {expanded ? "접기" : "더보기"}
+        </button>
+      )}
+    </p>
+  );
+}
+
 function BrainCategoryManager() {
   const [categories, setCategories] = useState<BrainCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,38 +161,38 @@ function BrainCategoryManager() {
               />
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-lg">{bc.emoji}</span>
-                <div>
-                  <p className="text-sm font-semibold text-[#1e3a5f]">{bc.label}</p>
-                  <p className="text-xs text-[#6b8db5]">
-                    key: <code className="text-[#4a9fe5]">{bc.key}</code>
-                    {" · "}순서: {bc.display_order}
-                    {" · "}
-                    <span style={{ color: bc.accent_color }}>■</span> {bc.accent_color}
-                  </p>
-                  {bc.instruction && (
-                    <p className="text-xs text-[#4a9fe5] mt-1">
-                      지시: {bc.instruction}
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-lg shrink-0">{bc.emoji}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#1e3a5f]">{bc.label}</p>
+                    <p className="text-xs text-[#6b8db5]">
+                      key: <code className="text-[#4a9fe5]">{bc.key}</code>
+                      {" · "}순서: {bc.display_order}
+                      {" · "}
+                      <span style={{ color: bc.accent_color }}>■</span> {bc.accent_color}
                     </p>
-                  )}
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0 ml-3">
+                  <button
+                    onClick={() => startEdit(bc)}
+                    className="px-2.5 py-1 rounded text-xs text-[#6b8db5] hover:text-[#1e3a5f] hover:bg-[#d4e6f5] transition-colors"
+                  >
+                    수정
+                  </button>
+                  <button
+                    onClick={() => handleDelete(bc.key)}
+                    className="px-2.5 py-1 rounded text-xs text-[#ff5442]/60 hover:text-[#ff5442] hover:bg-[#ff5442]/10 transition-colors"
+                  >
+                    삭제
+                  </button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => startEdit(bc)}
-                  className="px-2.5 py-1 rounded text-xs text-[#6b8db5] hover:text-[#1e3a5f] hover:bg-[#d4e6f5] transition-colors"
-                >
-                  수정
-                </button>
-                <button
-                  onClick={() => handleDelete(bc.key)}
-                  className="px-2.5 py-1 rounded text-xs text-[#ff5442]/60 hover:text-[#ff5442] hover:bg-[#ff5442]/10 transition-colors"
-                >
-                  삭제
-                </button>
-              </div>
+              {bc.instruction && (
+                <InstructionPreview instruction={bc.instruction} />
+              )}
             </div>
           )}
         </div>
