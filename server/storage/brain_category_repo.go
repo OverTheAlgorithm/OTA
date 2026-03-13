@@ -19,7 +19,7 @@ func NewBrainCategoryRepository(pool *pgxpool.Pool) *BrainCategoryRepository {
 
 func (r *BrainCategoryRepository) GetAll(ctx context.Context) ([]collector.BrainCategory, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT key, emoji, label, accent_color, display_order, created_at, updated_at
+		SELECT key, emoji, label, accent_color, display_order, instruction, created_at, updated_at
 		FROM brain_categories
 		ORDER BY display_order, key
 	`)
@@ -31,7 +31,7 @@ func (r *BrainCategoryRepository) GetAll(ctx context.Context) ([]collector.Brain
 	var categories []collector.BrainCategory
 	for rows.Next() {
 		var bc collector.BrainCategory
-		if err := rows.Scan(&bc.Key, &bc.Emoji, &bc.Label, &bc.AccentColor, &bc.DisplayOrder, &bc.CreatedAt, &bc.UpdatedAt); err != nil {
+		if err := rows.Scan(&bc.Key, &bc.Emoji, &bc.Label, &bc.AccentColor, &bc.DisplayOrder, &bc.Instruction, &bc.CreatedAt, &bc.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scanning brain category: %w", err)
 		}
 		categories = append(categories, bc)
@@ -44,9 +44,9 @@ func (r *BrainCategoryRepository) GetAll(ctx context.Context) ([]collector.Brain
 
 func (r *BrainCategoryRepository) Create(ctx context.Context, bc collector.BrainCategory) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO brain_categories (key, emoji, label, accent_color, display_order)
-		VALUES ($1, $2, $3, $4, $5)
-	`, bc.Key, bc.Emoji, bc.Label, bc.AccentColor, bc.DisplayOrder)
+		INSERT INTO brain_categories (key, emoji, label, accent_color, display_order, instruction)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, bc.Key, bc.Emoji, bc.Label, bc.AccentColor, bc.DisplayOrder, bc.Instruction)
 	if err != nil {
 		return fmt.Errorf("creating brain category: %w", err)
 	}
@@ -56,9 +56,9 @@ func (r *BrainCategoryRepository) Create(ctx context.Context, bc collector.Brain
 func (r *BrainCategoryRepository) Update(ctx context.Context, bc collector.BrainCategory) error {
 	_, err := r.pool.Exec(ctx, `
 		UPDATE brain_categories
-		SET emoji = $2, label = $3, accent_color = $4, display_order = $5, updated_at = now()
+		SET emoji = $2, label = $3, accent_color = $4, display_order = $5, instruction = $6, updated_at = now()
 		WHERE key = $1
-	`, bc.Key, bc.Emoji, bc.Label, bc.AccentColor, bc.DisplayOrder)
+	`, bc.Key, bc.Emoji, bc.Label, bc.AccentColor, bc.DisplayOrder, bc.Instruction)
 	if err != nil {
 		return fmt.Errorf("updating brain category: %w", err)
 	}

@@ -13,6 +13,7 @@ type BrainCategory struct {
 	Label        string    `json:"label"`
 	AccentColor  string    `json:"accent_color"`
 	DisplayOrder int       `json:"display_order"`
+	Instruction  *string   `json:"instruction"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

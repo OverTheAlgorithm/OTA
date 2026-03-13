@@ -43,7 +43,7 @@ func TestCollector_E2E_WithRealAPI(t *testing.T) {
 	repo := storage.NewCollectorRepository(db.Pool)
 	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
 	brainCatRepo := storage.NewBrainCategoryRepository(db.Pool)
-	service := collector.NewService(aiClient, repo, aggregator, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
+	service := collector.NewService(aiClient, repo, aggregator, trendingRepo, brainCatRepo, noopURLDecoder, collector.NewHTTPArticleFetcher(), noopImageGen())
 
 	// Execute collection
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
@@ -168,7 +168,7 @@ func TestCollector_E2E_IdempotencyCheck(t *testing.T) {
 	repo := storage.NewCollectorRepository(db.Pool)
 	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
 	brainCatRepo := storage.NewBrainCategoryRepository(db.Pool)
-	service := collector.NewService(aiClient, repo, aggregator, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
+	service := collector.NewService(aiClient, repo, aggregator, trendingRepo, brainCatRepo, noopURLDecoder, collector.NewHTTPArticleFetcher(), noopImageGen())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()

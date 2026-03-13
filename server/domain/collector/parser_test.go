@@ -2,8 +2,6 @@ package collector
 
 import (
 	"testing"
-
-	"github.com/google/uuid"
 )
 
 func TestStripMarkdownCodeFence(t *testing.T) {
@@ -55,17 +53,15 @@ func TestStripMarkdownCodeFence(t *testing.T) {
 	}
 }
 
-func TestParseContextItems_BothFormats(t *testing.T) {
-	runID := uuid.New()
-
+func TestParsePhase1Response(t *testing.T) {
 	validJSON := `{
-		"items": [
+		"topics": [
 			{
+				"topic_hint": "테스트 토픽",
 				"category": "top",
-				"rank": 1,
-				"topic": "Test Topic",
-				"summary": "Test Summary",
-				"sources": ["https://example.com"]
+				"brain_category": "trend",
+				"buzz_score": 85,
+				"sources": ["https://example.com/1"]
 			}
 		]
 	}`
@@ -81,111 +77,124 @@ func TestParseContextItems_BothFormats(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "json with markdown fence and language",
+			name:    "json with markdown fence",
 			input:   "```json\n" + validJSON + "\n```",
 			wantErr: false,
 		},
 		{
-			name:    "json with markdown fence without language",
-			input:   "```\n" + validJSON + "\n```",
-			wantErr: false,
+			name:    "malformed json",
+			input:   `{invalid json}`,
+			wantErr: true,
 		},
 		{
-			name:    "json with extra whitespace",
-			input:   "\n\n```json\n" + validJSON + "\n```\n\n",
-			wantErr: false,
+			name:    "empty topics array",
+			input:   `{"topics": []}`,
+			wantErr: true,
+		},
+		{
+			name: "topic missing sources",
+			input: `{"topics": [
+				{"topic_hint": "test", "category": "top", "brain_category": "trend", "buzz_score": 80, "sources": []}
+			]}`,
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			items, err := parseContextItems(tt.input, runID)
-
+			topics, err := parsePhase1Response(tt.input)
 			if tt.wantErr {
 				if err == nil {
-					t.Error("parseContextItems() expected error, got nil")
+					t.Error("expected error, got nil")
 				}
 				return
 			}
-
 			if err != nil {
-				t.Errorf("parseContextItems() unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 				return
 			}
-
-			if len(items) != 1 {
-				t.Errorf("parseContextItems() expected 1 item, got %d", len(items))
+			if len(topics) != 1 {
+				t.Errorf("expected 1 topic, got %d", len(topics))
 				return
 			}
-
-			item := items[0]
-			if item.Category != "top" {
-				t.Errorf("expected category 'top', got %q", item.Category)
+			if topics[0].Category != "top" {
+				t.Errorf("expected category 'top', got %q", topics[0].Category)
 			}
-			if item.Topic != "Test Topic" {
-				t.Errorf("expected topic 'Test Topic', got %q", item.Topic)
-			}
-			if item.Summary != "Test Summary" {
-				t.Errorf("expected summary 'Test Summary', got %q", item.Summary)
+			if topics[0].BuzzScore != 85 {
+				t.Errorf("expected buzz_score 85, got %d", topics[0].BuzzScore)
 			}
 		})
 	}
 }
 
-func TestParseContextItems_InvalidJSON(t *testing.T) {
-	runID := uuid.New()
-
+func TestParsePhase2Response(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		wantErr string
+		wantErr bool
 	}{
 		{
-			name:    "malformed json",
-			input:   `{invalid json}`,
-			wantErr: "invalid json from ai",
-		},
-		{
-			name:    "empty items array",
-			input:   `{"items": []}`,
-			wantErr: "ai returned empty items",
-		},
-		{
-			name: "items missing required fields",
+			name: "valid response",
 			input: `{
-				"items": [
-					{"category": "top", "rank": 1}
-				]
+				"topic": "테스트 제목",
+				"summary": "요약입니다",
+				"detail": "상세 내용입니다",
+				"details": [{"title": "포인트", "content": "내용"}]
 			}`,
-			wantErr: "no valid context items after filtering",
+			wantErr: false,
+		},
+		{
+			name:    "empty topic",
+			input:   `{"topic": "", "summary": "요약", "detail": "상세", "details": []}`,
+			wantErr: true,
+		},
+		{
+			name:    "malformed json",
+			input:   `{bad}`,
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := parseContextItems(tt.input, runID)
-			if err == nil {
-				t.Error("parseContextItems() expected error, got nil")
+			result, err := parsePhase2Response(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
 				return
 			}
-			// Just check that we got an error with expected substring
-			// (don't check exact message as it may include wrapped errors)
-			if tt.wantErr != "" && !contains(err.Error(), tt.wantErr) {
-				t.Errorf("parseContextItems() error = %q, want substring %q", err.Error(), tt.wantErr)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+			if result.Topic != "테스트 제목" {
+				t.Errorf("expected topic '테스트 제목', got %q", result.Topic)
 			}
 		})
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsMiddle(s, substr)))
-}
-
-func containsMiddle(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+func TestRankForTopic(t *testing.T) {
+	topics := []Phase1Topic{
+		{TopicHint: "low", Category: "top", BuzzScore: 50},
+		{TopicHint: "high", Category: "top", BuzzScore: 90},
+		{TopicHint: "mid", Category: "top", BuzzScore: 70},
+		{TopicHint: "ent1", Category: "entertainment", BuzzScore: 60},
 	}
-	return false
+
+	// Within "top" category: 90 → rank 1, 70 → rank 2, 50 → rank 3
+	if r := rankForTopic(topics[1], topics); r != 1 {
+		t.Errorf("expected rank 1 for buzz_score 90, got %d", r)
+	}
+	if r := rankForTopic(topics[2], topics); r != 2 {
+		t.Errorf("expected rank 2 for buzz_score 70, got %d", r)
+	}
+	if r := rankForTopic(topics[0], topics); r != 3 {
+		t.Errorf("expected rank 3 for buzz_score 50, got %d", r)
+	}
+	// "entertainment" has only one topic → rank 1
+	if r := rankForTopic(topics[3], topics); r != 1 {
+		t.Errorf("expected rank 1 for entertainment buzz_score 60, got %d", r)
+	}
 }

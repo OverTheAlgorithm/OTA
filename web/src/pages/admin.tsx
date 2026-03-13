@@ -22,9 +22,9 @@ function BrainCategoryManager() {
   const [categories, setCategories] = useState<BrainCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ emoji: "", label: "", accent_color: "", display_order: 0 });
+  const [editForm, setEditForm] = useState({ emoji: "", label: "", accent_color: "", display_order: 0, instruction: "" });
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ key: "", emoji: "", label: "", accent_color: "#6b8db5", display_order: 0 });
+  const [newForm, setNewForm] = useState({ key: "", emoji: "", label: "", accent_color: "#6b8db5", display_order: 0, instruction: "" });
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -39,14 +39,14 @@ function BrainCategoryManager() {
 
   const startEdit = (bc: BrainCategory) => {
     setEditingKey(bc.key);
-    setEditForm({ emoji: bc.emoji, label: bc.label, accent_color: bc.accent_color, display_order: bc.display_order });
+    setEditForm({ emoji: bc.emoji, label: bc.label, accent_color: bc.accent_color, display_order: bc.display_order, instruction: bc.instruction ?? "" });
   };
 
   const saveEdit = async () => {
     if (!editingKey) return;
     setError(null);
     try {
-      await updateBrainCategory(editingKey, editForm);
+      await updateBrainCategory(editingKey, { ...editForm, instruction: editForm.instruction.trim() || null });
       setEditingKey(null);
       load();
     } catch (e) {
@@ -72,9 +72,9 @@ function BrainCategoryManager() {
     }
     setError(null);
     try {
-      await createBrainCategory(newForm);
+      await createBrainCategory({ ...newForm, instruction: newForm.instruction.trim() || null });
       setShowNew(false);
-      setNewForm({ key: "", emoji: "", label: "", accent_color: "#6b8db5", display_order: 0 });
+      setNewForm({ key: "", emoji: "", label: "", accent_color: "#6b8db5", display_order: 0, instruction: "" });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "생성 실패");
@@ -132,6 +132,13 @@ function BrainCategoryManager() {
                   취소
                 </button>
               </div>
+              <textarea
+                value={editForm.instruction}
+                onChange={(e) => setEditForm({ ...editForm, instruction: e.target.value })}
+                className="w-full bg-white border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f] resize-y"
+                placeholder="AI 지시사항 (선택) — 예: 제목 시작에 [날짜] 형식으로 일정을 표기하세요"
+                rows={2}
+              />
             </div>
           ) : (
             <div className="flex items-center justify-between">
@@ -145,6 +152,11 @@ function BrainCategoryManager() {
                     {" · "}
                     <span style={{ color: bc.accent_color }}>■</span> {bc.accent_color}
                   </p>
+                  {bc.instruction && (
+                    <p className="text-xs text-[#4a9fe5] mt-1">
+                      지시: {bc.instruction}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
@@ -209,6 +221,13 @@ function BrainCategoryManager() {
               취소
             </button>
           </div>
+          <textarea
+            value={newForm.instruction}
+            onChange={(e) => setNewForm({ ...newForm, instruction: e.target.value })}
+            className="w-full bg-[#f0f7ff] border border-[#d4e6f5] rounded px-2 py-1 text-sm text-[#1e3a5f] resize-y"
+            placeholder="AI 지시사항 (선택) — 예: 제목 시작에 [날짜] 형식으로 일정을 표기하세요"
+            rows={2}
+          />
         </div>
       ) : (
         <button

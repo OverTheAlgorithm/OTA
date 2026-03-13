@@ -23,16 +23,14 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 
 	// Setup services
 	aiClient := &mockAIClient{
-		responses: []collector.AIResponse{
-			{OutputText: validJSON, RawJSON: `{"raw":"data"}`},
-		},
+		responses: twoPhaseResponses(),
 	}
 	collectorRepo := storage.NewCollectorRepository(db.Pool)
 	sc := &mockSourceCollector{name: "test_source", items: testTrendingItems}
 	agg := collector.NewAggregator(sc, sc)
 	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
 	brainCatRepo := storage.NewBrainCategoryRepository(db.Pool)
-	collectorService := collector.NewService(aiClient, collectorRepo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
+	collectorService := collector.NewService(aiClient, collectorRepo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopArticleFetcher, noopImageGen())
 
 	adminHandler := handler.NewAdminHandler(collectorService, "", nil) // no Slack webhook or brain categories in tests
 

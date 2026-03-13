@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -150,9 +151,9 @@ func TestAIClient_RetryLogic(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, "context_items", "collection_runs")
 
-	// Create a client that always fails with a retryable error
+	// Create a client that fails first 2 attempts then returns Phase 1 + Phase 2 responses
 	failingClient := &failingAIClient{
-		failCount: 2, // Fail first 2 attempts, succeed on 3rd
+		failCount: 2, // Fail first 2 attempts, succeed from 3rd
 		err:       &collector.AIError{Type: collector.ErrorTypeNetwork, Message: "simulated network error"},
 	}
 
@@ -163,7 +164,7 @@ func TestAIClient_RetryLogic(t *testing.T) {
 		{Keyword: "test", Source: "test", Traffic: 100},
 	}}
 	agg := collector.NewAggregator(sc, sc)
-	service := collector.NewService(failingClient, repo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
+	service := collector.NewService(failingClient, repo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopArticleFetcher, noopImageGen())
 
 	result, err := service.CollectFromSources(context.Background())
 	if err != nil {
@@ -174,8 +175,10 @@ func TestAIClient_RetryLogic(t *testing.T) {
 		t.Error("expected items in result")
 	}
 
-	if failingClient.attempts != 3 {
-		t.Errorf("expected 3 attempts, got %d", failingClient.attempts)
+	// Phase 1 call: 2 fails + 1 success = 3 attempts
+	// Then Phase 2 calls succeed immediately (1 attempt each for 1 topic)
+	if failingClient.getAttempts() < 3 {
+		t.Errorf("expected at least 3 attempts, got %d", failingClient.getAttempts())
 	}
 }
 
@@ -197,7 +200,7 @@ func TestAIClient_NoRetryOnFormatError(t *testing.T) {
 		{Keyword: "test", Source: "test", Traffic: 100},
 	}}
 	agg := collector.NewAggregator(sc, sc)
-	service := collector.NewService(failingClient, repo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
+	service := collector.NewService(failingClient, repo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopArticleFetcher, noopImageGen())
 
 	_, err := service.CollectFromSources(context.Background())
 	if err == nil {
@@ -205,8 +208,8 @@ func TestAIClient_NoRetryOnFormatError(t *testing.T) {
 	}
 
 	// Should only attempt once (no retries for format errors)
-	if failingClient.attempts != 1 {
-		t.Errorf("expected 1 attempt for format error, got %d", failingClient.attempts)
+	if failingClient.getAttempts() != 1 {
+		t.Errorf("expected 1 attempt for format error, got %d", failingClient.getAttempts())
 	}
 }
 
@@ -303,6 +306,15 @@ func (m *e2eSourceCollector) Collect(_ context.Context) ([]collector.TrendingIte
 // noopURLDecoder is a no-op URL decoder for tests.
 func noopURLDecoder(_ context.Context, _ ...[]string) int { return 0 }
 
+// noopArticleFetcher is a no-op article fetcher for tests.
+func noopArticleFetcher(_ context.Context, urls []string) []collector.FetchedArticle {
+	result := make([]collector.FetchedArticle, len(urls))
+	for i, u := range urls {
+		result[i] = collector.FetchedArticle{URL: u, Body: "Test article content"}
+	}
+	return result
+}
+
 type noopImageClient struct{}
 
 func (n *noopImageClient) Generate(_ context.Context, _ string) ([]byte, string, error) {
@@ -329,22 +341,43 @@ func containsAny(s string, substrs ...string) bool {
 }
 
 type failingAIClient struct {
+	mu        sync.Mutex
 	attempts  int
 	failCount int
 	err       error
 }
 
-func (f *failingAIClient) SearchAndAnalyze(ctx context.Context, prompt string) (collector.AIResponse, error) {
-	f.attempts++
+func (f *failingAIClient) getAttempts() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.attempts
+}
 
-	if f.attempts <= f.failCount {
+func (f *failingAIClient) SearchAndAnalyze(_ context.Context, _ string) (collector.AIResponse, error) {
+	f.mu.Lock()
+	f.attempts++
+	attempt := f.attempts
+	f.mu.Unlock()
+
+	if attempt <= f.failCount {
 		return collector.AIResponse{}, f.err
 	}
 
-	// Succeed after failCount attempts
+	// After failCount, return alternating Phase 1 / Phase 2 responses.
+	// The pipeline calls Phase 1 first, then Phase 2 for each topic.
+	// On success, the first call is Phase 1, subsequent are Phase 2.
+	successIdx := attempt - f.failCount
+	if successIdx == 1 {
+		// Phase 1 response
+		return collector.AIResponse{
+			OutputText: validPhase1JSON,
+			RawJSON:    `{"phase1":"data"}`,
+		}, nil
+	}
+	// Phase 2 response
 	return collector.AIResponse{
-		OutputText: validJSON,
-		RawJSON:    `{"raw":"data"}`,
+		OutputText: `{"topic": "테스트 토픽", "summary": "요약", "detail": "상세", "details": [{"title": "포인트", "content": "내용"}]}`,
+		RawJSON:    `{"phase2":"data"}`,
 	}, nil
 }
 
@@ -369,28 +402,14 @@ type testContextItem struct {
 	Sources  []string `json:"sources"`
 }
 
-const validJSON = `{
-	"items": [
+const validPhase1JSON = `{
+	"topics": [
 		{
+			"topic_hint": "테스트 주제",
 			"category": "top",
-			"rank": 1,
-			"topic": "테스트 주제 1",
-			"summary": "첫 번째 테스트 요약",
+			"brain_category": "trend",
+			"buzz_score": 80,
 			"sources": ["https://example1.com"]
-		},
-		{
-			"category": "entertainment",
-			"rank": 1,
-			"topic": "테스트 주제 2",
-			"summary": "두 번째 테스트 요약",
-			"sources": ["https://example2.com"]
-		},
-		{
-			"category": "economy",
-			"rank": 1,
-			"topic": "테스트 주제 3",
-			"summary": "세 번째 테스트 요약",
-			"sources": ["https://example3.com"]
 		}
 	]
 }`

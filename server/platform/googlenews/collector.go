@@ -23,6 +23,7 @@ type FeedTopic struct {
 	URL      string
 }
 
+// The hidden rules for google rss searching: https://www.newscatcherapi.com/blog-posts/google-news-rss-search-parameters-the-missing-documentaiton
 // DefaultTopics returns the default Google News Korea topic feeds.
 func DefaultTopics() []FeedTopic {
 	return []FeedTopic{

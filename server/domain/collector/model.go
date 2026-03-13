@@ -50,6 +50,30 @@ type CollectionResult struct {
 	Items []ContextItem
 }
 
+// Phase1Topic is a single topic from Phase 1 AI clustering response.
+type Phase1Topic struct {
+	TopicHint     string   `json:"topic_hint"`
+	Category      string   `json:"category"`
+	BrainCategory string   `json:"brain_category"`
+	BuzzScore     int      `json:"buzz_score"`
+	Sources       []string `json:"sources"`
+}
+
+// Phase2Result is the AI-written content for a single topic from Phase 2.
+type Phase2Result struct {
+	Topic   string       `json:"topic"`
+	Summary string       `json:"summary"`
+	Detail  string       `json:"detail"`
+	Details []DetailItem `json:"details"`
+}
+
+// FetchedArticle holds the plain-text body fetched from a source URL.
+type FetchedArticle struct {
+	URL  string
+	Body string // plain text, max 3000 chars
+	Err  error  // non-nil if fetch failed
+}
+
 // UnmarshalDetails decodes a JSON blob into []DetailItem with backward
 // compatibility: old data stored as ["string", ...] is converted to
 // [{Title: "string", Content: ""}].

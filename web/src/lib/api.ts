@@ -278,6 +278,7 @@ export interface BrainCategory {
   label: string;
   accent_color: string;
   display_order: number;
+  instruction: string | null;
   created_at: string;
   updated_at: string;
 }

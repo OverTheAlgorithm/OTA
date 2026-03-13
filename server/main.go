@@ -113,7 +113,8 @@ func main() {
 	imageGen := collector.NewImageGenerator(imgClient, imageBaseDir)
 	log.Printf("image generation initialized (model: %s)", cfg.ImageGenerationModel)
 
-	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, imageGen)
+	articleFetcher := collector.NewHTTPArticleFetcher()
+	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, articleFetcher, imageGen)
 	if fallbackAIClient != nil {
 		collectorService.WithFallback(fallbackAIClient)
 		log.Printf("collector service initialized (provider: %s, model: %s, fallback: %s)", cfg.AIProvider, cfg.GeminiModel, cfg.GeminiModelFallback)

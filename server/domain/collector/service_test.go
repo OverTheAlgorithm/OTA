@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,12 +12,16 @@ import (
 // --- mocks ---
 
 type mockAIClient struct {
+	mu        sync.Mutex
 	responses []AIResponse
 	errs      []error
 	callIdx   int
 }
 
 func (m *mockAIClient) SearchAndAnalyze(_ context.Context, _ string) (AIResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	idx := m.callIdx
 	m.callIdx++
 
@@ -96,6 +101,15 @@ func (m *mockBrainCatRepo) Delete(_ context.Context, _ string) error          { 
 // noopURLDecoder is a no-op URL decoder for tests.
 func noopURLDecoder(_ context.Context, _ ...[]string) int { return 0 }
 
+// noopArticleFetcher is a no-op article fetcher for tests.
+func noopArticleFetcher(_ context.Context, urls []string) []FetchedArticle {
+	result := make([]FetchedArticle, len(urls))
+	for i, u := range urls {
+		result[i] = FetchedArticle{URL: u, Body: "Test article content for " + u}
+	}
+	return result
+}
+
 type noopImageClient struct{}
 
 func (n *noopImageClient) Generate(_ context.Context, _ string) ([]byte, string, error) {
@@ -110,12 +124,12 @@ func noopImageGen() *ImageGenerator {
 
 func newTestService(aiClient AIClient, repo *mockRepo, sc SourceCollector) *Service {
 	agg := NewAggregator(sc, sc)
-	return NewService(aiClient, repo, agg, &mockTrendingRepo{}, &mockBrainCatRepo{}, noopURLDecoder, noopImageGen())
+	return NewService(aiClient, repo, agg, &mockTrendingRepo{}, &mockBrainCatRepo{}, noopURLDecoder, noopArticleFetcher, noopImageGen())
 }
 
 func newTestServiceWithTrendingRepo(aiClient AIClient, repo *mockRepo, sc SourceCollector, trendingRepo TrendingItemRepository) *Service {
 	agg := NewAggregator(sc, sc)
-	return NewService(aiClient, repo, agg, trendingRepo, &mockBrainCatRepo{}, noopURLDecoder, noopImageGen())
+	return NewService(aiClient, repo, agg, trendingRepo, &mockBrainCatRepo{}, noopURLDecoder, noopArticleFetcher, noopImageGen())
 }
 
 var testTrendingItems = []TrendingItem{
@@ -125,11 +139,44 @@ var testTrendingItems = []TrendingItem{
 
 // --- tests ---
 
+// validPhase1JSON is a valid Phase 1 AI response with 2 topics.
+const validPhase1JSON = `{
+	"topics": [
+		{
+			"topic_hint": "RTX 5090 출시",
+			"category": "top",
+			"brain_category": "trend",
+			"buzz_score": 85,
+			"sources": ["https://example.com/news1"]
+		},
+		{
+			"topic_hint": "뉴진스 컴백",
+			"category": "entertainment",
+			"brain_category": "fun",
+			"buzz_score": 70,
+			"sources": ["https://example.com/news2"]
+		}
+	]
+}`
+
+// validPhase2JSON returns a valid Phase 2 AI response for a single topic.
+func validPhase2JSON(topic string) string {
+	return `{
+		"topic": "` + topic + `",
+		"summary": "요약입니다.",
+		"detail": "상세 내용입니다.",
+		"details": [{"title": "핵심 포인트", "content": "내용입니다."}]
+	}`
+}
+
 func TestCollectFromSources_Success(t *testing.T) {
 	repo := &mockRepo{}
+	// Phase 1 response + 2 Phase 2 responses (one per topic)
 	aiClient := &mockAIClient{
 		responses: []AIResponse{
-			{OutputText: validCollectionJSON, RawJSON: `{"raw":"data"}`},
+			{OutputText: validPhase1JSON, RawJSON: `{"phase1":"data"}`},
+			{OutputText: validPhase2JSON("RTX 5090 출시 소식"), RawJSON: `{"phase2":"topic1"}`},
+			{OutputText: validPhase2JSON("뉴진스 컴백 발표"), RawJSON: `{"phase2":"topic2"}`},
 		},
 	}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
@@ -146,8 +193,8 @@ func TestCollectFromSources_Success(t *testing.T) {
 	if len(result.Items) != 2 {
 		t.Fatalf("expected 2 items, got %d", len(result.Items))
 	}
-	if result.Items[0].Category != "top" {
-		t.Errorf("expected category top, got %s", result.Items[0].Category)
+	if result.Items[0].Category != "top" && result.Items[1].Category != "top" {
+		t.Error("expected at least one item with category 'top'")
 	}
 	if repo.completedStatus != RunStatusSuccess {
 		t.Errorf("expected repo completed with success, got %s", repo.completedStatus)
@@ -157,7 +204,7 @@ func TestCollectFromSources_Success(t *testing.T) {
 	}
 }
 
-func TestCollectFromSources_AIFailure(t *testing.T) {
+func TestCollectFromSources_Phase1AIFailure(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{errs: []error{errors.New("ai down")}}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
@@ -172,7 +219,48 @@ func TestCollectFromSources_AIFailure(t *testing.T) {
 	}
 }
 
-func TestCollectFromSources_MalformedAIResponse(t *testing.T) {
+func TestCollectFromSources_Phase2PartialFailure(t *testing.T) {
+	repo := &mockRepo{}
+	// Phase 1 succeeds, first Phase 2 succeeds, second Phase 2 fails
+	aiClient := &mockAIClient{
+		responses: []AIResponse{
+			{OutputText: validPhase1JSON, RawJSON: `{"phase1":"data"}`},
+			{OutputText: validPhase2JSON("RTX 5090 출시 소식"), RawJSON: `{"phase2":"topic1"}`},
+		},
+		errs: []error{nil, nil, errors.New("ai overloaded")},
+	}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
+
+	svc := newTestService(aiClient, repo, collector)
+	result, err := svc.CollectFromSources(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error (partial failure should still succeed): %v", err)
+	}
+
+	// Should have 1 item (the successful one)
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 item after partial Phase 2 failure, got %d", len(result.Items))
+	}
+}
+
+func TestCollectFromSources_Phase2AllFail(t *testing.T) {
+	repo := &mockRepo{}
+	aiClient := &mockAIClient{
+		responses: []AIResponse{
+			{OutputText: validPhase1JSON, RawJSON: `{"phase1":"data"}`},
+		},
+		errs: []error{nil, errors.New("fail1"), errors.New("fail2")},
+	}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
+
+	svc := newTestService(aiClient, repo, collector)
+	_, err := svc.CollectFromSources(context.Background())
+	if err == nil {
+		t.Fatal("expected error when all Phase 2 topics fail")
+	}
+}
+
+func TestCollectFromSources_MalformedPhase1Response(t *testing.T) {
 	repo := &mockRepo{}
 	aiClient := &mockAIClient{
 		responses: []AIResponse{{OutputText: "not json at all", RawJSON: `{"raw":"bad"}`}},
@@ -219,39 +307,14 @@ func TestCollectFromSources_SourceCollectionFails_BothDown(t *testing.T) {
 	}
 }
 
-
-func TestCollectFromSources_SkipsInvalidItems(t *testing.T) {
-	repo := &mockRepo{}
-	aiClient := &mockAIClient{
-		responses: []AIResponse{
-			{
-				OutputText: `{"items":[
-				{"category":"top","rank":1,"topic":"유효","summary":"유효한 항목","sources":[]},
-				{"category":"","rank":2,"topic":"빈 카테고리","summary":"필터됨","sources":[]},
-				{"category":"top","rank":3,"topic":"","summary":"빈 토픽","sources":[]}
-			]}`,
-				RawJSON: "{}",
-			},
-		},
-	}
-	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
-
-	svc := newTestService(aiClient, repo, collector)
-	result, err := svc.CollectFromSources(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(result.Items) != 1 {
-		t.Fatalf("expected 1 valid item after filtering, got %d", len(result.Items))
-	}
-}
-
 func TestCollectFromSources_SavesTrendingItems(t *testing.T) {
 	repo := &mockRepo{}
 	trendingRepo := &mockTrendingRepo{}
 	aiClient := &mockAIClient{
 		responses: []AIResponse{
-			{OutputText: validCollectionJSON, RawJSON: `{"raw":"data"}`},
+			{OutputText: validPhase1JSON, RawJSON: `{"phase1":"data"}`},
+			{OutputText: validPhase2JSON("RTX 5090 출시 소식"), RawJSON: `{"phase2":"topic1"}`},
+			{OutputText: validPhase2JSON("뉴진스 컴백 발표"), RawJSON: `{"phase2":"topic2"}`},
 		},
 	}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
@@ -287,7 +350,9 @@ func TestCollectFromSourcesIfNeeded_CanRun(t *testing.T) {
 	repo := &mockRepo{canRunToday: true}
 	aiClient := &mockAIClient{
 		responses: []AIResponse{
-			{OutputText: validCollectionJSON, RawJSON: `{"raw":"data"}`},
+			{OutputText: validPhase1JSON, RawJSON: `{"phase1":"data"}`},
+			{OutputText: validPhase2JSON("RTX 5090 출시 소식"), RawJSON: `{"phase2":"topic1"}`},
+			{OutputText: validPhase2JSON("뉴진스 컴백 발표"), RawJSON: `{"phase2":"topic2"}`},
 		},
 	}
 	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
@@ -304,24 +369,3 @@ func TestCollectFromSourcesIfNeeded_CanRun(t *testing.T) {
 		t.Errorf("expected 2 items, got %d", len(result.Items))
 	}
 }
-
-const validCollectionJSON = `{
-	"items": [
-		{
-			"category": "top",
-			"rank": 1,
-			"topic": "RTX 5090 출시",
-			"summary": "엔비디아가 RTX 5090을 출시해서 화제예요.",
-			"detail": "엔비디아가 차세대 그래픽카드 RTX 5090을 공식 발표했는데요.",
-			"sources": ["https://example.com/news1"]
-		},
-		{
-			"category": "entertainment",
-			"rank": 1,
-			"topic": "뉴진스 컴백",
-			"summary": "뉴진스가 새 앨범으로 컴백을 발표했대요.",
-			"detail": "뉴진스가 새 앨범 발매를 공식 발표했는데요.",
-			"sources": ["https://example.com/news2"]
-		}
-	]
-}`

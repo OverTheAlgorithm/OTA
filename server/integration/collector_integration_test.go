@@ -60,6 +60,15 @@ var testTrendingItems = []collector.TrendingItem{
 // noopURLDecoder is a no-op URL decoder for tests.
 func noopURLDecoder(_ context.Context, _ ...[]string) int { return 0 }
 
+// noopArticleFetcher is a no-op article fetcher for tests.
+func noopArticleFetcher(_ context.Context, urls []string) []collector.FetchedArticle {
+	result := make([]collector.FetchedArticle, len(urls))
+	for i, u := range urls {
+		result[i] = collector.FetchedArticle{URL: u, Body: "Test article content"}
+	}
+	return result
+}
+
 // noopImageGen returns a no-op ImageGenerator for tests.
 func noopImageGen() *collector.ImageGenerator {
 	return collector.NewImageGenerator(&noopImageClient{}, "testdata/images")
@@ -78,7 +87,17 @@ func newIntegrationService(aiClient *mockAIClient, _ interface{ Close() }, db *T
 	trendingRepo := storage.NewTrendingItemRepository(db.Pool)
 	brainCatRepo := storage.NewBrainCategoryRepository(db.Pool)
 
-	return collector.NewService(aiClient, repo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopImageGen())
+	return collector.NewService(aiClient, repo, agg, trendingRepo, brainCatRepo, noopURLDecoder, noopArticleFetcher, noopImageGen())
+}
+
+// twoPhaseResponses returns Phase 1 + Phase 2 responses for the 3 test topics.
+func twoPhaseResponses() []collector.AIResponse {
+	return []collector.AIResponse{
+		{OutputText: validPhase1JSON, RawJSON: `{"phase1":"data"}`},
+		{OutputText: phase2JSON("테스트 주제 1 제목", "첫 번째 테스트 요약"), RawJSON: `{"phase2":"topic1"}`},
+		{OutputText: phase2JSON("테스트 주제 2 제목", "두 번째 테스트 요약"), RawJSON: `{"phase2":"topic2"}`},
+		{OutputText: phase2JSON("테스트 주제 3 제목", "세 번째 테스트 요약"), RawJSON: `{"phase2":"topic3"}`},
+	}
 }
 
 func TestCollector_FullFlow(t *testing.T) {
@@ -86,12 +105,7 @@ func TestCollector_FullFlow(t *testing.T) {
 	defer db.Truncate(t, "trending_items", "context_items", "collection_runs")
 
 	aiClient := &mockAIClient{
-		responses: []collector.AIResponse{
-			{
-				OutputText: validJSON,
-				RawJSON:    `{"raw":"data"}`,
-			},
-		},
+		responses: twoPhaseResponses(),
 	}
 
 	service := newIntegrationService(aiClient, nil, db)
@@ -218,9 +232,7 @@ func TestCollector_CollectFromSourcesIfNeeded(t *testing.T) {
 	defer db.Truncate(t, "trending_items", "context_items", "collection_runs")
 
 	aiClient := &mockAIClient{
-		responses: []collector.AIResponse{
-			{OutputText: validJSON, RawJSON: `{"raw":"data"}`},
-		},
+		responses: twoPhaseResponses(),
 	}
 
 	service := newIntegrationService(aiClient, nil, db)
@@ -248,10 +260,9 @@ func TestCollector_MultipleInstances(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, "trending_items", "context_items", "collection_runs")
 
+	// Need enough responses for both goroutines (one will succeed with full pipeline)
 	aiClient := &mockAIClient{
-		responses: []collector.AIResponse{
-			{OutputText: validJSON, RawJSON: `{"raw":"data"}`},
-		},
+		responses: append(twoPhaseResponses(), twoPhaseResponses()...),
 	}
 
 	service := newIntegrationService(aiClient, nil, db)
@@ -299,34 +310,40 @@ func TestCollector_MultipleInstances(t *testing.T) {
 	}
 }
 
-const validJSON = `{
-	"items": [
+const validPhase1JSON = `{
+	"topics": [
 		{
+			"topic_hint": "테스트 주제 1",
 			"category": "top",
-			"rank": 1,
-			"topic": "테스트 주제 1",
-			"summary": "첫 번째 테스트 요약",
-			"detail": "첫 번째 테스트 상세 설명입니다.",
+			"brain_category": "trend",
+			"buzz_score": 85,
 			"sources": ["https://example1.com"]
 		},
 		{
+			"topic_hint": "테스트 주제 2",
 			"category": "entertainment",
-			"rank": 1,
-			"topic": "테스트 주제 2",
-			"summary": "두 번째 테스트 요약",
-			"detail": "두 번째 테스트 상세 설명입니다.",
+			"brain_category": "fun",
+			"buzz_score": 70,
 			"sources": ["https://example2.com"]
 		},
 		{
+			"topic_hint": "테스트 주제 3",
 			"category": "economy",
-			"rank": 1,
-			"topic": "테스트 주제 3",
-			"summary": "세 번째 테스트 요약",
-			"detail": "세 번째 테스트 상세 설명입니다.",
+			"brain_category": "must_know",
+			"buzz_score": 60,
 			"sources": ["https://example3.com"]
 		}
 	]
 }`
+
+func phase2JSON(topic, summary string) string {
+	return `{
+		"topic": "` + topic + `",
+		"summary": "` + summary + `",
+		"detail": "상세 설명입니다.",
+		"details": [{"title": "핵심 포인트", "content": "내용입니다."}]
+	}`
+}
 
 func mustUUID() uuid.UUID {
 	return uuid.New()
