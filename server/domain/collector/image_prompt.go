@@ -5,6 +5,10 @@ type ImagePrompt string
 const (
 	commonHeader ImagePrompt = `Create a single, impactful illustration for a news thumbnail.
 
+STRICT RULES (must follow):
+• ABSOLUTELY NO TEXT, LETTERS, NUMBERS, OR WORDS anywhere in the image. Not on signs, labels, speech bubbles, clothing, or any surface. The image must be purely visual with zero written characters.
+• Keep the image CLEAN and PLEASANT. No grotesque, disturbing, or unsettling imagery. Avoid: dripping fluids from bodies, exaggerated open mouths showing food/teeth, needles/syringes piercing skin, body horror, gore, or anything that would make a viewer feel uncomfortable or disgusted. The image should feel friendly, approachable, and appropriate for a general audience morning newsletter.
+
 Based on the following news topic:
 %s
 
