@@ -96,6 +96,8 @@ func generateTextBody(preferred, nonPreferred []collector.ContextItem, brainCate
 		}
 	}
 
+	sections = append(sections, "💡 같은 소식이 또 보인다면, 그만큼 오늘도 사람들이 이야기하고 있다는 뜻이에요.")
+
 	return strings.Join(sections, "\n\n")
 }
 
@@ -184,6 +186,13 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
 
       <!-- Sections -->
       %s
+
+      <!-- Repeat note -->
+      <tr><td style="padding-top:24px;text-align:center;">
+        <p style="margin:0;font-size:11px;color:#a8bcc9;line-height:1.6;">
+          💡 같은 소식이 또 보인다면, 그만큼 오늘도 사람들이 이야기하고 있다는 뜻이에요.
+        </p>
+      </td></tr>
 
       <!-- Footer -->
       <tr><td style="padding-top:32px;border-top:1px solid #d4e6f5;text-align:center;">
