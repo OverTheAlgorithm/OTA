@@ -67,6 +67,10 @@ func (m *mockRepo) SaveContextItems(_ context.Context, items []ContextItem) erro
 	return m.saveItemsErr
 }
 
+func (m *mockRepo) UpdateItemImagePath(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
+
 func (m *mockRepo) CanRunToday(_ context.Context) (bool, error) {
 	return m.canRunToday, m.canRunTodayErr
 }

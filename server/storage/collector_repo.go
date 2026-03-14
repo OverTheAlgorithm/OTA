@@ -67,6 +67,15 @@ func (r *CollectorRepository) SaveContextItems(ctx context.Context, items []coll
 	return nil
 }
 
+func (r *CollectorRepository) UpdateItemImagePath(ctx context.Context, itemID uuid.UUID, imagePath string) error {
+	query := `UPDATE context_items SET image_path = $2 WHERE id = $1`
+	_, err := r.pool.Exec(ctx, query, itemID, imagePath)
+	if err != nil {
+		return fmt.Errorf("updating image path for item %s: %w", itemID, err)
+	}
+	return nil
+}
+
 func (r *CollectorRepository) CanRunToday(ctx context.Context) (bool, error) {
 	query := `
 		SELECT EXISTS(

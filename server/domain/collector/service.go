@@ -62,11 +62,10 @@ func (s *Service) WithFallback(fallbackAI AIClient) *Service {
 // Stage 0: Collect from structured sources (Google Trends, Google News, etc.)
 // Stage 1: Phase 1 AI — cluster, categorize, buzz_score, select sources
 // Stage 2: Decode redirect URLs (e.g. Google News) to original article URLs
-// Stage 3: Fetch article content (HTTP GET + HTML→text)
+// Stage 3: Fetch articles + validate sources (blocked hosts, HTTP errors → drop)
 // Stage 4: Phase 2 AI — per-topic writing with article content (parallel)
-// Stage 5: Validate source URLs — remove invalid ones
-// Stage 6: Generate thumbnail images
-// Stage 7: Save
+// Stage 5: Save + mark run success
+// Stage 6: Generate thumbnail images (best-effort, does not affect run status)
 func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, error) {
 	run := CollectionRun{
 		ID:        uuid.New(),
@@ -123,10 +122,15 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	// Stage 2: Decode redirect URLs to original article URLs.
 	topics = s.decodePhase1URLs(ctx, run.ID, topics)
 
-	// Stage 3: Fetch article content for each topic.
-	log.Printf("collection run %s: stage 3 — fetching article content", run.ID)
-	articleMap := s.fetchArticlesForTopics(ctx, topics)
-	log.Printf("collection run %s: stage 3 done — fetched articles for %d topics", run.ID, len(articleMap))
+	// Stage 3: Fetch article content + validate sources.
+	// Blocked hosts and failed fetches are removed. Topics with zero valid sources are dropped.
+	log.Printf("collection run %s: stage 3 — fetching articles + validating sources", run.ID)
+	topics, articleMap := s.fetchAndValidateSources(ctx, run.ID, topics)
+	if len(topics) == 0 {
+		rawResp := phase1Resp.RawJSON
+		return failRun(fmt.Errorf("all topics dropped after source validation/fetch"), &rawResp)
+	}
+	log.Printf("collection run %s: stage 3 done — %d topics with valid sources", run.ID, len(topics))
 
 	// Stage 4: Phase 2 AI — per-topic detail writing (parallel with semaphore).
 	log.Printf("collection run %s: stage 4 — Phase 2 AI detail writing", run.ID)
@@ -137,30 +141,29 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	}
 	log.Printf("collection run %s: stage 4 done — %d/%d topics written", run.ID, len(items), len(topics))
 
-	// Stage 5: Validate source URLs — remove invalid ones.
-	items = s.validateAndRemoveSources(ctx, run.ID, items)
-
-	// Stage 6: Generate thumbnail images (optional, best-effort).
-	items = s.generateImages(ctx, run.ID, items)
-
 	// Build combined raw response for debugging (before save so it's available on failure).
 	combinedRaw := buildCombinedRawResponse(phase1Resp.RawJSON, phase2RawResponses)
 
-	// Stage 7: Save.
+	// Stage 5: Save items + mark run as success.
+	// This happens BEFORE image generation so that content is persisted regardless of image failures.
 	if err := s.repo.SaveContextItems(ctx, items); err != nil {
 		return failRun(fmt.Errorf("saving context items: %w", err), &combinedRaw)
 	}
+	if err := s.repo.CompleteRun(ctx, run.ID, RunStatusSuccess, nil, &combinedRaw); err != nil {
+		return CollectionResult{}, fmt.Errorf("completing run: %w", err)
+	}
+	log.Printf("collection run %s: stage 5 done — %d items saved, run marked success", run.ID, len(items))
+
+	// Stage 6: Generate thumbnail images (best-effort, does NOT affect run status).
+	items = s.generateImages(ctx, run.ID, items)
+	s.persistImagePaths(ctx, run.ID, items)
+
+	log.Printf("collection run %s: complete — %d items from %d source items", run.ID, len(items), len(data.Items))
 
 	now := time.Now().UTC()
 	run.CompletedAt = &now
 	run.Status = RunStatusSuccess
 	run.RawResponse = &combinedRaw
-
-	if err := s.repo.CompleteRun(ctx, run.ID, RunStatusSuccess, nil, &combinedRaw); err != nil {
-		return CollectionResult{}, fmt.Errorf("completing run: %w", err)
-	}
-
-	log.Printf("collection run %s: complete — %d items from %d source items", run.ID, len(items), len(data.Items))
 	return CollectionResult{Run: run, Items: items}, nil
 }
 
@@ -253,33 +256,69 @@ func (s *Service) decodePhase1URLs(ctx context.Context, runID uuid.UUID, topics 
 	return result
 }
 
-// --- Article fetching ---
+// --- Article fetching + source validation ---
 
-func (s *Service) fetchArticlesForTopics(ctx context.Context, topics []Phase1Topic) map[int][]FetchedArticle {
-	result := make(map[int][]FetchedArticle, len(topics))
-	for i, t := range topics {
-		articles := s.articleFetcher(ctx, t.Sources)
-		ok, fail := 0, 0
+// fetchAndValidateSources validates sources, fetches articles, and filters topics in one pass.
+// Sources are checked in two phases:
+//  1. Pre-fetch: blocked hosts (portals, aggregators) are removed
+//  2. Post-fetch: HTTP errors and empty bodies are removed
+//
+// Topics that end up with zero valid sources are dropped entirely (no content = hallucination risk).
+// Returns the surviving topics (re-indexed) and their fetched articles.
+func (s *Service) fetchAndValidateSources(ctx context.Context, runID uuid.UUID, topics []Phase1Topic) ([]Phase1Topic, map[int][]FetchedArticle) {
+	articleMap := make(map[int][]FetchedArticle, len(topics))
+	var surviving []Phase1Topic
+
+	for _, t := range topics {
+		// Phase 1: remove blocked hosts before making any HTTP requests.
+		var fetchable []string
+		for _, src := range t.Sources {
+			if reason := checkBlockedURL(src); reason != "" {
+				log.Printf("  topic %q: pre-fetch blocked %s — %s", t.TopicHint, src, reason)
+				continue
+			}
+			fetchable = append(fetchable, src)
+		}
+		if len(fetchable) == 0 {
+			log.Printf("collection run %s: DROPPED topic %q [%s] buzz=%d — all %d source(s) are blocked hosts",
+				runID, t.TopicHint, t.Category, t.BuzzScore, len(t.Sources))
+			continue
+		}
+
+		// Phase 2: fetch articles and keep only sources that returned content.
+		articles := s.articleFetcher(ctx, fetchable)
+		var validSources []string
+		var validArticles []FetchedArticle
 		for _, a := range articles {
-			if a.Err != nil || a.Body == "" {
-				fail++
-			} else {
-				ok++
+			if a.Err != nil {
+				log.Printf("  topic %q: fetch failed %s — %v", t.TopicHint, a.URL, a.Err)
+				continue
 			}
-		}
-		if fail > 0 {
-			for _, a := range articles {
-				if a.Err != nil {
-					log.Printf("  article fetch failed: %s — %v", a.URL, a.Err)
-				} else if a.Body == "" {
-					log.Printf("  article fetch empty body: %s", a.URL)
-				}
+			if a.Body == "" {
+				log.Printf("  topic %q: fetch empty body %s", t.TopicHint, a.URL)
+				continue
 			}
+			validSources = append(validSources, a.URL)
+			validArticles = append(validArticles, a)
 		}
-		log.Printf("  topic %q: %d/%d articles fetched (ok=%d, fail=%d)", t.TopicHint, len(articles), len(t.Sources), ok, fail)
-		result[i] = articles
+
+		if len(validSources) == 0 {
+			log.Printf("collection run %s: DROPPED topic %q [%s] buzz=%d — 0/%d sources returned content (blocked=%d, fetch_failed=%d)",
+				runID, t.TopicHint, t.Category, t.BuzzScore, len(t.Sources),
+				len(t.Sources)-len(fetchable), len(fetchable)-len(validArticles))
+			continue
+		}
+
+		log.Printf("  topic %q: %d/%d sources valid", t.TopicHint, len(validSources), len(t.Sources))
+
+		newIdx := len(surviving)
+		validated := t
+		validated.Sources = validSources
+		surviving = append(surviving, validated)
+		articleMap[newIdx] = validArticles
 	}
-	return result
+
+	return surviving, articleMap
 }
 
 // --- Phase 2 parallel execution ---
@@ -312,21 +351,7 @@ func (s *Service) runPhase2(
 			defer func() { <-sem }()
 
 			articles := articleMap[idx]
-
-			// Drop topic if no article content was fetched — writing without sources produces hallucinations.
-			hasContent := false
-			for _, a := range articles {
-				if a.Err == nil && a.Body != "" {
-					hasContent = true
-					break
-				}
-			}
-			if !hasContent {
-				log.Printf("collection run %s: dropping topic %q [%s] buzz=%d sources=%v — no article content available",
-					runID, t.TopicHint, t.Category, t.BuzzScore, t.Sources)
-				results <- phase2Output{index: idx, err: fmt.Errorf("no article content for topic %q", t.TopicHint)}
-				return
-			}
+			// Sources are already validated in stage 3 — all articles here have content.
 
 			prompt := BuildDetailPrompt(t, articles, brainCategories)
 
@@ -505,25 +530,30 @@ func buildCombinedRawResponse(phase1Raw string, phase2Raws []string) string {
 	return string(b)
 }
 
-// --- Stage helpers (unchanged from original) ---
+// --- Stage helpers ---
 
-// validateAndRemoveSources checks all source URLs and removes invalid ones.
-// Returns a new slice — the input is not mutated.
-func (s *Service) validateAndRemoveSources(ctx context.Context, runID uuid.UUID, items []ContextItem) []ContextItem {
-	log.Printf("collection run %s: stage 5 — validating source URLs", runID)
-
-	validator := NewSourceValidator()
-	invalid := validator.ValidateSources(ctx, items)
-	if len(invalid) == 0 {
-		log.Printf("collection run %s: stage 5 done — all source URLs valid", runID)
-		return items
+// persistImagePaths updates each item's image_path in the DB after image generation.
+// Errors are logged but do not affect the run status — images are best-effort.
+func (s *Service) persistImagePaths(ctx context.Context, runID uuid.UUID, items []ContextItem) {
+	var saved, failed int
+	for _, item := range items {
+		if item.ImagePath == nil {
+			continue
+		}
+		if err := s.repo.UpdateItemImagePath(ctx, item.ID, *item.ImagePath); err != nil {
+			log.Printf("collection run %s: failed to persist image path for %s %q — %v", runID, item.ID, item.Topic, err)
+			failed++
+			continue
+		}
+		saved++
 	}
-
-	for _, inv := range invalid {
-		log.Printf("  invalid source: item[%d] %q — %s", inv.ItemIndex, inv.URL, inv.Reason)
+	if failed > 0 {
+		errMsg := fmt.Sprintf("image path persist: %d/%d failed", failed, saved+failed)
+		_ = s.repo.CompleteRun(ctx, runID, RunStatusSuccess, &errMsg, nil)
 	}
-	log.Printf("collection run %s: stage 5 done — removed %d invalid URL(s)", runID, len(invalid))
-	return removeInvalidSources(items, invalid)
+	if saved > 0 {
+		log.Printf("collection run %s: persisted %d image paths", runID, saved)
+	}
 }
 
 // generateImages creates thumbnail images for each item using the image generator.
@@ -547,27 +577,3 @@ func (s *Service) generateImages(ctx context.Context, runID uuid.UUID, items []C
 	return result
 }
 
-// removeInvalidSources strips all invalid URLs from items. Returns a new slice.
-func removeInvalidSources(items []ContextItem, invalid []InvalidSource) []ContextItem {
-	type key struct {
-		idx int
-		url string
-	}
-	removeSet := make(map[key]bool)
-	for _, inv := range invalid {
-		removeSet[key{inv.ItemIndex, inv.URL}] = true
-	}
-
-	result := make([]ContextItem, len(items))
-	for i, item := range items {
-		result[i] = item
-		var kept []string
-		for _, src := range item.Sources {
-			if !removeSet[key{i, src}] {
-				kept = append(kept, src)
-			}
-		}
-		result[i].Sources = kept
-	}
-	return result
-}
