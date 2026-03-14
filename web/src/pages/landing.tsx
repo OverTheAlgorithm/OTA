@@ -532,8 +532,32 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-[#d4e6f5] py-8 px-6">
-        <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="max-w-[1200px] mx-auto flex flex-col items-center gap-4">
           <img src="/OTA_logo.png" alt="OTA" className="h-6 opacity-50" />
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-[#6b8db5]">
+            <a
+              href="https://www.notion.so/323a2761d34980a584aded12742cf8aa"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[#1e3a5f] transition-colors"
+            >
+              서비스 이용약관
+            </a>
+            <a
+              href="https://www.notion.so/323a2761d3498020a052d648da671676"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[#1e3a5f] transition-colors"
+            >
+              개인정보처리방침
+            </a>
+            <a
+              href="mailto:mindhacker.admin@gmail.com"
+              className="hover:text-[#1e3a5f] transition-colors"
+            >
+              mindhacker.admin@gmail.com
+            </a>
+          </div>
           <p className="text-sm text-[#6b8db5]">
             &copy; 2026 Over the Algorithm. All rights reserved.
           </p>
