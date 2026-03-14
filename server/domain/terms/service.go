@@ -69,6 +69,17 @@ func (s *Service) UpdateTermActive(ctx context.Context, termID string, active bo
 	return s.repo.UpdateActive(ctx, termID, active)
 }
 
+// UpdateTerm modifies mutable fields (url, description, required) of an existing term.
+func (s *Service) UpdateTerm(ctx context.Context, termID, url, description string, required bool) (Term, error) {
+	if termID == "" {
+		return Term{}, fmt.Errorf("term ID is required")
+	}
+	if url == "" {
+		return Term{}, fmt.Errorf("url is required")
+	}
+	return s.repo.Update(ctx, termID, url, description, required)
+}
+
 // SaveConsents persists consent records after validation passes.
 func (s *Service) SaveConsents(ctx context.Context, userID string, termIDs []string) error {
 	return s.repo.SaveConsents(ctx, userID, termIDs)

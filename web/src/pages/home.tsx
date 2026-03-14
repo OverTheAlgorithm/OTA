@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
+import { Footer } from "@/components/footer";
 import { InterestSection } from "@/components/interest-section";
 import { ChannelPreferencesSection } from "@/components/channel-preferences-section";
 import { HistorySection } from "@/components/history-section";
@@ -132,38 +133,7 @@ export function HomePage() {
         <HistorySection subscriptions={subscriptions} />
       </main>
 
-      <footer className="border-t border-[#d4e6f5] py-6 px-6 mt-4">
-        <div className="max-w-2xl mx-auto flex flex-col items-center gap-3">
-          <img src="/OTA_logo.png" alt="OTA" className="h-5 opacity-50" />
-          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-[#6b8db5]">
-            <a
-              href="https://www.notion.so/323a2761d34980a584aded12742cf8aa"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-[#1e3a5f] transition-colors"
-            >
-              서비스 이용약관
-            </a>
-            <a
-              href="https://www.notion.so/323a2761d3498020a052d648da671676"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-[#1e3a5f] transition-colors"
-            >
-              개인정보처리방침
-            </a>
-            <a
-              href="mailto:mindhacker.admin@gmail.com"
-              className="hover:text-[#1e3a5f] transition-colors"
-            >
-              mindhacker.admin@gmail.com
-            </a>
-          </div>
-          <p className="text-xs text-[#6b8db5]">
-            &copy; 2026 Over the Algorithm. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer compact />
     </div>
   );
 }

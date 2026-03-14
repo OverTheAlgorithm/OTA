@@ -22,6 +22,10 @@ type Repository interface {
 	// UpdateActive toggles the active status of a term.
 	UpdateActive(ctx context.Context, termID string, active bool) error
 
+	// Update modifies mutable fields of a term (url, description, required).
+	// Title and version are intentionally excluded as they identify what was agreed to.
+	Update(ctx context.Context, termID string, url, description string, required bool) (Term, error)
+
 	// GetUserConsents returns all consent records for a user.
 	GetUserConsents(ctx context.Context, userID string) ([]UserTermConsent, error)
 }

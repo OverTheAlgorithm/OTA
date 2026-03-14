@@ -101,6 +101,22 @@ func (r *TermsRepository) FindActiveRequired(ctx context.Context) ([]terms.Term,
 	return result, nil
 }
 
+func (r *TermsRepository) Update(ctx context.Context, termID string, url, description string, required bool) (terms.Term, error) {
+	query := `
+		UPDATE terms SET url = $2, description = $3, required = $4 WHERE id = $1
+		RETURNING id, title, description, url, active, required, version, created_at`
+
+	var result terms.Term
+	err := r.pool.QueryRow(ctx, query, termID, url, description, required).Scan(
+		&result.ID, &result.Title, &result.Description, &result.URL,
+		&result.Active, &result.Required, &result.Version, &result.CreatedAt,
+	)
+	if err != nil {
+		return terms.Term{}, fmt.Errorf("update term: %w", err)
+	}
+	return result, nil
+}
+
 func (r *TermsRepository) UpdateActive(ctx context.Context, termID string, active bool) error {
 	tag, err := r.pool.Exec(ctx, `UPDATE terms SET active = $2 WHERE id = $1`, termID, active)
 	if err != nil {

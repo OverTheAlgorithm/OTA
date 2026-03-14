@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
-import { getAdminTerms, createTerm, updateTermActive, type Term } from "@/lib/api";
+import { getAdminTerms, createTerm, updateTermActive, updateTerm, type Term } from "@/lib/api";
 
 export function AdminTermsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -12,6 +12,7 @@ export function AdminTermsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -103,7 +104,7 @@ export function AdminTermsPage() {
             {terms.map((t) => (
               <div
                 key={t.id}
-                className="rounded-xl border border-[#d4e6f5] bg-[#f0f7ff] p-4"
+                className="rounded-xl border border-[#d4e6f5] bg-[#f0f7ff] p-4 space-y-3"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -154,11 +155,96 @@ export function AdminTermsPage() {
                       </span>
                     </div>
                   </div>
+                  <button
+                    onClick={() => setEditingId(editingId === t.id ? null : t.id)}
+                    className="text-xs text-[#6b8db5] hover:text-[#1e3a5f] transition-colors flex-shrink-0"
+                  >
+                    {editingId === t.id ? "취소" : "수정"}
+                  </button>
                 </div>
+
+                {editingId === t.id && (
+                  <EditTermForm
+                    term={t}
+                    onUpdated={(updated) => {
+                      setTerms((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+                      setEditingId(null);
+                    }}
+                    onError={setError}
+                  />
+                )}
               </div>
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function EditTermForm({
+  term,
+  onUpdated,
+  onError,
+}: {
+  term: Term;
+  onUpdated: (updated: Term) => void;
+  onError: (msg: string) => void;
+}) {
+  const [form, setForm] = useState({
+    url: term.url,
+    description: term.description,
+    required: term.required,
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!form.url) { onError("URL은 필수입니다"); return; }
+    setSubmitting(true);
+    try {
+      const updated = await updateTerm(term.id, form);
+      onUpdated(updated);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "수정 실패");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-[#d4e6f5] pt-3 space-y-2">
+      <p className="text-[10px] text-[#94a3b8]">
+        제목·버전은 동의 기록 식별자라 변경 불가합니다.
+      </p>
+      <input
+        value={form.url}
+        onChange={(e) => setForm({ ...form, url: e.target.value })}
+        placeholder="약관 전문 URL"
+        className="w-full bg-white border border-[#d4e6f5] rounded-lg px-3 py-2 text-sm text-[#1e3a5f]"
+      />
+      <textarea
+        value={form.description}
+        onChange={(e) => setForm({ ...form, description: e.target.value })}
+        placeholder="설명 (선택)"
+        rows={2}
+        className="w-full bg-white border border-[#d4e6f5] rounded-lg px-3 py-2 text-sm text-[#1e3a5f]"
+      />
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.required}
+            onChange={(e) => setForm({ ...form, required: e.target.checked })}
+            className="w-4 h-4 rounded accent-[#4a9fe5]"
+          />
+          <span className="text-sm text-[#1e3a5f]">필수</span>
+        </label>
+        <button
+          onClick={handleSubmit}
+          disabled={submitting}
+          className="px-4 py-1.5 rounded-lg bg-[#4a9fe5]/20 text-[#4a9fe5] text-sm font-semibold hover:bg-[#4a9fe5]/30 transition-colors disabled:opacity-50"
+        >
+          {submitting ? "저장 중..." : "저장"}
+        </button>
       </div>
     </div>
   );

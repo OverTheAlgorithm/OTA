@@ -571,6 +571,24 @@ export async function updateTermActive(termId: string, active: boolean): Promise
   }
 }
 
+export async function updateTerm(
+  termId: string,
+  payload: { url: string; description: string; required: boolean }
+): Promise<Term> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/terms/${termId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "약관 수정에 실패했습니다");
+  }
+  const body: ApiResponse<Term> = await res.json();
+  return body.data;
+}
+
 // ── 마이페이지 ──────────────────────────────────────
 export interface CoinTransaction {
   id: string;

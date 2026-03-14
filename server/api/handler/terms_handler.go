@@ -51,6 +51,7 @@ func (h *TermsAdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("", h.ListAll)
 	group.POST("", h.Create)
 	group.PATCH("/:id/active", h.UpdateActive)
+	group.PATCH("/:id", h.Update)
 }
 
 // ListAll returns all terms regardless of active status.
@@ -94,6 +95,43 @@ func (h *TermsAdminHandler) UpdateActive(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
+}
+
+type updateTermRequest struct {
+	URL         string `json:"url"`
+	Description string `json:"description"`
+	Required    *bool  `json:"required"`
+}
+
+// Update modifies mutable fields (url, description, required) of an existing term.
+func (h *TermsAdminHandler) Update(c *gin.Context) {
+	termID := c.Param("id")
+	if termID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "약관 ID는 필수입니다"})
+		return
+	}
+
+	var req updateTermRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
+		return
+	}
+	if req.URL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "URL은 필수입니다"})
+		return
+	}
+	if req.Required == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "필수 여부는 필수입니다"})
+		return
+	}
+
+	updated, err := h.svc.UpdateTerm(c.Request.Context(), termID, req.URL, req.Description, *req.Required)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": updated})
 }
 
 type createTermRequest struct {
