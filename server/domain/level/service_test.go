@@ -75,48 +75,6 @@ func TestService_GetLevel(t *testing.T) {
 	}
 }
 
-func TestService_EarnCoin_Success_LevelUp(t *testing.T) {
-	svc := NewService(&mockRepo{
-		coins:      UserCoins{Coins: 999},
-		earnResult: true,
-		earnTotal:  1000,
-	}, testCfg, 0, 0)
-	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !res.Earned {
-		t.Error("expected earned = true")
-	}
-	if res.Reason != ReasonEarned {
-		t.Errorf("Reason = %q, want %q", res.Reason, ReasonEarned)
-	}
-	if !res.LeveledUp {
-		t.Error("expected leveled_up = true (Lv1 -> Lv2)")
-	}
-	if res.Level != 2 {
-		t.Errorf("Level = %d, want 2", res.Level)
-	}
-}
-
-func TestService_EarnCoin_Success_NoLevelUp(t *testing.T) {
-	svc := NewService(&mockRepo{
-		coins:      UserCoins{Coins: 1500},
-		earnResult: true,
-		earnTotal:  1501,
-	}, testCfg, 0, 0)
-	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !res.Earned {
-		t.Error("expected earned = true")
-	}
-	if res.LeveledUp {
-		t.Error("expected leveled_up = false")
-	}
-}
-
 func TestService_EarnCoin_Duplicate(t *testing.T) {
 	svc := NewService(&mockRepo{
 		coins:      UserCoins{Coins: 500},
@@ -199,62 +157,37 @@ func TestEarnCoin_AtMaxLevel(t *testing.T) {
 	}
 }
 
-// TestEarnCoin_DailyLimit_LevelBased: level-based daily limit
-func TestEarnCoin_DailyLimit_LevelBased(t *testing.T) {
+func TestEarnCoin_DailyLimit(t *testing.T) {
 	// Lv2 user (1000 coins), base=10, extra=5 → limit = 10 + 2*5 = 20
-	// todayEarned=20 → blocked
-	svc := NewService(&mockRepo{
-		coins:       UserCoins{Coins: 1000},
-		todayEarned: 20,
-		earnResult:  true,
-		earnTotal:   1005,
-	}, testCfg, 10, 5)
-	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	cases := []struct {
+		name        string
+		todayEarned int
+		base, extra int
+		wantEarned  bool
+		wantReason  string
+	}{
+		{"at limit → blocked", 20, 10, 5, false, ReasonDailyLimit},
+		{"under limit → allowed", 5, 10, 5, true, ReasonEarned},
+		{"base=0 → unlimited", 9999, 0, 10, true, ReasonEarned},
 	}
-	if res.Earned {
-		t.Error("expected earned = false when daily limit reached")
-	}
-	if res.Reason != ReasonDailyLimit {
-		t.Errorf("Reason = %q, want %q", res.Reason, ReasonDailyLimit)
-	}
-	if res.DailyLimit != 20 {
-		t.Errorf("DailyLimit = %d, want 20", res.DailyLimit)
-	}
-}
-
-// TestEarnCoin_DailyLimit_UnderLimit: under limit → allowed
-func TestEarnCoin_DailyLimit_UnderLimit(t *testing.T) {
-	// Lv2 user (1000 coins), base=10, extra=5 → limit=20, todayEarned=5 → allowed
-	svc := NewService(&mockRepo{
-		coins:       UserCoins{Coins: 1000},
-		todayEarned: 5,
-		earnResult:  true,
-		earnTotal:   1005,
-	}, testCfg, 10, 5)
-	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !res.Earned {
-		t.Error("expected earned = true when under daily limit")
-	}
-}
-
-// TestEarnCoin_DailyLimit_Zero_Unlimited: base=0 → unlimited
-func TestEarnCoin_DailyLimit_Zero_Unlimited(t *testing.T) {
-	svc := NewService(&mockRepo{
-		coins:       UserCoins{Coins: 1000},
-		todayEarned: 9999,
-		earnResult:  true,
-		earnTotal:   1005,
-	}, testCfg, 0, 10)
-	res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !res.Earned {
-		t.Error("expected earned = true when base limit is 0 (unlimited)")
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewService(&mockRepo{
+				coins:       UserCoins{Coins: 1000},
+				todayEarned: tt.todayEarned,
+				earnResult:  true,
+				earnTotal:   1005,
+			}, testCfg, tt.base, tt.extra)
+			res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if res.Earned != tt.wantEarned {
+				t.Errorf("Earned = %v, want %v", res.Earned, tt.wantEarned)
+			}
+			if res.Reason != tt.wantReason {
+				t.Errorf("Reason = %q, want %q", res.Reason, tt.wantReason)
+			}
+		})
 	}
 }

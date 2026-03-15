@@ -107,6 +107,10 @@ func (m *mockTermsRepoSignup) UpdateActive(_ context.Context, _ string, _ bool) 
 	return nil
 }
 
+func (m *mockTermsRepoSignup) Update(_ context.Context, _ string, _, _ string, _ bool) (terms.Term, error) {
+	return terms.Term{}, nil
+}
+
 func (m *mockTermsRepoSignup) GetUserConsents(_ context.Context, _ string) ([]terms.UserTermConsent, error) {
 	return nil, nil
 }

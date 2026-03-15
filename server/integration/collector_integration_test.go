@@ -150,8 +150,8 @@ func TestCollector_FullFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to count trending items: %v", err)
 	}
-	if trendingCount != 3 {
-		t.Errorf("expected 3 trending items in DB, got %d", trendingCount)
+	if trendingCount != 6 {
+		t.Errorf("expected 6 trending items in DB (3 per source x 2 sources), got %d", trendingCount)
 	}
 }
 
@@ -271,7 +271,7 @@ func TestCollector_MultipleInstances(t *testing.T) {
 	results := make(chan *collector.CollectionResult, 2)
 	errors := make(chan error, 2)
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		go func() {
 			result, err := service.CollectFromSourcesIfNeeded(context.Background())
 			if err != nil {
@@ -286,7 +286,7 @@ func TestCollector_MultipleInstances(t *testing.T) {
 	successCount := 0
 	skipCount := 0
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case err := <-errors:
 			t.Fatalf("unexpected error: %v", err)

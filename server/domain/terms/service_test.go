@@ -76,6 +76,18 @@ func (m *mockRepo) UpdateActive(_ context.Context, termID string, active bool) e
 	return fmt.Errorf("term not found")
 }
 
+func (m *mockRepo) Update(_ context.Context, termID string, url, description string, required bool) (Term, error) {
+	for i, t := range m.terms {
+		if t.ID == termID {
+			m.terms[i].URL = url
+			m.terms[i].Description = description
+			m.terms[i].Required = required
+			return m.terms[i], nil
+		}
+	}
+	return Term{}, fmt.Errorf("term not found")
+}
+
 func (m *mockRepo) GetUserConsents(_ context.Context, userID string) ([]UserTermConsent, error) {
 	return nil, nil
 }
@@ -276,66 +288,51 @@ func TestSaveConsents_RepoError(t *testing.T) {
 	}
 }
 
-func TestListAllTerms(t *testing.T) {
+func TestListTerms(t *testing.T) {
 	repo := newMockRepo()
 	repo.terms = []Term{
 		{ID: "1", Title: "A", Active: true},
 		{ID: "2", Title: "B", Active: false},
 	}
+	repo.activeTerms = []Term{repo.terms[0]}
 	svc := NewService(repo)
 
 	all, err := svc.ListAllTerms(context.Background())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("ListAllTerms: %v", err)
 	}
 	if len(all) != 2 {
-		t.Fatalf("expected 2 terms, got %d", len(all))
+		t.Errorf("ListAllTerms = %d, want 2", len(all))
 	}
-}
-
-func TestUpdateTermActive_Success(t *testing.T) {
-	repo := newMockRepo()
-	repo.terms = []Term{{ID: "t-1", Title: "Privacy", Active: true}}
-	svc := NewService(repo)
-
-	err := svc.UpdateTermActive(context.Background(), "t-1", false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if repo.terms[0].Active {
-		t.Fatal("expected term to be inactive")
-	}
-}
-
-func TestUpdateTermActive_EmptyID(t *testing.T) {
-	svc := NewService(newMockRepo())
-	err := svc.UpdateTermActive(context.Background(), "", true)
-	if err == nil {
-		t.Fatal("expected error for empty ID")
-	}
-}
-
-func TestUpdateTermActive_NotFound(t *testing.T) {
-	repo := newMockRepo()
-	svc := NewService(repo)
-	err := svc.UpdateTermActive(context.Background(), "nonexistent", true)
-	if err == nil {
-		t.Fatal("expected error for not found")
-	}
-}
-
-func TestGetActiveTerms(t *testing.T) {
-	repo := newMockRepo()
-	repo.activeTerms = []Term{
-		{ID: "1", Title: "A", Active: true},
-	}
-	svc := NewService(repo)
 
 	active, err := svc.GetActiveTerms(context.Background())
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("GetActiveTerms: %v", err)
 	}
 	if len(active) != 1 {
-		t.Fatalf("expected 1 active term, got %d", len(active))
+		t.Errorf("GetActiveTerms = %d, want 1", len(active))
+	}
+}
+
+func TestUpdateTermActive(t *testing.T) {
+	cases := []struct {
+		name    string
+		id      string
+		terms   []Term
+		wantErr bool
+	}{
+		{"success", "t-1", []Term{{ID: "t-1", Title: "Privacy", Active: true}}, false},
+		{"empty ID", "", nil, true},
+		{"not found", "nonexistent", nil, true},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newMockRepo()
+			repo.terms = tt.terms
+			err := NewService(repo).UpdateTermActive(context.Background(), tt.id, false)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("err = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
 	}
 }

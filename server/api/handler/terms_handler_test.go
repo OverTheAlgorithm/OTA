@@ -61,6 +61,10 @@ func (m *mockTermsRepoForHandler) UpdateActive(_ context.Context, termID string,
 	return fmt.Errorf("term not found")
 }
 
+func (m *mockTermsRepoForHandler) Update(_ context.Context, _ string, _, _ string, _ bool) (terms.Term, error) {
+	return terms.Term{}, nil
+}
+
 func (m *mockTermsRepoForHandler) GetUserConsents(_ context.Context, _ string) ([]terms.UserTermConsent, error) {
 	return nil, nil
 }
