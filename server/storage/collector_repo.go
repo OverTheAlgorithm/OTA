@@ -80,7 +80,7 @@ func (r *CollectorRepository) CanRunToday(ctx context.Context) (bool, error) {
 	query := `
 		SELECT EXISTS(
 			SELECT 1 FROM collection_runs
-			WHERE DATE(started_at AT TIME ZONE 'UTC') = CURRENT_DATE
+			WHERE DATE(started_at AT TIME ZONE 'Asia/Seoul') = DATE(NOW() AT TIME ZONE 'Asia/Seoul')
 			AND (status = 'running' OR status = 'success')
 		)`
 
