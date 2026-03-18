@@ -84,12 +84,14 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 		ContextItemID string `json:"context_item_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("init-earn: bad request from user=%s ip=%s — %v", userID, c.ClientIP(), err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "context_item_id is required"})
 		return
 	}
 
 	itemID, err := uuid.Parse(req.ContextItemID)
 	if err != nil {
+		log.Printf("init-earn: invalid context_item_id=%q from user=%s", req.ContextItemID, userID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid context_item_id"})
 		return
 	}
@@ -99,11 +101,12 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	// ── Gate check 1: context item must exist ────────────────────────────────
 	topic, err := h.histRepo.GetContextItemByID(ctx, itemID)
 	if err != nil {
-		log.Printf("init-earn: get context item error: %v", err)
+		log.Printf("init-earn: DB error getting item=%s user=%s — %v", itemID, userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if topic == nil {
+		log.Printf("init-earn: item not found item=%s user=%s", itemID, userID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "context item not found"})
 		return
 	}
@@ -113,11 +116,12 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	// ── Gate check 2: run must be from today ──────────────────────────────────
 	isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
 	if err != nil {
-		log.Printf("init-earn: check run date error: %v", err)
+		log.Printf("init-earn: DB error checking run date run=%s user=%s item=%s — %v", runID, userID, itemID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if !isToday {
+		log.Printf("init-earn: EXPIRED user=%s item=%s run=%s", userID, itemID, runID)
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "EXPIRED"}})
 		return
 	}
@@ -125,11 +129,12 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	// ── Gate check 3: must not already have earned for this run+item ─────────
 	earned, err := h.service.HasEarned(ctx, userID, runID, itemID)
 	if err != nil {
-		log.Printf("init-earn: has earned error: %v", err)
+		log.Printf("init-earn: DB error checking has-earned user=%s run=%s item=%s — %v", userID, runID, itemID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if earned {
+		log.Printf("init-earn: DUPLICATE user=%s item=%s run=%s", userID, itemID, runID)
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "DUPLICATE"}})
 		return
 	}
@@ -137,11 +142,12 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	// ── Gate check 4: daily coin limit ───────────────────────────────────────
 	limited, err := h.service.IsAtDailyLimit(ctx, userID)
 	if err != nil {
-		log.Printf("init-earn: daily limit check error: %v", err)
+		log.Printf("init-earn: DB error checking daily limit user=%s — %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if limited {
+		log.Printf("init-earn: DAILY_LIMIT user=%s item=%s", userID, itemID)
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "DAILY_LIMIT"}})
 		return
 	}
@@ -156,6 +162,7 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	ttl := h.earnMinDuration * 2
 	h.earnCache.Set(earnCacheKey(userID, itemID), pending, ttl)
 
+	log.Printf("init-earn: PENDING user=%s item=%s run=%s duration=%ds", userID, itemID, runID, int(h.earnMinDuration.Seconds()))
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"status":           "PENDING",
 		"required_seconds": int(h.earnMinDuration.Seconds()),
@@ -173,12 +180,14 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 		TurnstileToken string `json:"turnstile_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("earn: bad request from user=%s ip=%s — %v", userID, c.ClientIP(), err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "context_item_id and turnstile_token are required"})
 		return
 	}
 
 	itemID, err := uuid.Parse(req.ContextItemID)
 	if err != nil {
+		log.Printf("earn: invalid context_item_id=%q from user=%s", req.ContextItemID, userID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid context_item_id"})
 		return
 	}
@@ -187,19 +196,30 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	key := earnCacheKey(userID, itemID)
 	raw, ok := h.earnCache.Get(key)
 	if !ok {
-		// No init-earn record — either never called or already consumed/expired.
+		log.Printf("earn: TOO_EARLY (no cache) user=%s item=%s ip=%s", userID, itemID, c.ClientIP())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "TOO_EARLY"})
 		return
 	}
 	pending, ok := raw.(EarnPending)
-	if !ok || time.Since(pending.InitiatedAt) < h.earnMinDuration {
+	if !ok {
+		log.Printf("earn: TOO_EARLY (cache type mismatch) user=%s item=%s", userID, itemID)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "TOO_EARLY"})
+		return
+	}
+	elapsed := time.Since(pending.InitiatedAt)
+	if elapsed < h.earnMinDuration {
+		log.Printf("earn: TOO_EARLY (elapsed=%s < min=%s) user=%s item=%s", elapsed.Round(time.Millisecond), h.earnMinDuration, userID, itemID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "TOO_EARLY"})
 		return
 	}
 
 	// ── Turnstile validation (Layer 3) ────────────────────────────────────────
+	tokenPreview := req.TurnstileToken
+	if len(tokenPreview) > 16 {
+		tokenPreview = tokenPreview[:16] + "..."
+	}
 	if err := h.verifyTurnstileToken(req.TurnstileToken, c.ClientIP()); err != nil {
-		log.Printf("earn coin: turnstile validation failed: %v", err)
+		log.Printf("earn: TURNSTILE_FAIL user=%s item=%s ip=%s token_prefix=%s — %v", userID, itemID, c.ClientIP(), tokenPreview, err)
 		c.JSON(http.StatusForbidden, gin.H{"error": "bot verification failed"})
 		return
 	}
@@ -220,30 +240,32 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 
 	isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
 	if err != nil {
-		log.Printf("earn coin: check run date error: %v", err)
+		log.Printf("earn: DB error checking run date user=%s run=%s item=%s — %v", userID, runID, itemID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if !isToday {
 		h.earnCache.Delete(key)
+		log.Printf("earn: EXPIRED (re-validate) user=%s item=%s run=%s", userID, itemID, runID)
 		c.JSON(http.StatusOK, gin.H{"data": earnResponse{Attempted: true, Reason: "EXPIRED"}})
 		return
 	}
 
 	topic, err := h.histRepo.GetContextItemByID(ctx, itemID)
 	if err != nil {
-		log.Printf("earn coin: get context item error: %v", err)
+		log.Printf("earn: DB error getting item=%s user=%s — %v", itemID, userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if topic == nil {
+		log.Printf("earn: item not found item=%s user=%s (deleted between init and earn?)", itemID, userID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "context item not found"})
 		return
 	}
 
 	subs, err := h.subGetter.GetSubscriptions(ctx, userID)
 	if err != nil {
-		log.Printf("earn coin: get subscriptions error: %v", err)
+		log.Printf("earn: DB error getting subscriptions user=%s — %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -251,13 +273,16 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 
 	result, err := h.service.EarnCoin(ctx, userID, runID, itemID, preferred)
 	if err != nil {
-		log.Printf("earn coin error: %v", err)
+		log.Printf("earn: EarnCoin service error user=%s run=%s item=%s preferred=%v — %v", userID, runID, itemID, preferred, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 
 	// Remove the pending entry so a second call is rejected.
 	h.earnCache.Delete(key)
+
+	log.Printf("earn: result user=%s item=%s run=%s earned=%v reason=%s coins=%d level_up=%v elapsed=%s",
+		userID, itemID, runID, result.Earned, result.Reason, result.CoinsEarned, result.LeveledUp, elapsed.Round(time.Millisecond))
 
 	c.JSON(http.StatusOK, gin.H{"data": earnResponse{
 		Attempted:   true,
