@@ -113,20 +113,7 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 
 	runID := topic.RunID
 
-	// ── Gate check 2: run must be from today ──────────────────────────────────
-	isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
-	if err != nil {
-		log.Printf("init-earn: DB error checking run date run=%s user=%s item=%s — %v", runID, userID, itemID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
-		return
-	}
-	if !isToday {
-		log.Printf("init-earn: EXPIRED user=%s item=%s run=%s", userID, itemID, runID)
-		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "EXPIRED"}})
-		return
-	}
-
-	// ── Gate check 3: must not already have earned for this run+item ─────────
+	// ── Gate check 2: must not already have earned for this run+item ─────────
 	earned, err := h.service.HasEarned(ctx, userID, runID, itemID)
 	if err != nil {
 		log.Printf("init-earn: DB error checking has-earned user=%s run=%s item=%s — %v", userID, runID, itemID, err)
@@ -136,6 +123,19 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	if earned {
 		log.Printf("init-earn: DUPLICATE user=%s item=%s run=%s", userID, itemID, runID)
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "DUPLICATE"}})
+		return
+	}
+
+	// ── Gate check 3: run must be from today ──────────────────────────────────
+	isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
+	if err != nil {
+		log.Printf("init-earn: DB error checking run date run=%s user=%s item=%s — %v", runID, userID, itemID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if !isToday {
+		log.Printf("init-earn: EXPIRED user=%s item=%s run=%s", userID, itemID, runID)
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "EXPIRED"}})
 		return
 	}
 
