@@ -28,6 +28,7 @@ type HistoryEntry struct {
 // TopicDetail holds the full detail for a single context item, served on the public detail page.
 type TopicDetail struct {
 	ID            uuid.UUID    `json:"id"`
+	RunID         uuid.UUID    `json:"run_id"`
 	Category      string       `json:"category"`
 	Topic         string       `json:"topic"`
 	Detail        string       `json:"detail"`

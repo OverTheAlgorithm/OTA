@@ -73,18 +73,18 @@ func (h *LevelHandler) GetLevel(c *gin.Context) {
 }
 
 // InitEarn handles POST /api/v1/level/init-earn
-// Public endpoint — called when user first visits a topic page.
+// Authenticated endpoint — called when a logged-in user visits a topic page.
 // Validates all earn-eligibility conditions and, on success, records a
 // pending entry in the cache so that the subsequent /earn call can verify
 // the user's dwell time.
 func (h *LevelHandler) InitEarn(c *gin.Context) {
+	userID := c.GetString("userID")
+
 	var req struct {
-		UID           string `json:"uid" binding:"required"`
 		ContextItemID string `json:"context_item_id" binding:"required"`
-		RunID         string `json:"run_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "uid, context_item_id, and run_id are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "context_item_id is required"})
 		return
 	}
 
@@ -93,27 +93,10 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid context_item_id"})
 		return
 	}
-	runID, err := uuid.Parse(req.RunID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid run_id"})
-		return
-	}
 
 	ctx := c.Request.Context()
 
-	// ── Gate check 1: run must be from today ──────────────────────────────────
-	isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
-	if err != nil {
-		log.Printf("init-earn: check run date error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
-		return
-	}
-	if !isToday {
-		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "EXPIRED"}})
-		return
-	}
-
-	// ── Gate check 2: context item must exist ────────────────────────────────
+	// ── Gate check 1: context item must exist ────────────────────────────────
 	topic, err := h.histRepo.GetContextItemByID(ctx, itemID)
 	if err != nil {
 		log.Printf("init-earn: get context item error: %v", err)
@@ -125,8 +108,22 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 		return
 	}
 
+	runID := topic.RunID
+
+	// ── Gate check 2: run must be from today ──────────────────────────────────
+	isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
+	if err != nil {
+		log.Printf("init-earn: check run date error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if !isToday {
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "EXPIRED"}})
+		return
+	}
+
 	// ── Gate check 3: must not already have earned for this run+item ─────────
-	earned, err := h.service.HasEarned(ctx, req.UID, runID, itemID)
+	earned, err := h.service.HasEarned(ctx, userID, runID, itemID)
 	if err != nil {
 		log.Printf("init-earn: has earned error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
@@ -138,7 +135,7 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	}
 
 	// ── Gate check 4: daily coin limit ───────────────────────────────────────
-	limited, err := h.service.IsAtDailyLimit(ctx, req.UID)
+	limited, err := h.service.IsAtDailyLimit(ctx, userID)
 	if err != nil {
 		log.Printf("init-earn: daily limit check error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
@@ -152,12 +149,12 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	// ── All checks passed — store/reset pending entry in cache ───────────────
 	pending := EarnPending{
 		InitiatedAt:   time.Now(),
-		UID:           req.UID,
+		UID:           userID,
 		ContextItemID: itemID,
 		RunID:         runID,
 	}
 	ttl := h.earnMinDuration * 2
-	h.earnCache.Set(earnCacheKey(req.UID, itemID), pending, ttl)
+	h.earnCache.Set(earnCacheKey(userID, itemID), pending, ttl)
 
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"status":           "PENDING",
@@ -166,17 +163,17 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 }
 
 // EarnCoin handles POST /api/v1/level/earn
-// Public endpoint — final confirmation step after the user has dwelled long
-// enough. Verifies cache presence and elapsed time before awarding coins.
+// Authenticated endpoint — final confirmation step after the user has dwelled
+// long enough. Verifies cache presence and elapsed time before awarding coins.
 func (h *LevelHandler) EarnCoin(c *gin.Context) {
+	userID := c.GetString("userID")
+
 	var req struct {
-		UID            string `json:"uid" binding:"required"`
 		ContextItemID  string `json:"context_item_id" binding:"required"`
-		RunID          string `json:"run_id" binding:"required"`
 		TurnstileToken string `json:"turnstile_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "uid, context_item_id, run_id, turnstile_token are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "context_item_id and turnstile_token are required"})
 		return
 	}
 
@@ -185,14 +182,9 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid context_item_id"})
 		return
 	}
-	runID, err := uuid.Parse(req.RunID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid run_id"})
-		return
-	}
 
 	// ── Cache dwell check ─────────────────────────────────────────────────────
-	key := earnCacheKey(req.UID, itemID)
+	key := earnCacheKey(userID, itemID)
 	raw, ok := h.earnCache.Get(key)
 	if !ok {
 		// No init-earn record — either never called or already consumed/expired.
@@ -224,6 +216,8 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	}
 
 	// ── Re-validate eligibility (state may have changed since init) ──────────
+	runID := pending.RunID
+
 	isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
 	if err != nil {
 		log.Printf("earn coin: check run date error: %v", err)
@@ -247,7 +241,7 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 		return
 	}
 
-	subs, err := h.subGetter.GetSubscriptions(ctx, req.UID)
+	subs, err := h.subGetter.GetSubscriptions(ctx, userID)
 	if err != nil {
 		log.Printf("earn coin: get subscriptions error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
@@ -255,7 +249,7 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	}
 	preferred := level.IsPreferredCategory(topic.Category, subs)
 
-	result, err := h.service.EarnCoin(ctx, req.UID, runID, itemID, preferred)
+	result, err := h.service.EarnCoin(ctx, userID, runID, itemID, preferred)
 	if err != nil {
 		log.Printf("earn coin error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
@@ -276,9 +270,9 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 }
 
 func (h *LevelHandler) RegisterRoutes(group *gin.RouterGroup) {
-	group.GET("", h.authMW, h.GetLevel)  // GET  /api/v1/level
-	group.POST("/init-earn", h.InitEarn) // POST /api/v1/level/init-earn (public)
-	group.POST("/earn", h.EarnCoin)      // POST /api/v1/level/earn (public)
+	group.GET("", h.authMW, h.GetLevel)           // GET  /api/v1/level
+	group.POST("/init-earn", h.authMW, h.InitEarn) // POST /api/v1/level/init-earn
+	group.POST("/earn", h.authMW, h.EarnCoin)      // POST /api/v1/level/earn
 }
 
 // ── Turnstile Helper ──────────────────────────────────────────────────────────

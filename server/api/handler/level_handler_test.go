@@ -128,24 +128,31 @@ func (c *mockCache) Has(k string) bool {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// fakeAuthMW injects userID into the context, simulating JWT auth middleware.
+func fakeAuthMW(userID string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("userID", userID)
+		c.Next()
+	}
+}
+
 func newLevelTestRouter(
 	histRepo collector.HistoryRepository,
 	lvlSvc *level.Service,
 	sub handler.SubscriptionGetter,
 	earnCache cache.Cache,
 	earnMinDuration time.Duration,
+	userID string,
 ) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := handler.NewLevelHandler(lvlSvc, histRepo, sub, earnCache, earnMinDuration, "dummy-secret-key", func(c *gin.Context) { c.Next() })
+	h := handler.NewLevelHandler(lvlSvc, histRepo, sub, earnCache, earnMinDuration, "dummy-secret-key", fakeAuthMW(userID))
 	h.RegisterRoutes(r.Group("/level"))
 	return r
 }
 
-func postEarn(r *gin.Engine, uid, runID, contextItemID, turnstileToken string) *httptest.ResponseRecorder {
+func postEarn(r *gin.Engine, contextItemID, turnstileToken string) *httptest.ResponseRecorder {
 	body, _ := json.Marshal(map[string]string{
-		"uid":             uid,
-		"run_id":          runID,
 		"context_item_id": contextItemID,
 		"turnstile_token": turnstileToken,
 	})
@@ -156,10 +163,8 @@ func postEarn(r *gin.Engine, uid, runID, contextItemID, turnstileToken string) *
 	return w
 }
 
-func postInitEarn(r *gin.Engine, uid, runID, contextItemID string) *httptest.ResponseRecorder {
+func postInitEarn(r *gin.Engine, contextItemID string) *httptest.ResponseRecorder {
 	body, _ := json.Marshal(map[string]string{
-		"uid":             uid,
-		"run_id":          runID,
 		"context_item_id": contextItemID,
 	})
 	w := httptest.NewRecorder()
@@ -177,13 +182,12 @@ func TestEarnCoin_Success_Preferred(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{
-		topic:   &collector.TopicDetail{ID: topicID, Category: "sports", Topic: "스포츠"},
+		topic:   &collector.TopicDetail{ID: topicID, RunID: runID, Category: "sports", Topic: "스포츠"},
 		isToday: true,
 	}
 	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
 	sub := &mockSubGetterLevel{subs: []string{"sports"}}
 
-	// Pre-populate cache to simulate N-seconds having elapsed
 	mc := newMockCache()
 	cacheKey := fmt.Sprintf("earn:%s:%s", userID, topicID)
 	mc.Set(cacheKey, handler.EarnPending{
@@ -193,8 +197,8 @@ func TestEarnCoin_Success_Preferred(t *testing.T) {
 		RunID:         runID,
 	}, time.Hour)
 
-	r := newLevelTestRouter(histRepo, svc, sub, mc, 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
+	r := newLevelTestRouter(histRepo, svc, sub, mc, 5*time.Second, userID)
+	w := postEarn(r, topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
@@ -216,12 +220,11 @@ func TestEarnCoin_TooEarly_NoCache(t *testing.T) {
 	runID := uuid.New()
 	userID := uuid.New().String()
 
-	histRepo := &mockLevelHistoryRepo{topic: &collector.TopicDetail{ID: topicID, Category: "top"}, isToday: true}
+	histRepo := &mockLevelHistoryRepo{topic: &collector.TopicDetail{ID: topicID, RunID: runID, Category: "top"}, isToday: true}
 	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
 
-	// Empty cache — no init-earn was called
-	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
+	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second, userID)
+	w := postEarn(r, topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 TOO_EARLY when cache empty, got %d", w.Code)
@@ -234,7 +237,7 @@ func TestEarnCoin_Expired(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{
-		topic:   &collector.TopicDetail{ID: topicID, Category: "top", Topic: "오래된 주제"},
+		topic:   &collector.TopicDetail{ID: topicID, RunID: runID, Category: "top", Topic: "오래된 주제"},
 		isToday: false,
 	}
 	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
@@ -248,8 +251,8 @@ func TestEarnCoin_Expired(t *testing.T) {
 		RunID:         runID,
 	}, time.Hour)
 
-	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
+	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second, userID)
+	w := postEarn(r, topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -268,7 +271,7 @@ func TestEarnCoin_Duplicate(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{
-		topic:   &collector.TopicDetail{ID: topicID, Category: "top", Topic: "이미 읽음"},
+		topic:   &collector.TopicDetail{ID: topicID, RunID: runID, Category: "top", Topic: "이미 읽음"},
 		isToday: true,
 	}
 	svc := level.NewService(&mockLevelRepo{coins: 5, alreadyEarned: true}, level.NewLevelConfig(5000, 1000), 0, 0)
@@ -282,8 +285,8 @@ func TestEarnCoin_Duplicate(t *testing.T) {
 		RunID:         runID,
 	}, time.Hour)
 
-	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{subs: []string{}}, mc, 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
+	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{subs: []string{}}, mc, 5*time.Second, userID)
+	w := postEarn(r, topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -296,24 +299,21 @@ func TestEarnCoin_Duplicate(t *testing.T) {
 	}
 }
 
-func TestEarnCoin_InvalidUUIDs(t *testing.T) {
+func TestEarnCoin_InvalidContextItemID(t *testing.T) {
+	userID := uuid.New().String()
 	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
-	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
+	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second, userID)
 
-	w := postEarn(r, uuid.New().String(), "not-a-uuid", uuid.New().String(), "dummy-token")
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for invalid run_id, got %d", w.Code)
-	}
-
-	w = postEarn(r, uuid.New().String(), uuid.New().String(), "not-a-uuid", "dummy-token")
+	w := postEarn(r, "not-a-uuid", "dummy-token")
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for invalid context_item_id, got %d", w.Code)
 	}
 }
 
 func TestEarnCoin_MissingFields(t *testing.T) {
+	userID := uuid.New().String()
 	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
-	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
+	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second, userID)
 
 	body, _ := json.Marshal(map[string]string{})
 	w := httptest.NewRecorder()
@@ -332,14 +332,13 @@ func TestEarnCoin_InvalidTurnstileToken(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{
-		topic:   &collector.TopicDetail{ID: topicID, Category: "top"},
+		topic:   &collector.TopicDetail{ID: topicID, RunID: runID, Category: "top"},
 		isToday: true,
 	}
 	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	mc := newMockCache()
 	cacheKey := fmt.Sprintf("earn:%s:%s", userID, topicID)
-	// Cache hit valid
 	mc.Set(cacheKey, handler.EarnPending{
 		InitiatedAt:   time.Now().Add(-time.Minute),
 		UID:           userID,
@@ -347,15 +346,12 @@ func TestEarnCoin_InvalidTurnstileToken(t *testing.T) {
 		RunID:         runID,
 	}, time.Hour)
 
-	// Inject a real-looking config but pass an invalid token resulting in Cloudflare failure
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	// Real-looking secret key that isn't the dummy test bypass.
-	// Cloudflare specifically reserves 2x0000000000000000000000000000000AA to always FAIL validation.
-	h := handler.NewLevelHandler(svc, histRepo, &mockSubGetterLevel{}, mc, 5*time.Second, "2x0000000000000000000000000000000AA", func(c *gin.Context) { c.Next() })
+	h := handler.NewLevelHandler(svc, histRepo, &mockSubGetterLevel{}, mc, 5*time.Second, "2x0000000000000000000000000000000AA", fakeAuthMW(userID))
 	h.RegisterRoutes(r.Group("/level"))
 
-	w := postEarn(r, userID, runID.String(), topicID.String(), "invalid-token-here")
+	w := postEarn(r, topicID.String(), "invalid-token-here")
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403 Forbidden for invalid turnstile token, got %d", w.Code)
@@ -379,8 +375,8 @@ func TestEarnCoin_ContextItemNotFound(t *testing.T) {
 		RunID:         runID,
 	}, time.Hour)
 
-	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second)
-	w := postEarn(r, userID, runID.String(), topicID.String(), "dummy-token")
+	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second, userID)
+	w := postEarn(r, topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404 for missing context item, got %d (body: %s)", w.Code, w.Body.String())
@@ -395,13 +391,13 @@ func TestInitEarn_Success(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{
-		topic:   &collector.TopicDetail{ID: topicID, Category: "top", Topic: "테스트"},
+		topic:   &collector.TopicDetail{ID: topicID, RunID: runID, Category: "top", Topic: "테스트"},
 		isToday: true,
 	}
 	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
 
-	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 10*time.Second)
-	w := postInitEarn(r, userID, runID.String(), topicID.String())
+	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 10*time.Second, userID)
+	w := postInitEarn(r, topicID.String())
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
@@ -423,13 +419,13 @@ func TestInitEarn_Expired(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{
-		topic:   &collector.TopicDetail{ID: topicID, Category: "top"},
+		topic:   &collector.TopicDetail{ID: topicID, RunID: runID, Category: "top"},
 		isToday: false,
 	}
 	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
 
-	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
-	w := postInitEarn(r, userID, runID.String(), topicID.String())
+	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second, userID)
+	w := postInitEarn(r, topicID.String())
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -448,14 +444,13 @@ func TestInitEarn_Duplicate(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{
-		topic:   &collector.TopicDetail{ID: topicID, Category: "top"},
+		topic:   &collector.TopicDetail{ID: topicID, RunID: runID, Category: "top"},
 		isToday: true,
 	}
-	// hasEarned=true simulates a coin_logs entry already existing
 	svc := level.NewService(&mockLevelRepo{hasEarned: true}, level.NewLevelConfig(5000, 1000), 0, 0)
 
-	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
-	w := postInitEarn(r, userID, runID.String(), topicID.String())
+	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second, userID)
+	w := postInitEarn(r, topicID.String())
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -474,22 +469,20 @@ func TestInitEarn_TimerReset(t *testing.T) {
 	userID := uuid.New().String()
 
 	histRepo := &mockLevelHistoryRepo{
-		topic:   &collector.TopicDetail{ID: topicID, Category: "top"},
+		topic:   &collector.TopicDetail{ID: topicID, RunID: runID, Category: "top"},
 		isToday: true,
 	}
 	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
 	mc := newMockCache()
 
-	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second)
+	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second, userID)
 
-	// First call
-	w1 := postInitEarn(r, userID, runID.String(), topicID.String())
+	w1 := postInitEarn(r, topicID.String())
 	if w1.Code != http.StatusOK {
 		t.Fatalf("first init-earn: expected 200, got %d", w1.Code)
 	}
 
-	// Second call should succeed and reset the timer
-	w2 := postInitEarn(r, userID, runID.String(), topicID.String())
+	w2 := postInitEarn(r, topicID.String())
 	if w2.Code != http.StatusOK {
 		t.Fatalf("second init-earn: expected 200, got %d", w2.Code)
 	}
@@ -502,8 +495,9 @@ func TestInitEarn_TimerReset(t *testing.T) {
 }
 
 func TestInitEarn_MissingFields(t *testing.T) {
+	userID := uuid.New().String()
 	svc := level.NewService(&mockLevelRepo{}, level.NewLevelConfig(5000, 1000), 0, 0)
-	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second)
+	r := newLevelTestRouter(&mockLevelHistoryRepo{}, svc, &mockSubGetterLevel{}, newMockCache(), 5*time.Second, userID)
 
 	body, _ := json.Marshal(map[string]string{})
 	w := httptest.NewRecorder()

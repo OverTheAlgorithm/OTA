@@ -97,10 +97,10 @@ func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID
 	var detailsJSON []byte
 	var imagePath *string
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, category, topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'), COALESCE(brain_category, ''), created_at, image_path
+		SELECT id, collection_run_id, category, topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'), COALESCE(brain_category, ''), created_at, image_path
 		FROM context_items
 		WHERE id = $1
-	`, id).Scan(&item.ID, &item.Category, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt, &imagePath)
+	`, id).Scan(&item.ID, &item.RunID, &item.Category, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt, &imagePath)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil

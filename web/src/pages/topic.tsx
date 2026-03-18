@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useParams, Link } from "react-router-dom";
 import { Turnstile } from "@marsidev/react-turnstile";
 import {
   fetchTopicDetail,
-  earnCoinFromEmail,
+  earnCoin,
   initEarn,
   type TopicDetail,
-  type TopicEarnResult,
 } from "@/lib/api";
+import { useAuth } from "@/contexts/auth-context";
 import { detectAdBlock } from "@/lib/adblock";
 
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"; // Dummy testing key if env not configured
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -21,18 +21,22 @@ function formatDate(iso: string): string {
   });
 }
 
-// ── Toast types ───────────────────────────────────────────────────────────────
+// ── Coin tag states (priority order) ─────────────────────────────────────────
 
-type ToastState =
-  | { kind: "countdown"; requiredSeconds: number; topicId: string }
-  | { kind: "success"; earn: TopicEarnResult }
-  | { kind: "info"; message: string }
-  | { kind: "error"; message: string }
+type CoinTagState =
+  | { kind: "expired" }
+  | { kind: "not_logged_in" }
+  | { kind: "adblock" }
+  | { kind: "duplicate" }
+  | { kind: "daily_limit" }
+  | { kind: "countdown"; remaining: number; isPaused: boolean }
+  | { kind: "success"; coins: number; leveledUp: boolean; newLevel: number }
+  | { kind: "loading" }
   | null;
 
-// ── Countdown Toast (매초 pop 애니메이션 및 활성 탭 검증) ─────────────────────────
+// ── Inline Countdown Tag ─────────────────────────────────────────────────────
 
-function CountdownToast({
+function CountdownTag({
   requiredSeconds,
   onComplete,
 }: {
@@ -40,31 +44,28 @@ function CountdownToast({
   onComplete: (token: string) => void;
 }) {
   const [remaining, setRemaining] = useState(requiredSeconds);
-  const [pop, setPop] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string>("");
-  
+
   const requestRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const elapsedRef = useRef<number>(0);
+  const completedRef = useRef(false);
 
   useEffect(() => {
-    // 탭 숨김 처리 핸들러
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         setIsPaused(true);
       } else {
         setIsPaused(false);
-        // 복귀 시 시간 기준점 갱신 (오프라인 동안 시간이 흐르지 않게 함)
         lastTimeRef.current = performance.now();
       }
     };
-    
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
-  const animate = (time: number) => {
+  const animate = useCallback((time: number) => {
     if (lastTimeRef.current !== undefined && !isPaused) {
       const deltaTime = time - lastTimeRef.current;
       elapsedRef.current += deltaTime;
@@ -73,31 +74,25 @@ function CountdownToast({
         elapsedRef.current -= 1000;
         setRemaining((prev) => {
           const next = prev - 1;
-          if (next <= 0) {
+          if (next <= 0 && !completedRef.current) {
+            completedRef.current = true;
             if (turnstileToken) {
               onComplete(turnstileToken);
             } else {
-              // Should theoretically not happen unless extremely fast
               console.warn("Timer completed but turnstile token is missing!");
-              onComplete(""); 
+              onComplete("");
             }
             return 0;
           }
-          return next;
+          return Math.max(0, next);
         });
-        
-        // 초가 바뀔 때 애니메이션 트리거
-        setPop(true);
-        setTimeout(() => setPop(false), 280);
       }
     }
-    
-    // 계속해서 타이머를 잼 (백그라운드일 때는 requestAnimationFrame이 거의 호출되지 않거나 멈춤)
     lastTimeRef.current = time;
     if (remaining > 0) {
       requestRef.current = requestAnimationFrame(animate);
     }
-  };
+  }, [isPaused, remaining, turnstileToken, onComplete]);
 
   useEffect(() => {
     lastTimeRef.current = performance.now();
@@ -105,116 +100,90 @@ function CountdownToast({
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [remaining, isPaused, turnstileToken]); // 의존성에 remaining을 넣으면 onComplete가 제대로 제어됩니다
-
-  if (remaining <= 0) return null;
+  }, [animate]);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: "28px",
-        left: "50%",
-        transform: `translateX(-50%) scale(${pop ? 1.12 : 1})`,
-        transition: "transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
-        zIndex: 50,
-        background: isPaused ? "var(--color-text-secondary)" : "var(--color-card-bg)",
-        color: isPaused ? "var(--color-bg)" : "var(--color-button-primary)",
-        border: "1px solid var(--color-button-primary)",
-        borderRadius: "12px",
-        padding: "10px 22px",
-        fontSize: "14px",
-        fontWeight: 600,
-        whiteSpace: "nowrap",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
-        pointerEvents: "none", // To not block clicks underneath
-        opacity: isPaused ? 0.7 : 1,
-      }}
-    >
+    <>
       {/* Invisible Turnstile widget */}
-      <div style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}>
+      <div style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 0, height: 0, overflow: "hidden" }}>
         <Turnstile
           siteKey={TURNSTILE_SITE_KEY}
           onSuccess={setTurnstileToken}
           options={{ theme: "auto" }}
         />
       </div>
-
-      {isPaused 
-        ? "⏸️ 화면을 띄워야 시간이 줄어들어요!" 
-        : `🕐 ${remaining}초 뒤 코인 획득 가능`
-      }
-    </div>
+      <CoinTag
+        state={
+          remaining > 0
+            ? { kind: "countdown", remaining, isPaused }
+            : { kind: "loading" }
+        }
+      />
+    </>
   );
 }
 
-// ── Static Toast (성공 / 실패 / 안내) ────────────────────────────────────────
+// ── CoinTag component ────────────────────────────────────────────────────────
 
-function StaticToast({ state }: { state: Exclude<ToastState, { kind: "countdown" } | null> }) {
-  const [visible, setVisible] = useState(false);
+function CoinTag({ state }: { state: CoinTagState }) {
+  if (!state || state.kind === "loading") return null;
 
-  useEffect(() => {
-    const show = setTimeout(() => setVisible(true), 50);
-    const hide = setTimeout(() => setVisible(false), 2500);
-    return () => { clearTimeout(show); clearTimeout(hide); };
-  }, []);
+  let label: string;
+  let color: string;
+  let bgColor: string;
 
-  let message: string;
-  let borderColor: string;
-  let textColor: string;
-
-  if (state.kind === "success") {
-    const { earn } = state;
-    if (earn.earned) {
-      message = earn.leveled_up
-        ? `🎊 +${earn.coins_earned}코인 획득! Lv.${earn.new_level} 레벨 업!`
-        : `🎊 +${earn.coins_earned}코인 획득!`;
-      borderColor = "var(--color-button-primary)";
-      textColor = "var(--color-button-primary)";
-    } else {
-      // earn failed even after dwell (DUPLICATE etc)
-      message =
-        earn.reason === "EXPIRED"
-          ? "코인 획득 기간이 지났어요."
-          : "이미 이 주제의 코인을 받았어요.";
-      borderColor = "var(--color-text-secondary)";
-      textColor = "var(--color-text-secondary)";
-    }
-  } else if (state.kind === "info") {
-    message = state.message;
-    borderColor = "var(--color-text-secondary)";
-    textColor = "var(--color-text-secondary)";
-  } else {
-    // error
-    message = state.message;
-    borderColor = "var(--color-error)";
-    textColor = "var(--color-error)";
+  switch (state.kind) {
+    case "expired":
+      label = "지난 기사";
+      color = "var(--color-text-secondary)";
+      bgColor = "var(--color-border)";
+      break;
+    case "not_logged_in":
+      label = "로그인 필요";
+      color = "var(--color-text-secondary)";
+      bgColor = "var(--color-border)";
+      break;
+    case "adblock":
+      label = "광고 차단 해제 필요";
+      color = "var(--color-text-secondary)";
+      bgColor = "var(--color-border)";
+      break;
+    case "duplicate":
+      label = "획득 완료";
+      color = "var(--color-text-secondary)";
+      bgColor = "var(--color-border)";
+      break;
+    case "daily_limit":
+      label = "일일 한도 도달";
+      color = "var(--color-text-secondary)";
+      bgColor = "var(--color-border)";
+      break;
+    case "countdown":
+      label = state.isPaused
+        ? "일시정지"
+        : `${state.remaining}초`;
+      color = "var(--color-button-primary)";
+      bgColor = "rgba(74, 159, 229, 0.15)";
+      break;
+    case "success":
+      label = state.leveledUp
+        ? `+${state.coins} Lv.${state.newLevel}!`
+        : `+${state.coins} 획득!`;
+      color = "var(--color-button-primary)";
+      bgColor = "rgba(74, 159, 229, 0.15)";
+      break;
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: "28px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 50,
-        background: "var(--color-card-bg)",
-        color: textColor,
-        border: `1px solid ${borderColor}`,
-        borderRadius: "12px",
-        padding: "10px 22px",
-        fontSize: "14px",
-        fontWeight: 600,
-        whiteSpace: "nowrap",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
-        opacity: visible ? 1 : 0,
-        transition: "opacity 0.4s ease",
-        pointerEvents: "none",
-      }}
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-all duration-300"
+      style={{ color, backgroundColor: bgColor }}
     >
-      {message}
-    </div>
+      {state.kind === "countdown" && !state.isPaused && (
+        <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 animate-pulse" style={{ backgroundColor: color }} />
+      )}
+      {label}
+    </span>
   );
 }
 
@@ -222,50 +191,44 @@ function StaticToast({ state }: { state: Exclude<ToastState, { kind: "countdown"
 
 export function TopicPage() {
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [topic, setTopic] = useState<TopicDetail | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
+  const [coinTag, setCoinTag] = useState<CoinTagState>(null);
   const [error, setError] = useState<"not_found" | "server_error" | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCountdown, setShowCountdown] = useState<{ seconds: number; topicId: string } | null>(null);
 
-  const uid = searchParams.get("uid") ?? undefined;
-  const rid = searchParams.get("rid") ?? undefined;
+  const handleCountdownComplete = useCallback((topicId: string, turnstileToken: string) => {
+    setShowCountdown(null);
+    setCoinTag({ kind: "loading" });
 
-  // Refs for timer management
-  const toastClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearTimers = () => {
-    if (toastClearRef.current) clearTimeout(toastClearRef.current);
-  };
-
-  // Triggered when CountdownToast finishes naturally via rAF
-  const handleCountdownComplete = (topicId: string, turnstileToken: string) => {
-    if (!uid || !rid) return;
-    
-    earnCoinFromEmail(uid, rid, topicId, turnstileToken)
+    earnCoin(topicId, turnstileToken)
       .then((result) => {
-        setToast({ kind: "success", earn: result });
-        toastClearRef.current = setTimeout(() => setToast(null), 3200);
+        if (result.earned) {
+          setCoinTag({
+            kind: "success",
+            coins: result.coins_earned,
+            leveledUp: result.leveled_up,
+            newLevel: result.new_level,
+          });
+          // After 3 seconds, transition to "duplicate"
+          setTimeout(() => setCoinTag({ kind: "duplicate" }), 3000);
+        } else {
+          setCoinTag(
+            result.reason === "EXPIRED"
+              ? { kind: "expired" }
+              : { kind: "duplicate" }
+          );
+        }
       })
-      .catch((err) => {
-        setToast({
-          kind: "error",
-          message: err?.message === "bot verification failed" 
-            ? "자동화된 접근이 감지되었습니다." 
-            : "잠시 후 다시 시도해 주세요.",
-        });
-        toastClearRef.current = setTimeout(() => setToast(null), 3200);
+      .catch(() => {
+        setCoinTag({ kind: "duplicate" });
       });
-  };
-
-  const startCountdown = (requiredSeconds: number, topicId: string) => {
-    setToast({ kind: "countdown", requiredSeconds, topicId });
-  };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
 
-    // 1. Topic fetch (always)
     fetchTopicDetail(id)
       .then(setTopic)
       .catch((e: Error) => {
@@ -273,47 +236,41 @@ export function TopicPage() {
       })
       .finally(() => setLoading(false));
 
-    // 2. Init-earn (only when uid + rid provided)
-    if (uid && rid) {
-      detectAdBlock().then((blocked) => {
-        if (blocked) {
-          setToast({ kind: "info", message: "광고 차단을 해제해야 코인을 받을 수 있어요." });
-          toastClearRef.current = setTimeout(() => setToast(null), 5000);
-          return;
-        }
-
-        initEarn(uid, rid, id)
-          .then((result) => {
-            switch (result.status) {
-              case "PENDING": {
-                const n = result.required_seconds ?? 10;
-                startCountdown(n, id);
-                break;
-              }
-              case "EXPIRED":
-                setToast({ kind: "info", message: "코인 획득 기간이 지났어요." });
-                toastClearRef.current = setTimeout(() => setToast(null), 3200);
-                break;
-              case "DUPLICATE":
-                setToast({ kind: "info", message: "이미 이 주제의 코인을 받았어요." });
-                toastClearRef.current = setTimeout(() => setToast(null), 3200);
-                break;
-              case "DAILY_LIMIT":
-                setToast({ kind: "info", message: "오늘 코인 획득 한도를 채웠어요." });
-                toastClearRef.current = setTimeout(() => setToast(null), 3200);
-                break;
-            }
-          })
-          .catch(() => {
-            setToast({ kind: "error", message: "잠시 후 다시 시도해 주세요." });
-            toastClearRef.current = setTimeout(() => setToast(null), 3200);
-          });
-      });
+    if (!user) {
+      setCoinTag({ kind: "not_logged_in" });
+      return;
     }
 
-    return () => clearTimers();
+    detectAdBlock().then((blocked) => {
+      if (blocked) {
+        setCoinTag({ kind: "adblock" });
+        return;
+      }
+
+      initEarn(id)
+        .then((result) => {
+          switch (result.status) {
+            case "PENDING":
+              setShowCountdown({ seconds: result.required_seconds ?? 10, topicId: id });
+              break;
+            case "EXPIRED":
+              setCoinTag({ kind: "expired" });
+              break;
+            case "DUPLICATE":
+              setCoinTag({ kind: "duplicate" });
+              break;
+            case "DAILY_LIMIT":
+              setCoinTag({ kind: "daily_limit" });
+              break;
+          }
+        })
+        .catch(() => {
+          // On error, don't show any tag — fail silently
+          setCoinTag(null);
+        });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, user]);
 
   if (loading) {
     return (
@@ -369,9 +326,32 @@ export function TopicPage() {
             {formatDate(topic.created_at)}
           </p>
           {topic.buzz_score > 0 && (
-            <p className="text-sm font-bold mb-2" style={{ color: "var(--color-error)" }}>
-              🔥 화제도 {topic.buzz_score}
-            </p>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <p className="text-sm font-bold" style={{ color: "var(--color-error)" }}>
+                {"\uD83D\uDD25"} 화제도 {topic.buzz_score}
+              </p>
+              {showCountdown ? (
+                <CountdownTag
+                  requiredSeconds={showCountdown.seconds}
+                  onComplete={(token) => handleCountdownComplete(showCountdown.topicId, token)}
+                />
+              ) : (
+                <CoinTag state={coinTag} />
+              )}
+            </div>
+          )}
+          {/* Show tag even when no buzz score */}
+          {(!topic.buzz_score || topic.buzz_score <= 0) && (
+            <div className="flex items-center gap-2 mb-2">
+              {showCountdown ? (
+                <CountdownTag
+                  requiredSeconds={showCountdown.seconds}
+                  onComplete={(token) => handleCountdownComplete(showCountdown.topicId, token)}
+                />
+              ) : (
+                <CoinTag state={coinTag} />
+              )}
+            </div>
           )}
           <h1 className="text-2xl font-bold mb-6 leading-snug" style={{ color: "var(--color-fg)" }}>
             {topic.topic}
@@ -439,15 +419,6 @@ export function TopicPage() {
           </div>
         )}
       </div>
-
-      {/* Toast layer */}
-      {toast?.kind === "countdown" && (
-        <CountdownToast
-          requiredSeconds={toast.requiredSeconds}
-          onComplete={(token) => handleCountdownComplete(toast.topicId, token)}
-        />
-      )}
-      {toast && toast.kind !== "countdown" && <StaticToast state={toast} />}
     </div>
   );
 }

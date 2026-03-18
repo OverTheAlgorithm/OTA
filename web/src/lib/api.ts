@@ -201,23 +201,23 @@ export async function fetchTopicDetail(id: string): Promise<TopicDetail> {
   return body.data;
 }
 
-export async function earnCoinFromEmail(
-  uid: string,
-  runId: string,
+export async function earnCoin(
   contextItemId: string,
   turnstileToken: string
 ): Promise<TopicEarnResult> {
   const res = await fetch(`${API_BASE}/api/v1/level/earn`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      uid,
-      run_id: runId,
       context_item_id: contextItemId,
       turnstile_token: turnstileToken,
     }),
   });
-  if (!res.ok) throw new Error("earn_failed");
+  if (!res.ok) {
+    const err: ApiError = await res.json().catch(() => ({ error: "earn_failed" }));
+    throw new Error(err.error || "earn_failed");
+  }
   const body: ApiResponse<TopicEarnResult> = await res.json();
   return body.data;
 }
@@ -228,14 +228,13 @@ export interface InitEarnResult {
 }
 
 export async function initEarn(
-  uid: string,
-  runId: string,
   contextItemId: string
 ): Promise<InitEarnResult> {
   const res = await fetch(`${API_BASE}/api/v1/level/init-earn`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ uid, run_id: runId, context_item_id: contextItemId }),
+    body: JSON.stringify({ context_item_id: contextItemId }),
   });
   if (!res.ok) throw new Error("init_earn_failed");
   const body: ApiResponse<InitEarnResult> = await res.json();
