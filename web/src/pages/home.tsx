@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { Footer } from "@/components/footer";
@@ -9,9 +9,12 @@ import { getSubscriptions, getUserLevel, type LevelInfo } from "@/lib/api";
 import { SendBriefingButton } from "@/components/send-briefing-button";
 import { LevelCard } from "@/components/level-card";
 
+const SCROLL_KEY = "home_scroll_y";
+
 export function HomePage() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const restoredRef = useRef(false);
 
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
@@ -25,6 +28,23 @@ export function HomePage() {
     getSubscriptions().then(setSubscriptions).catch(() => {});
     getUserLevel().then(setLevelInfo).catch(() => {});
   }, [user]);
+
+  // Save scroll position on unmount
+  useEffect(() => {
+    return () => {
+      sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+    };
+  }, []);
+
+  // Restore scroll position once content is loaded
+  useEffect(() => {
+    if (restoredRef.current || loading || !user) return;
+    const saved = sessionStorage.getItem(SCROLL_KEY);
+    if (saved) {
+      restoredRef.current = true;
+      requestAnimationFrame(() => window.scrollTo(0, Number(saved)));
+    }
+  }, [loading, user]);
 
   if (loading || !user) {
     return (
