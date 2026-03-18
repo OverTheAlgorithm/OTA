@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"ota/api"
 	"ota/api/handler"
@@ -53,6 +56,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
+
+	// ── Log rotation (stdout + file) ─────────────────────────────────────────
+	fileLogger := &lumberjack.Logger{
+		Filename:   "logs/ota.log",
+		MaxSize:    100, // MB
+		MaxBackups: 10,
+		MaxAge:     30, // days
+		Compress:   true,
+	}
+	multiWriter := io.MultiWriter(os.Stdout, fileLogger)
+	log.SetOutput(multiWriter)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	gin.DefaultWriter = multiWriter
+	gin.DefaultErrorWriter = multiWriter
 
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
