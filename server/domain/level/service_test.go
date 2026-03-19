@@ -54,6 +54,10 @@ func (m *mockRepo) GetCoinHistory(_ context.Context, _ string, _, _ int) ([]Coin
 	return nil, nil
 }
 
+func (m *mockRepo) GetEarnedItemIDs(_ context.Context, _ string, _ []uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
+
 func TestService_GetLevel(t *testing.T) {
 	// 1500 coins → Lv2 (threshold 1000), base=10, extra=10 → dailyLimit = 10 + 2*10 = 30
 	svc := NewService(&mockRepo{coins: UserCoins{Coins: 1500}}, testCfg, 10, 10)

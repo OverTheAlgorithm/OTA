@@ -40,6 +40,18 @@ func (m *mockLevelHistoryRepo) IsRunCreatedToday(_ context.Context, _ uuid.UUID)
 	return m.isToday, m.isTodayErr
 }
 
+func (m *mockLevelHistoryRepo) GetRecentTopics(_ context.Context, _ int) ([]collector.TopicPreview, error) {
+	return nil, nil
+}
+
+func (m *mockLevelHistoryRepo) GetAllTopics(_ context.Context, _, _ string, _, _ int) ([]collector.TopicPreview, bool, error) {
+	return nil, false, nil
+}
+
+func (m *mockLevelHistoryRepo) GetItemCategoryMap(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]collector.ItemMeta, error) {
+	return nil, nil
+}
+
 type mockLevelRepo struct {
 	coins         int
 	earnErr       error
@@ -87,6 +99,10 @@ func (m *mockLevelRepo) InsertCoinEvent(_ context.Context, _ string, _ int, _, _
 }
 
 func (m *mockLevelRepo) GetCoinHistory(_ context.Context, _ string, _, _ int) ([]level.CoinTransaction, error) {
+	return nil, nil
+}
+
+func (m *mockLevelRepo) GetEarnedItemIDs(_ context.Context, _ string, _ []uuid.UUID) ([]uuid.UUID, error) {
 	return nil, nil
 }
 

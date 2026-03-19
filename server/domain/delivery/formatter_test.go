@@ -37,14 +37,16 @@ func TestFormatMessage_EmptyItems(t *testing.T) {
 func TestFormatMessage_BrainCategoryGrouping(t *testing.T) {
 	items := []collector.ContextItem{
 		{
-			Category:      "top",
+			Category:      "general",
+			Priority:      "top",
 			BrainCategory: "must_know",
 			Rank:          1,
 			Topic:         "주요 이슈 1",
 			Summary:       "첫 번째 주요 이슈입니다.",
 		},
 		{
-			Category:      "top",
+			Category:      "general",
+			Priority:      "top",
 			BrainCategory: "must_know",
 			Rank:          2,
 			Topic:         "주요 이슈 2",
@@ -80,7 +82,8 @@ func TestFormatMessage_BrainCategoryGrouping(t *testing.T) {
 func TestFormatMessage_WithSubscriptions(t *testing.T) {
 	items := []collector.ContextItem{
 		{
-			Category:      "top",
+			Category:      "general",
+			Priority:      "top",
 			BrainCategory: "must_know",
 			Rank:          1,
 			Topic:         "주요 이슈",
@@ -127,7 +130,8 @@ func TestFormatMessage_NonPreferredItems(t *testing.T) {
 	// Item with no matching subscription → should appear in non-preferred section
 	items := []collector.ContextItem{
 		{
-			Category:      "top",
+			Category:      "general",
+			Priority:      "top",
 			BrainCategory: "must_know",
 			Rank:          1,
 			Topic:         "주요 이슈",
@@ -161,7 +165,8 @@ func TestFormatMessage_NonPreferredItems(t *testing.T) {
 func TestFormatMessage_MultipleBrainCategories(t *testing.T) {
 	items := []collector.ContextItem{
 		{
-			Category:      "top",
+			Category:      "general",
+			Priority:      "top",
 			BrainCategory: "must_know",
 			Rank:          1,
 			Topic:         "주요 이슈",
@@ -212,7 +217,7 @@ func TestFormatMessage_MultipleBrainCategories(t *testing.T) {
 func TestFormatMessage_UngroupedFallback(t *testing.T) {
 	// Items without brain_category go to "기타" section
 	items := []collector.ContextItem{
-		{Category: "top", Rank: 1, Topic: "기타 주제", Summary: "분류 없는 주제입니다."},
+		{Category: "general", Priority: "top", Rank: 1, Topic: "기타 주제", Summary: "분류 없는 주제입니다."},
 	}
 	subscriptions := []string{}
 
@@ -264,7 +269,8 @@ func TestFormatMessage_AllItemsIncluded(t *testing.T) {
 func TestFormatMessage_OTASection(t *testing.T) {
 	items := []collector.ContextItem{
 		{
-			Category:      "top",
+			Category:      "general",
+			Priority:      "top",
 			BrainCategory: "must_know",
 			Rank:          1,
 			Topic:         "일반 주요 이슈",
@@ -305,7 +311,8 @@ func TestFormatMessage_OTASection(t *testing.T) {
 func TestFormatMessage_BuzzScoreZeroHidden(t *testing.T) {
 	items := []collector.ContextItem{
 		{
-			Category:      "top",
+			Category:      "general",
+			Priority:      "top",
 			BrainCategory: "must_know",
 			Rank:          1,
 			Topic:         "buzz 없는 주제",
@@ -325,7 +332,8 @@ func TestFormatMessage_BuzzScoreZeroHidden(t *testing.T) {
 func TestFormatMessage_HTMLEscaping(t *testing.T) {
 	items := []collector.ContextItem{
 		{
-			Category:      "top",
+			Category:      "general",
+			Priority:      "top",
 			BrainCategory: "must_know",
 			Rank:          1,
 			Topic:         "테스트 <script>alert('xss')</script>",
@@ -344,7 +352,8 @@ func TestFormatMessage_HTMLEscaping(t *testing.T) {
 func TestFormatMessage_PointsLabel(t *testing.T) {
 	items := []collector.ContextItem{
 		{
-			Category:      "top",
+			Category:      "general",
+			Priority:      "top",
 			BrainCategory: "must_know",
 			Rank:          1,
 			Topic:         "주요 이슈",

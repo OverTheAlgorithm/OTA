@@ -26,6 +26,8 @@ type mockHistoryRepo struct {
 	isTodayErr   error
 	historyErr   error
 	historyItems []collector.HistoryEntry
+	recentTopics []collector.TopicPreview
+	recentErr    error
 }
 
 func (m *mockHistoryRepo) GetHistoryForUser(_ context.Context, _ string, _, _ int) ([]collector.HistoryEntry, bool, error) {
@@ -38,6 +40,18 @@ func (m *mockHistoryRepo) GetContextItemByID(_ context.Context, _ uuid.UUID) (*c
 
 func (m *mockHistoryRepo) IsRunCreatedToday(_ context.Context, _ uuid.UUID) (bool, error) {
 	return m.isToday, m.isTodayErr
+}
+
+func (m *mockHistoryRepo) GetRecentTopics(_ context.Context, _ int) ([]collector.TopicPreview, error) {
+	return m.recentTopics, m.recentErr
+}
+
+func (m *mockHistoryRepo) GetAllTopics(_ context.Context, _, _ string, _, _ int) ([]collector.TopicPreview, bool, error) {
+	return nil, false, nil
+}
+
+func (m *mockHistoryRepo) GetItemCategoryMap(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]collector.ItemMeta, error) {
+	return nil, nil
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -174,6 +188,90 @@ func TestGetTopicByID_NoEarnResult(t *testing.T) {
 	}
 	if _, exists := resp["earn_result"]; exists {
 		t.Error("expected no 'earn_result' key in response after refactor")
+	}
+}
+
+// ─── Tests for GetRecentTopics ──────────────────────────────────────────────
+
+// TestGetRecentTopics_Success: 최신 뉴스 3개 정상 반환
+func TestGetRecentTopics_Success(t *testing.T) {
+	id1, id2 := uuid.New(), uuid.New()
+	imgURL := "/api/v1/images/test.png"
+	repo := &mockHistoryRepo{
+		recentTopics: []collector.TopicPreview{
+			{ID: id1, Topic: "뉴스 1", Summary: "요약 1", ImageURL: &imgURL},
+			{ID: id2, Topic: "뉴스 2", Summary: "요약 2", ImageURL: nil},
+		},
+	}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/recent", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data []collector.TopicPreview `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(resp.Data) != 2 {
+		t.Errorf("expected 2 topics, got %d", len(resp.Data))
+	}
+	if resp.Data[0].Topic != "뉴스 1" {
+		t.Errorf("expected topic '뉴스 1', got %q", resp.Data[0].Topic)
+	}
+}
+
+// TestGetRecentTopics_Empty: collection run이 없을 때 빈 배열 반환
+func TestGetRecentTopics_Empty(t *testing.T) {
+	repo := &mockHistoryRepo{recentTopics: nil}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/recent", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data []collector.TopicPreview `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(resp.Data) != 0 {
+		t.Errorf("expected 0 topics, got %d", len(resp.Data))
+	}
+}
+
+// TestGetRecentTopics_RepoError: DB 오류 시에도 빈 배열로 200 반환 (랜딩 페이지가 깨지지 않도록)
+func TestGetRecentTopics_RepoError(t *testing.T) {
+	repo := &mockHistoryRepo{recentErr: errors.New("db error")}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/recent", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 even on error, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data []collector.TopicPreview `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(resp.Data) != 0 {
+		t.Errorf("expected 0 topics on error, got %d", len(resp.Data))
 	}
 }
 
