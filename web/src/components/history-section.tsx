@@ -7,6 +7,7 @@ const PAGE_SIZE = 10;
 
 interface Props {
   subscriptions: string[];
+  onFirstLoad?: () => void;
 }
 
 function formatDate(dateStr: string): string {
@@ -161,7 +162,7 @@ function HistoryCard({
   );
 }
 
-export function HistorySection({ subscriptions }: Props) {
+export function HistorySection({ subscriptions, onFirstLoad }: Props) {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,7 +180,10 @@ export function HistorySection({ subscriptions }: Props) {
         setOffset(data.length);
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        onFirstLoad?.();
+      });
   }, []);
 
   const loadMore = useCallback(async () => {

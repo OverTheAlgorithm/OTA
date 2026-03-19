@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { Footer } from "@/components/footer";
@@ -36,15 +36,18 @@ export function HomePage() {
     };
   }, []);
 
-  // Restore scroll position once content is loaded
-  useEffect(() => {
-    if (restoredRef.current || loading || !user) return;
+  // Restore scroll position once history content is rendered
+  const restoreScroll = useCallback(() => {
+    if (restoredRef.current) return;
     const saved = sessionStorage.getItem(SCROLL_KEY);
     if (saved) {
       restoredRef.current = true;
-      requestAnimationFrame(() => window.scrollTo(0, Number(saved)));
+      // Double rAF: first waits for React commit, second for browser paint
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => window.scrollTo(0, Number(saved)));
+      });
     }
-  }, [loading, user]);
+  }, []);
 
   if (loading || !user) {
     return (
@@ -150,7 +153,7 @@ export function HomePage() {
         <InterestSection selected={subscriptions} onChange={setSubscriptions} />
         <ChannelPreferencesSection />
         <SendBriefingButton />
-        <HistorySection subscriptions={subscriptions} />
+        <HistorySection subscriptions={subscriptions} onFirstLoad={restoreScroll} />
       </main>
 
       <Footer compact />
