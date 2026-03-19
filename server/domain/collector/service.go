@@ -23,6 +23,7 @@ type Service struct {
 	aggregator     *Aggregator
 	trendingRepo   TrendingItemRepository
 	brainCatRepo   BrainCategoryRepository
+	catRepo        CategoryRepository // optional: loads categories from DB for AI prompts
 	urlDecoder     URLDecoder
 	articleFetcher ArticleFetcher
 	imageGen       *ImageGenerator
@@ -55,6 +56,12 @@ func NewService(
 // The fallback itself also gets the same number of retries.
 func (s *Service) WithFallback(fallbackAI AIClient) *Service {
 	s.fallbackAI = fallbackAI
+	return s
+}
+
+// WithCategoryRepo sets the category repository for loading categories from DB.
+func (s *Service) WithCategoryRepo(catRepo CategoryRepository) *Service {
+	s.catRepo = catRepo
 	return s
 }
 
@@ -104,9 +111,19 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 		brainCategories = nil
 	}
 
+	// Load categories for AI prompt injection.
+	var categories []Category
+	if s.catRepo != nil {
+		categories, err = s.catRepo.GetAllCategories(ctx)
+		if err != nil {
+			log.Printf("warning: failed to load categories: %v — using defaults", err)
+			categories = nil
+		}
+	}
+
 	// Stage 1: Phase 1 AI — clustering + categorization + buzz_score + source selection.
 	log.Printf("collection run %s: stage 1 — Phase 1 AI clustering", run.ID)
-	phase1Prompt := BuildClusterPrompt(data.FormattedText, brainCategories)
+	phase1Prompt := BuildClusterPrompt(data.FormattedText, brainCategories, categories)
 	phase1Resp, err := s.callAIWithRetry(ctx, phase1Prompt)
 	if err != nil {
 		return failRun(fmt.Errorf("Phase 1 AI clustering: %w", err), nil)
@@ -212,6 +229,10 @@ func parsePhase1Response(outputText string) ([]Phase1Topic, error) {
 			log.Printf("Phase 1: dropping invalid topic (hint=%q, category=%q, sources=%d)", t.TopicHint, t.Category, len(t.Sources))
 			continue
 		}
+		// Default priority to "none" if empty
+		if t.Priority == "" {
+			t.Priority = "none"
+		}
 		valid = append(valid, t)
 	}
 
@@ -220,7 +241,7 @@ func parsePhase1Response(outputText string) ([]Phase1Topic, error) {
 	}
 
 	for _, t := range valid {
-		log.Printf("Phase 1 topic: %q [%s] brain=%s buzz=%d sources=%d", t.TopicHint, t.Category, t.BrainCategory, t.BuzzScore, len(t.Sources))
+		log.Printf("Phase 1 topic: %q [%s] priority=%s brain=%s buzz=%d sources=%d", t.TopicHint, t.Category, t.Priority, t.BrainCategory, t.BuzzScore, len(t.Sources))
 	}
 	return valid, nil
 }
@@ -373,6 +394,7 @@ func (s *Service) runPhase2(
 				ID:              uuid.New(),
 				CollectionRunID: runID,
 				Category:        t.Category,
+				Priority:        t.Priority,
 				BrainCategory:   t.BrainCategory,
 				Rank:            rankForTopic(t, topics),
 				Topic:           p2Result.Topic,

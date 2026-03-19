@@ -75,7 +75,7 @@ Enough context to start a conversation. Must include names, events, and why it m
 Extended context beyond the summary. Background, timeline, causes, and implications.
 Write as a coherent paragraph, not bullet points.`)
 
-	if topic.Category == "brief" {
+	if topic.Priority == "brief" {
 		sb.WriteString("\nFor \"brief\" category: use 1-sentence summary and shorter detail (1-2 sentences).")
 	}
 

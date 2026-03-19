@@ -100,6 +100,11 @@ func (s *Service) GetCoinHistory(ctx context.Context, userID string, limit, offs
 	return s.repo.GetCoinHistory(ctx, userID, limit, offset)
 }
 
+// GetEarnedItemIDs returns the subset of itemIDs that the user has already earned coins for.
+func (s *Service) GetEarnedItemIDs(ctx context.Context, userID string, itemIDs []uuid.UUID) ([]uuid.UUID, error) {
+	return s.repo.GetEarnedItemIDs(ctx, userID, itemIDs)
+}
+
 // EarnCoin awards coins for visiting a topic.
 func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, preferred bool) (EarnResult, error) {
 	coins := CalcCoins(preferred)

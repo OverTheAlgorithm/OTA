@@ -227,6 +227,31 @@ func (r *LevelRepository) GetCoinHistory(ctx context.Context, userID string, lim
 	return txns, nil
 }
 
+// GetEarnedItemIDs returns the subset of itemIDs that the user has already earned coins for.
+func (r *LevelRepository) GetEarnedItemIDs(ctx context.Context, userID string, itemIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if len(itemIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT DISTINCT context_item_id FROM coin_logs WHERE user_id = $1 AND context_item_id = ANY($2)`,
+		userID, itemIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get earned item ids: %w", err)
+	}
+	defer rows.Close()
+
+	var earned []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		earned = append(earned, id)
+	}
+	return earned, rows.Err()
+}
+
 // CreateMockOTAItem inserts a fake collection_run and a context_item for
 // testing level progression. Returns the context_item UUID.
 func (r *LevelRepository) CreateMockOTAItem(ctx context.Context) (uuid.UUID, error) {

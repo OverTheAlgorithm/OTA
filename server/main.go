@@ -109,9 +109,24 @@ func main() {
 	}
 	defer earnCache.Close()
 
+	// Categories and news sources
+	categoryRepo := storage.NewCategoryRepository(pool)
+
+	// Load news sources from DB, fallback to defaults
+	newsTopics := googlenews.DefaultTopics()
+	if dbSources, err := categoryRepo.GetEnabledNewsSources(ctx); err == nil && len(dbSources) > 0 {
+		newsTopics = make([]googlenews.FeedTopic, len(dbSources))
+		for i, s := range dbSources {
+			newsTopics[i] = googlenews.FeedTopic{Category: s.CategoryKey, URL: s.URL}
+		}
+		log.Printf("loaded %d news sources from DB", len(newsTopics))
+	} else {
+		log.Printf("using default news sources (DB load: %v)", err)
+	}
+
 	// Structured source collectors (Google Trends + Google News)
 	trendsCollector := googletrends.NewCollector()
-	newsCollector := googlenews.NewCollector(googlenews.DefaultTopics())
+	newsCollector := googlenews.NewCollector(newsTopics)
 	aggregator := collector.NewAggregator(trendsCollector, newsCollector)
 	trendingRepo := storage.NewTrendingItemRepository(pool)
 
@@ -132,6 +147,7 @@ func main() {
 
 	articleFetcher := collector.NewHTTPArticleFetcher()
 	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, articleFetcher, imageGen)
+	collectorService.WithCategoryRepo(categoryRepo)
 	if fallbackAIClient != nil {
 		collectorService.WithFallback(fallbackAIClient)
 		log.Printf("collector service initialized (provider: %s, model: %s, fallback: %s)", cfg.AIProvider, cfg.GeminiModel, cfg.GeminiModelFallback)
@@ -213,6 +229,7 @@ func main() {
 	// Context history
 	historyRepo := storage.NewHistoryRepository(pool)
 	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
+	contextHistoryHandler.WithCategoryRepo(categoryRepo, brainCategoryRepo)
 
 	// Level
 	earnMinDuration := time.Duration(cfg.EarnMinDurationSec) * time.Second

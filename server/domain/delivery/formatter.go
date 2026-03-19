@@ -35,7 +35,7 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, brainC
 	var preferredItems []collector.ContextItem
 	var nonPreferredItems []collector.ContextItem
 	for _, item := range items {
-		if level.IsPreferredCategory(item.Category, subscriptions) {
+		if level.IsPreferredTopic(item.Priority, item.Category, subscriptions) {
 			preferredItems = append(preferredItems, item)
 		} else {
 			nonPreferredItems = append(nonPreferredItems, item)

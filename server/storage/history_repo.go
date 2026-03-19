@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,6 +36,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 			dl.created_at,
 			ci.id::text,
 			ci.category,
+			COALESCE(ci.priority, 'none'),
 			COALESCE(ci.brain_category, ''),
 			ci.rank,
 			ci.topic,
@@ -62,7 +64,7 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 		var deliveredAt time.Time
 		var item collector.HistoryItem
 		var detailsJSON []byte
-		if err := rows.Scan(&deliveredAt, &item.ID, &item.Category, &item.BrainCategory, &item.Rank, &item.Topic, &item.Summary, &item.Detail, &detailsJSON, &item.BuzzScore); err != nil {
+		if err := rows.Scan(&deliveredAt, &item.ID, &item.Category, &item.Priority, &item.BrainCategory, &item.Rank, &item.Topic, &item.Summary, &item.Detail, &detailsJSON, &item.BuzzScore); err != nil {
 			return nil, false, err
 		}
 		item.Details = collector.UnmarshalDetails(detailsJSON)
@@ -97,10 +99,10 @@ func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID
 	var detailsJSON []byte
 	var imagePath *string
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, collection_run_id, category, topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'), COALESCE(brain_category, ''), created_at, image_path
+		SELECT id, collection_run_id, category, COALESCE(priority, 'none'), topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'), COALESCE(brain_category, ''), created_at, image_path
 		FROM context_items
 		WHERE id = $1
-	`, id).Scan(&item.ID, &item.RunID, &item.Category, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt, &imagePath)
+	`, id).Scan(&item.ID, &item.RunID, &item.Category, &item.Priority, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt, &imagePath)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -113,6 +115,41 @@ func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID
 		item.ImageURL = &url
 	}
 	return &item, nil
+}
+
+// GetRecentTopics returns up to `count` random topics from the latest successful collection run.
+func (r *HistoryRepository) GetRecentTopics(ctx context.Context, count int) ([]collector.TopicPreview, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT ci.id, ci.topic, ci.summary, ci.image_path
+		FROM context_items ci
+		WHERE ci.collection_run_id = (
+			SELECT id FROM collection_runs
+			WHERE status = 'success'
+			ORDER BY started_at DESC
+			LIMIT 1
+		)
+		ORDER BY RANDOM()
+		LIMIT $1
+	`, count)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []collector.TopicPreview
+	for rows.Next() {
+		var item collector.TopicPreview
+		var imagePath *string
+		if err := rows.Scan(&item.ID, &item.Topic, &item.Summary, &imagePath); err != nil {
+			return nil, err
+		}
+		if imagePath != nil {
+			url := "/api/v1/images/" + *imagePath
+			item.ImageURL = &url
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 // IsRunCreatedToday returns true if the run was started today (KST).
@@ -131,4 +168,91 @@ func (r *HistoryRepository) IsRunCreatedToday(ctx context.Context, runID uuid.UU
 		return false, err
 	}
 	return isToday, nil
+}
+
+// GetAllTopics returns paginated topics across all successful collection runs.
+// Supports filtering by "category" or "brain_category".
+func (r *HistoryRepository) GetAllTopics(ctx context.Context, filterType, filterValue string, limit, offset int) ([]collector.TopicPreview, bool, error) {
+	// Build query dynamically based on filter type.
+	baseQuery := `
+		SELECT ci.id, ci.topic, ci.summary, ci.image_path,
+			ci.collection_run_id, ci.category, COALESCE(ci.brain_category, ''), COALESCE(ci.priority, 'none'), ci.created_at
+		FROM context_items ci
+		JOIN collection_runs cr ON cr.id = ci.collection_run_id AND cr.status = 'success'
+		WHERE 1=1`
+
+	var args []interface{}
+	argIdx := 1
+
+	switch filterType {
+	case "category":
+		baseQuery += fmt.Sprintf(` AND ci.category = $%d`, argIdx)
+		args = append(args, filterValue)
+		argIdx++
+	case "brain_category":
+		baseQuery += fmt.Sprintf(` AND ci.brain_category = $%d`, argIdx)
+		args = append(args, filterValue)
+		argIdx++
+	}
+
+	baseQuery += fmt.Sprintf(` ORDER BY ci.created_at DESC, ci.rank ASC LIMIT $%d OFFSET $%d`, argIdx, argIdx+1)
+	args = append(args, limit+1, offset)
+
+	rows, err := r.pool.Query(ctx, baseQuery, args...)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+
+	var items []collector.TopicPreview
+	for rows.Next() {
+		var item collector.TopicPreview
+		var imagePath *string
+		if err := rows.Scan(&item.ID, &item.Topic, &item.Summary, &imagePath,
+			&item.RunID, &item.Category, &item.BrainCategory, &item.Priority, &item.CreatedAt); err != nil {
+			return nil, false, err
+		}
+		if imagePath != nil {
+			url := "/api/v1/images/" + *imagePath
+			item.ImageURL = &url
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	return items, hasMore, nil
+}
+
+// GetItemCategoryMap returns lightweight metadata for a batch of item IDs.
+func (r *HistoryRepository) GetItemCategoryMap(ctx context.Context, itemIDs []uuid.UUID) (map[uuid.UUID]collector.ItemMeta, error) {
+	if len(itemIDs) == 0 {
+		return map[uuid.UUID]collector.ItemMeta{}, nil
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, collection_run_id, category, COALESCE(priority, 'none')
+		FROM context_items
+		WHERE id = ANY($1)
+	`, itemIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get item category map: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID]collector.ItemMeta, len(itemIDs))
+	for rows.Next() {
+		var id uuid.UUID
+		var meta collector.ItemMeta
+		if err := rows.Scan(&id, &meta.RunID, &meta.Category, &meta.Priority); err != nil {
+			return nil, err
+		}
+		result[id] = meta
+	}
+	return result, rows.Err()
 }
