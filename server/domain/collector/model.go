@@ -34,6 +34,7 @@ type ContextItem struct {
 	ID              uuid.UUID
 	CollectionRunID uuid.UUID
 	Category        string       `json:"category"`
+	Priority        string       `json:"priority"`
 	BrainCategory   string       `json:"brain_category"`
 	Rank            int          `json:"rank"`
 	Topic           string       `json:"topic"`
@@ -54,6 +55,7 @@ type CollectionResult struct {
 type Phase1Topic struct {
 	TopicHint     string   `json:"topic_hint"`
 	Category      string   `json:"category"`
+	Priority      string   `json:"priority"`
 	BrainCategory string   `json:"brain_category"`
 	BuzzScore     int      `json:"buzz_score"`
 	Sources       []string `json:"sources"`

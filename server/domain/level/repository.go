@@ -27,4 +27,6 @@ type Repository interface {
 	InsertCoinEvent(ctx context.Context, userID string, amount int, eventType, memo, actorID string) error
 	// GetCoinHistory returns a unified, paginated timeline of all coin changes.
 	GetCoinHistory(ctx context.Context, userID string, limit, offset int) ([]CoinTransaction, error)
+	// GetEarnedItemIDs returns the subset of itemIDs that the user has already earned coins for.
+	GetEarnedItemIDs(ctx context.Context, userID string, itemIDs []uuid.UUID) ([]uuid.UUID, error)
 }

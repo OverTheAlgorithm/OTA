@@ -159,9 +159,9 @@ func CalcCoins(preferred bool) int {
 	return BaseCoinNonPreferred
 }
 
-// IsPreferredCategory returns true if the category is always shown (top/brief) or is in the user's subscriptions.
-func IsPreferredCategory(category string, subscriptions []string) bool {
-	if category == "top" || category == "brief" {
+// IsPreferredTopic returns true if the topic is always shown (top/brief priority) or its category is in the user's subscriptions.
+func IsPreferredTopic(priority, category string, subscriptions []string) bool {
+	if priority == "top" || priority == "brief" {
 		return true
 	}
 	for _, sub := range subscriptions {
@@ -170,4 +170,9 @@ func IsPreferredCategory(category string, subscriptions []string) bool {
 		}
 	}
 	return false
+}
+
+// IsPreferredCategory is a backward-compatible alias. Deprecated: use IsPreferredTopic.
+func IsPreferredCategory(category string, subscriptions []string) bool {
+	return IsPreferredTopic("", category, subscriptions)
 }
