@@ -76,6 +76,7 @@ export interface DetailItem {
 export interface HistoryItem {
   id: string;
   category: string;
+  priority: string;
   brain_category: string;
   rank: number;
   topic: string;
@@ -239,6 +240,92 @@ export async function initEarn(
   if (!res.ok) throw new Error("init_earn_failed");
   const body: ApiResponse<InitEarnResult> = await res.json();
   return body.data;
+}
+
+// ── 최신 뉴스 (랜딩 페이지) ──────────────────────────
+export interface TopicPreview {
+  id: string;
+  topic: string;
+  summary: string;
+  image_url: string | null;
+  run_id?: string;
+  category?: string;
+  brain_category?: string;
+  priority?: string;
+  created_at?: string;
+}
+
+export async function fetchRecentTopics(): Promise<TopicPreview[]> {
+  const res = await fetch(`${API_BASE}/api/v1/context/recent`);
+  if (!res.ok) return [];
+  const body: ApiResponse<TopicPreview[]> = await res.json();
+  return body.data ?? [];
+}
+
+// ── 전체 뉴스 (allnews 페이지) ──────────────────────────
+export type FilterType = "category" | "brain_category" | "";
+
+export interface FilterCategory {
+  key: string;
+  label: string;
+  display_order: number;
+}
+
+export interface FilterBrainCategory {
+  key: string;
+  emoji: string;
+  label: string;
+  display_order: number;
+}
+
+export interface FilterOptions {
+  categories: FilterCategory[];
+  brain_categories: FilterBrainCategory[];
+}
+
+export async function fetchAllTopics(
+  filterType: FilterType,
+  filterValue: string,
+  limit: number,
+  offset: number,
+): Promise<{ data: TopicPreview[]; has_more: boolean }> {
+  const params = new URLSearchParams();
+  if (filterType && filterValue) {
+    params.set("filter_type", filterType);
+    params.set("filter_value", filterValue);
+  }
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  const res = await fetch(`${API_BASE}/api/v1/context/topics?${params}`);
+  if (!res.ok) return { data: [], has_more: false };
+  const body = await res.json();
+  return { data: body.data ?? [], has_more: body.has_more ?? false };
+}
+
+export async function fetchFilterOptions(): Promise<FilterOptions> {
+  const res = await fetch(`${API_BASE}/api/v1/context/categories`);
+  if (!res.ok) return { categories: [], brain_categories: [] };
+  const body: ApiResponse<FilterOptions> = await res.json();
+  return body.data;
+}
+
+export interface EarnStatusItem {
+  id: string;
+  status: "PENDING" | "DUPLICATE" | "EXPIRED" | "DAILY_LIMIT" | "NOT_FOUND";
+  coins: number;
+}
+
+export async function batchEarnStatus(ids: string[]): Promise<EarnStatusItem[]> {
+  if (ids.length === 0) return [];
+  const res = await fetch(`${API_BASE}/api/v1/level/batch-earn-status`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ context_item_ids: ids }),
+  });
+  if (!res.ok) return [];
+  const body: ApiResponse<EarnStatusItem[]> = await res.json();
+  return body.data ?? [];
 }
 
 // ── 이메일 인증 ───────────────────────────────────────

@@ -78,10 +78,10 @@ function HistoryCard({
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
-  // Filter: always include top + brief, plus subscribed categories
+  // Filter: always include top + brief priority, plus subscribed categories
   const subSet = new Set(subscriptions);
   const selectedItems = entry.items.filter(
-    (i) => i.category === "top" || i.category === "brief" || subSet.has(i.category),
+    (i) => i.priority === "top" || i.priority === "brief" || subSet.has(i.category),
   );
 
   const bcGroups = groupByBrainCategory(selectedItems);
