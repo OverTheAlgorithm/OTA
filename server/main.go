@@ -257,7 +257,7 @@ func main() {
 		WithDeliveryService(deliveryService)
 
 	// Router
-	r := api.NewRouter("api", "v1", cfg.FrontendURL, jwtManager, []api.RouteModule{
+	r := api.NewRouter("api", "v1", cfg.FrontendURL, jwtManager, cfg.RateLimitPerMin, []api.RouteModule{
 		{
 			GroupName:   "auth",
 			Handler:     authHandler,

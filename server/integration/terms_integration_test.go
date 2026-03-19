@@ -31,7 +31,7 @@ func TestTerms_CRUD_Integration(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
-	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, []api.RouteModule{
+	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, []api.RouteModule{
 		{GroupName: "admin/terms", Handler: adminHandler, Middlewares: []gin.HandlerFunc{}},
 		{GroupName: "terms", Handler: publicHandler, Middlewares: []gin.HandlerFunc{}},
 	})
@@ -272,7 +272,7 @@ func TestTerms_CompleteSignupFlow_Integration(t *testing.T) {
 	)
 
 	gin.SetMode(gin.TestMode)
-	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, []api.RouteModule{
+	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, []api.RouteModule{
 		{GroupName: "auth", Handler: authHandler, Middlewares: []gin.HandlerFunc{}},
 	})
 

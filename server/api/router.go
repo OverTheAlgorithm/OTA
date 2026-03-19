@@ -15,11 +15,12 @@ type RouteRegistrar interface {
 	RegisterRoutes(group *gin.RouterGroup)
 }
 
-func NewRouter(apiPrefix, version string, frontendURL string, jwtManager *auth.JWTManager, modules []RouteModule) *gin.Engine {
+func NewRouter(apiPrefix, version string, frontendURL string, jwtManager *auth.JWTManager, ratePerMin int, modules []RouteModule) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(LoggerMiddleware(jwtManager))
 	r.Use(CORSMiddleware(frontendURL))
+	r.Use(RateLimitMiddleware(ratePerMin, jwtManager))
 
 	api := r.Group(apiPrefix + "/" + version)
 
