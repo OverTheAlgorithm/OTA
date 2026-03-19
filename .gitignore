@@ -13,6 +13,8 @@ docker-compose.override.yml
 
 # Go
 server/tmp/
+server/logs/
+server/data/
 
 # Node
 web/node_modules/
