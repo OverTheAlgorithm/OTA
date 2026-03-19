@@ -269,7 +269,7 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
-	preferred := level.IsPreferredCategory(topic.Category, subs)
+	preferred := level.IsPreferredTopic(topic.Priority, topic.Category, subs)
 
 	result, err := h.service.EarnCoin(ctx, userID, runID, itemID, preferred)
 	if err != nil {
@@ -294,10 +294,132 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	}})
 }
 
+// BatchEarnStatus handles POST /api/v1/level/batch-earn-status
+// Returns the earn status for a batch of context item IDs (max 50).
+func (h *LevelHandler) BatchEarnStatus(c *gin.Context) {
+	userID := c.GetString("userID")
+
+	var req struct {
+		ContextItemIDs []string `json:"context_item_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "context_item_ids is required"})
+		return
+	}
+	if len(req.ContextItemIDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{"data": []any{}})
+		return
+	}
+	if len(req.ContextItemIDs) > 50 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "max 50 items"})
+		return
+	}
+
+	// Parse UUIDs
+	itemIDs := make([]uuid.UUID, 0, len(req.ContextItemIDs))
+	for _, idStr := range req.ContextItemIDs {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid id: %s", idStr)})
+			return
+		}
+		itemIDs = append(itemIDs, id)
+	}
+
+	ctx := c.Request.Context()
+
+	// 1. Get item metadata (category, priority, run_id)
+	itemMap, err := h.histRepo.GetItemCategoryMap(ctx, itemIDs)
+	if err != nil {
+		log.Printf("batch-earn-status: GetItemCategoryMap error user=%s — %v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	// 2. Get earned item IDs
+	earnedIDs, err := h.service.GetEarnedItemIDs(ctx, userID, itemIDs)
+	if err != nil {
+		log.Printf("batch-earn-status: GetEarnedItemIDs error user=%s — %v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	earnedSet := make(map[uuid.UUID]bool, len(earnedIDs))
+	for _, id := range earnedIDs {
+		earnedSet[id] = true
+	}
+
+	// 3. Check which run_ids are from today
+	uniqueRunIDs := make(map[uuid.UUID]bool)
+	for _, meta := range itemMap {
+		uniqueRunIDs[meta.RunID] = false
+	}
+	for runID := range uniqueRunIDs {
+		isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
+		if err != nil {
+			log.Printf("batch-earn-status: IsRunCreatedToday error run=%s — %v", runID, err)
+			continue
+		}
+		uniqueRunIDs[runID] = isToday
+	}
+
+	// 4. Check daily limit
+	atDailyLimit, err := h.service.IsAtDailyLimit(ctx, userID)
+	if err != nil {
+		log.Printf("batch-earn-status: IsAtDailyLimit error user=%s — %v", userID, err)
+		atDailyLimit = false
+	}
+
+	// 5. Get subscriptions
+	subs, err := h.subGetter.GetSubscriptions(ctx, userID)
+	if err != nil {
+		log.Printf("batch-earn-status: GetSubscriptions error user=%s — %v", userID, err)
+		subs = nil
+	}
+
+	// Build response
+	type itemStatus struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+		Coins  int    `json:"coins"`
+	}
+
+	results := make([]itemStatus, 0, len(itemIDs))
+	for _, id := range itemIDs {
+		meta, exists := itemMap[id]
+		if !exists {
+			results = append(results, itemStatus{ID: id.String(), Status: "NOT_FOUND", Coins: 0})
+			continue
+		}
+
+		if earnedSet[id] {
+			results = append(results, itemStatus{ID: id.String(), Status: "DUPLICATE", Coins: 0})
+			continue
+		}
+
+		isToday := uniqueRunIDs[meta.RunID]
+		if !isToday {
+			results = append(results, itemStatus{ID: id.String(), Status: "EXPIRED", Coins: 0})
+			continue
+		}
+
+		if atDailyLimit {
+			results = append(results, itemStatus{ID: id.String(), Status: "DAILY_LIMIT", Coins: 0})
+			continue
+		}
+
+		preferred := level.IsPreferredTopic(meta.Priority, meta.Category, subs)
+		coins := level.CalcCoins(preferred)
+		results = append(results, itemStatus{ID: id.String(), Status: "PENDING", Coins: coins})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": results})
+}
+
 func (h *LevelHandler) RegisterRoutes(group *gin.RouterGroup) {
-	group.GET("", h.authMW, h.GetLevel)           // GET  /api/v1/level
-	group.POST("/init-earn", h.authMW, h.InitEarn) // POST /api/v1/level/init-earn
-	group.POST("/earn", h.authMW, h.EarnCoin)      // POST /api/v1/level/earn
+	group.GET("", h.authMW, h.GetLevel)                          // GET  /api/v1/level
+	group.POST("/init-earn", h.authMW, h.InitEarn)                // POST /api/v1/level/init-earn
+	group.POST("/earn", h.authMW, h.EarnCoin)                     // POST /api/v1/level/earn
+	group.POST("/batch-earn-status", h.authMW, h.BatchEarnStatus) // POST /api/v1/level/batch-earn-status
 }
 
 // ── Turnstile Helper ──────────────────────────────────────────────────────────
