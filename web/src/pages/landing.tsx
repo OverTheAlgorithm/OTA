@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/contexts/auth-context";
+import { fetchRecentTopics, type TopicPreview } from "@/lib/api";
 
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -53,165 +54,10 @@ function FadeIn({
   );
 }
 
-const rotatingTexts = [
-  "개인화에 갇혀버린",
-  "추천에 길들여진",
-  "피드에 묶여버린",
-  "취향에 갇혀버린",
-];
-
-function RotatingText() {
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 1500);
-    return () => clearInterval(interval);
-  }, []);
-
-  const n = rotatingTexts.length;
-  const cur = tick % n;
-  const pre = (tick - 1 + n) % n;
-  const longestText = rotatingTexts.reduce((a, b) =>
-    a.length >= b.length ? a : b,
-  );
-
-  return (
-    <>
-      <span
-        style={{
-          position: "relative",
-          display: "inline-block",
-          overflow: "hidden",
-          verticalAlign: "bottom",
-          whiteSpace: "nowrap",
-          textAlign: "right",
-        }}
-      >
-        {/* 가장 긴 텍스트로 너비/높이 확보 */}
-        <span style={{ visibility: "hidden" }} aria-hidden>
-          {longestText}
-        </span>
-
-        {/* 나가는 카드 */}
-        {tick > 0 && (
-          <span
-            key={`x${tick}`}
-            aria-hidden
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              textAlign: "right",
-              animation: "ota-exit 0.2s cubic-bezier(0.4,0,1,1) both",
-            }}
-          >
-            {rotatingTexts[pre]}
-          </span>
-        )}
-
-        {/* 들어오는 카드 */}
-        <span
-          key={`e${tick}`}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            animation:
-              tick === 0
-                ? "none"
-                : "ota-enter 0.45s cubic-bezier(0,0,0.2,1) both",
-          }}
-        >
-          {rotatingTexts[cur]}
-        </span>
-      </span>
-    </>
-  );
-}
-
-const features = [
-  {
-    title: "매일 아침, 핵심 맥락 배달",
-    description:
-      "매일 아침 7시, 카카오톡과 이메일로 지금 가장 뜨거운 주제를 정리해 전달합니다. 바쁜 아침에도 빠르게 세상을 읽으세요.",
-    color: "#f0923b",
-    icon: (
-      <svg
-        className="w-7 h-7"
-        viewBox="0 0 24 24"
-        fill="none"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="10" stroke="#f0923b" />
-        <path d="M12 6v6l4 2" stroke="#f0923b" />
-      </svg>
-    ),
-  },
-  {
-    title: "알고리즘 버블을 넘어서",
-    description:
-      "유튜브, 틱톡의 개인화 알고리즘에 갇히지 않고, 분야를 막론한 진짜 화제를 만나보세요.",
-    color: "#7bc67e",
-    icon: (
-      <svg
-        className="w-7 h-7"
-        viewBox="0 0 24 24"
-        fill="none"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="10" stroke="#7bc67e" />
-        <path d="M2 12h20" stroke="#7bc67e" />
-        <path
-          d="M12 2a15 15 0 014 10 15 15 0 01-4 10 15 15 0 01-4-10 15 15 0 014-10z"
-          stroke="#7bc67e"
-        />
-      </svg>
-    ),
-  },
-  {
-    title: "짧고 명확한 한 줄 요약",
-    description:
-      "각 주제를 한 문장으로 핵심만 담아, 누구에게든 자연스럽게 대화에 참여할 수 있습니다.",
-    color: "#5ba4d9",
-    icon: (
-      <svg
-        className="w-7 h-7"
-        viewBox="0 0 24 24"
-        fill="none"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="#5ba4d9" />
-      </svg>
-    ),
-  },
-];
-
-const scenarios = [
-  {
-    emoji: "😶",
-    situation: '"어제 그 연예인 뉴스 봤어?"',
-    feeling: "무슨 얘긴지 몰라서 어색하게 웃기만 했던 순간",
-  },
-  {
-    emoji: "📱",
-    situation: '"요즘 다 이거 보던데"',
-    feeling: "내 피드엔 안 뜨는데, 모두가 아는 그 이야기",
-  },
-  {
-    emoji: "🤷",
-    situation: '"너 이것도 몰라?"',
-    feeling: "관심 없는 분야인데, 모르면 뒤처지는 느낌",
-  },
+const steps = [
+  { icon: "/wl-step-1.svg", label: "위즈레터 무료로 가입하기" },
+  { icon: "/wl-step-2.svg", label: "매일 아침 뉴스 보고\n포인트 쌓기" },
+  { icon: "/wl-step-3.svg", label: "포인트를 모아서\n레벨업 하기" },
 ];
 
 export function LandingPage() {
@@ -220,12 +66,17 @@ export function LandingPage() {
   const [searchParams] = useSearchParams();
   const loginError = searchParams.get("error");
 
-  // auth/me가 성공한 경우 이미 로그인된 유저 → 랜딩 불필요, /home으로 이동
   useEffect(() => {
     if (!loading && user) {
       navigate("/home", { replace: true });
     }
   }, [loading, user, navigate]);
+
+  const [recentTopics, setRecentTopics] = useState<TopicPreview[]>([]);
+
+  useEffect(() => {
+    fetchRecentTopics().then(setRecentTopics).catch(() => setRecentTopics([]));
+  }, []);
 
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -254,7 +105,6 @@ export function LandingPage() {
 
   const handleCloseLogin = () => {
     setLoginOpen(false);
-    // 에러 파라미터가 URL에 남아 새로고침 시 모달이 재오픈되는 문제 방지
     if (loginError) navigate("/", { replace: true });
   };
 
@@ -267,286 +117,356 @@ export function LandingPage() {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        backgroundColor: "var(--color-bg)",
-        color: "var(--color-fg)"
-      }}
-    >
-      {/* Navbar */}
+    <div className="min-h-screen bg-[#fdf9ee] text-[#231815]">
+      {/* ── Header ── */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-lg ${
-          scrolled ? "bg-opacity-90 border-b" : ""
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrolled ? "backdrop-blur-md" : ""
         }`}
-        style={scrolled ? {
-          backgroundColor: "var(--color-bg)",
-          borderColor: "var(--color-border)"
-        } : {}}
       >
-        <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
-          <a href="#top" className="flex items-center gap-3">
-            <img src="/OTA_logo.png" alt="OTA" className="w-[63px] h-[42px]" />
-          </a>
+        <div className="bg-[#fdf9ee] border-b-[3px] border-[#231815]">
+          <div className="max-w-[1200px] mx-auto px-6 h-[65px] flex items-center justify-between">
+            <a href="#top" className="flex items-center">
+              <img
+                src="/wl-logo.png"
+                alt="WizLetter"
+                className="w-[140px] md:w-[200px] object-contain"
+              />
+            </a>
 
-          <div className="hidden md:flex items-center gap-8">
-            <a
-              href="#features"
-              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
-            >
-              서비스 특징
-            </a>
-            <a
-              href="#why"
-              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
-            >
-              왜 필요한가
-            </a>
+            <div className="hidden md:flex items-center gap-8">
+              <a
+                href="#intro"
+                className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+              >
+                서비스 소개
+              </a>
+              <a
+                href="#news"
+                className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+              >
+                뉴스보기
+              </a>
+              <a
+                href="#howto"
+                className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+              >
+                이용 방법
+              </a>
+            </div>
+
+            <div className="hidden md:block">
+              <button
+                onClick={handleStart}
+                className="px-6 py-2 rounded-full text-sm font-medium bg-[#43b9d6] text-[#231815] border border-[#231815] hover:brightness-110 transition-all"
+              >
+                무료로 구독하기
+              </button>
+            </div>
+
             <button
-              onClick={handleStart}
-              className="px-5 py-2 rounded-full text-sm font-medium bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
+              className="md:hidden text-[#231815] p-2"
+              onClick={() => setMenuOpen(!menuOpen)}
             >
-              시작하기
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                {menuOpen ? (
+                  <path d="M18 6L6 18M6 6l12 12" />
+                ) : (
+                  <path d="M3 12h18M3 6h18M3 18h18" />
+                )}
+              </svg>
             </button>
           </div>
-
-          <button
-            className="md:hidden text-[#1e3a5f] p-2"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              {menuOpen ? (
-                <path d="M18 6L6 18M6 6l12 12" />
-              ) : (
-                <path d="M3 12h18M3 6h18M3 18h18" />
-              )}
-            </svg>
-          </button>
         </div>
 
         {menuOpen && (
-          <div
-            className="md:hidden bg-opacity-95 backdrop-blur-lg border-b px-6 py-4 flex flex-col gap-4"
-            style={{
-              backgroundColor: "var(--color-bg)",
-              borderColor: "var(--color-border)"
-            }}
-          >
+          <div className="md:hidden bg-[#fdf9ee] border-b-[3px] border-[#231815] px-6 py-4 flex flex-col gap-4">
             <a
-              href="#features"
-              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f]"
+              href="#intro"
+              className="text-base font-medium text-[#231815]"
               onClick={() => setMenuOpen(false)}
             >
-              서비스 특징
+              서비스 소개
             </a>
             <a
-              href="#why"
-              className="text-sm text-[#6b8db5] hover:text-[#1e3a5f]"
+              href="#news"
+              className="text-base font-medium text-[#231815]"
               onClick={() => setMenuOpen(false)}
             >
-              왜 필요한가
+              뉴스보기
+            </a>
+            <a
+              href="#howto"
+              className="text-base font-medium text-[#231815]"
+              onClick={() => setMenuOpen(false)}
+            >
+              이용 방법
             </a>
             <button
-              className="px-5 py-2 rounded-full text-sm font-medium text-center bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
+              className="px-6 py-2 rounded-full text-sm font-medium text-center bg-[#43b9d6] text-[#231815] border border-[#231815]"
               onClick={() => {
                 setMenuOpen(false);
                 handleStart();
               }}
             >
-              시작하기
+              무료로 구독하기
             </button>
           </div>
         )}
       </nav>
 
-      {/* Hero */}
-      <section id="top" className="relative pt-32 pb-24 px-6 overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,rgba(232,77,61,0.06),rgba(91,164,217,0.06),transparent_70%)] pointer-events-none" />
+      {/* ── Hero ── */}
+      <section
+        id="top"
+        className="pt-24 md:pt-16 bg-[#fdf9ee] overflow-hidden"
+      >
+        <div className="max-w-[1200px] mx-auto px-6 min-h-[calc(100vh-65px)] flex flex-col md:flex-row items-center justify-center gap-8 md:gap-12">
+          <div className="flex-1 flex flex-col justify-center py-12 md:py-0">
+            <FadeIn>
+              <h1 className="text-4xl md:text-5xl lg:text-[74px] font-semibold leading-tight lg:leading-[90px] tracking-tight">
+                매일 아침 5분,
+                <br />
+                세상의 흐름을 읽는 위즈레터
+              </h1>
+            </FadeIn>
 
-        <div className="relative max-w-[1200px] mx-auto flex flex-col items-center text-center">
-          <FadeIn>
+            <FadeIn delay={100}>
+              <p className="mt-6 text-lg md:text-xl lg:text-[22px] font-semibold leading-relaxed tracking-wide text-[#231815]/80 max-w-[600px]">
+                복잡한 뉴스를 간결하게 요약해 드립니다.
+                <br />
+                출근길, 아침 식사 시간에 세상이 돌아가는 이야기를 빠르게
+                파악하세요.
+              </p>
+            </FadeIn>
+
+            <FadeIn delay={200}>
+              <button
+                onClick={handleStart}
+                className="mt-10 inline-flex items-center justify-center px-14 py-5 rounded-full text-xl md:text-2xl font-semibold bg-[#43b9d6] text-[#231815] border-[2.5px] border-[#231815] hover:brightness-110 transition-all w-fit"
+              >
+                무료로 구독하기
+              </button>
+            </FadeIn>
+          </div>
+
+          <FadeIn delay={300} className="flex-shrink-0">
             <img
-              src="/OTA_logo.png"
-              alt="Over the Algorithm"
-              className="h-20 md:h-28 animate-float"
+              src="/wl-hero.png"
+              alt="위즈레터 히어로"
+              className="w-[280px] md:w-[400px] lg:w-[500px] object-contain"
+            />
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* ── 뉴스레터 특징 (비둘기) ── */}
+      <section
+        id="intro"
+        className="border-t-[3px] border-[#231815] overflow-hidden"
+      >
+        <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-28 flex flex-col-reverse md:flex-row items-center gap-8 md:gap-16">
+          <FadeIn className="flex-shrink-0">
+            <img
+              src="/wl-bird.png"
+              alt="비둘기 일러스트"
+              className="w-[220px] md:w-[320px] lg:w-[380px] object-contain"
             />
           </FadeIn>
 
-          <FadeIn delay={100} className="mt-8">
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold leading-tight">
-              <RotatingText /> 알고리즘 너머
-              <br />
-              <span className="font-brush text-4xl md:text-6xl lg:text-7xl bg-gradient-to-r from-[#e84d3d] via-[#f5d547] to-[#5ba4d9] bg-clip-text text-transparent">
-                세상의 맥락
-              </span>
-              을 읽다
-            </h1>
-          </FadeIn>
+          <div className="flex-1">
+            <FadeIn>
+              <h2 className="text-4xl md:text-5xl lg:text-[70px] font-bold leading-tight lg:leading-[90px]">
+                5분 안에 읽는
+                <br />
+                간결한 뉴스레터
+              </h2>
+            </FadeIn>
+            <FadeIn delay={100}>
+              <p className="mt-6 text-xl md:text-2xl font-semibold leading-relaxed tracking-wide text-[#231815]/80">
+                위즈레터를 읽으면 세상의 흐름을 파악할 수 있어요!
+                <br />
+                바쁜 아침에도 최신 이슈를 놓치지 말아요!
+              </p>
+            </FadeIn>
+          </div>
+        </div>
+      </section>
 
-          <FadeIn delay={200} className="mt-6">
-            <p className="font-dongle text-2xl md:text-3xl text-[#6b8db5] max-w-2xl leading-relaxed">
-              매일 아침 7시, 개인화된 알고리즘에 갇히지 않은
-              <br className="hidden md:block" />
-              가장 뜨거운 이야기를 전해드립니다.
-            </p>
-          </FadeIn>
+      {/* ── 포인트 보상 (사람) ── */}
+      <section className="border-t-[3px] border-b-[3px] border-[#231815] bg-[#fdf9ee] overflow-hidden">
+        <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-28 flex flex-col md:flex-row items-center gap-8 md:gap-16">
+          <div className="flex-1">
+            <FadeIn>
+              <h2 className="text-4xl md:text-5xl lg:text-[70px] font-bold leading-tight lg:leading-[90px]">
+                지식과 포인트를
+                <br />
+                동시에 쌓을 수 있어요
+              </h2>
+            </FadeIn>
+            <FadeIn delay={100}>
+              <p className="mt-6 text-xl md:text-2xl font-semibold leading-relaxed tracking-wide text-[#231815]/80">
+                뉴스를 읽을 때마다 포인트가 적립됩니다.
+                <br />
+                포인트가 모이면 레벨이 올라가요!
+              </p>
+            </FadeIn>
+          </div>
 
-          <FadeIn delay={300} className="mt-10">
+          <FadeIn delay={200} className="flex-shrink-0">
+            <img
+              src="/wl-person.png"
+              alt="사람 일러스트"
+              className="w-[220px] md:w-[300px] lg:w-[350px] object-contain"
+            />
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* ── 최신 뉴스 ── */}
+      <section id="news" className="overflow-hidden">
+        {recentTopics.length > 0 && (
+          <div className="max-w-[1200px] mx-auto px-6 pt-16 pb-8">
+            <FadeIn>
+              <h2 className="text-4xl md:text-5xl lg:text-[64px] font-semibold text-center tracking-widest">
+                최신 뉴스 바로 확인하기
+              </h2>
+            </FadeIn>
+          </div>
+        )}
+
+        {recentTopics.length > 0 && (
+          <div className="border-t-[3px] border-[#231815]">
+            {recentTopics.map((news, i) => (
+              <FadeIn key={news.id} delay={i * 100}>
+                <div className="border-b-[3px] border-[#231815] flex flex-col md:flex-row">
+                  {news.image_url && (
+                    <div className="md:w-[42%] aspect-[16/9] md:aspect-auto overflow-hidden bg-[#f0ece0] flex items-center justify-center">
+                      <img
+                        src={news.image_url}
+                        alt={news.topic}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                  <div
+                    className={`flex-1 ${news.image_url ? "border-t-[3px] md:border-t-0 md:border-l-[3px]" : ""} border-[#231815] p-6 md:p-8 lg:p-10 flex flex-col justify-between relative`}
+                  >
+                    <div className="absolute top-6 left-5 w-2 h-2 rounded-sm bg-[#5bc2d9]" />
+                    <div className="pl-4">
+                      <h3 className="text-2xl md:text-3xl lg:text-[40px] font-normal leading-snug lg:leading-[50px] tracking-tight">
+                        {news.topic}
+                      </h3>
+                      <p className="mt-4 text-base md:text-lg font-semibold leading-relaxed tracking-wider text-[#231815]/80">
+                        {news.summary}
+                      </p>
+                    </div>
+                    <div className="mt-6 flex justify-end">
+                      <button
+                        onClick={() => navigate(`/topic/${news.id}`)}
+                        className="px-6 py-2 rounded-full text-sm font-semibold bg-[#43b9d6] text-[#231815] border border-[#231815] hover:brightness-110 transition-all"
+                      >
+                        자세히 보기
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-center py-10">
+          <FadeIn>
             <button
-              onClick={handleStart}
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg font-medium bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
+              onClick={() => navigate("/allnews")}
+              className="px-14 py-5 rounded-full text-xl md:text-2xl font-bold bg-[#43b9d6] text-[#231815] border-[2.5px] border-[#231815] hover:brightness-110 transition-all"
             >
-              무료로 시작하기
-              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-                  clipRule="evenodd"
-                />
-              </svg>
+              더 많은 뉴스 보기
             </button>
           </FadeIn>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="py-24 px-6">
-        <div className="max-w-[1200px] mx-auto">
+      {/* ── 이용 방법 ── */}
+      <section
+        id="howto"
+        className="border-t-[3px] border-b-[3px] border-[#231815] bg-[#fdf9ee] overflow-hidden"
+      >
+        <div className="max-w-[1200px] mx-auto px-6 py-16 md:py-20">
           <FadeIn>
-            <h2 className="font-dongle text-5xl md:text-6xl font-bold text-center mb-4">
-              서비스 특징
+            <h2 className="text-4xl md:text-5xl lg:text-[64px] font-semibold text-center mb-16 md:mb-20">
+              위즈레터 이용 방법
             </h2>
-            <p className="text-[#6b8db5] text-center mb-16 max-w-lg mx-auto">
-              Over the Algorithm이 매일 아침 전하는 가치
-            </p>
           </FadeIn>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {features.map((feature, i) => (
-              <FadeIn key={feature.title} delay={i * 150}>
-                <div className="group rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-8 hover:border-[#4a9fe5] transition-all duration-300 h-full">
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
-                    style={{ backgroundColor: `${feature.color}15` }}
-                  >
-                    {feature.icon}
-                  </div>
-                  <h3 className="font-dongle text-3xl font-bold mb-3">
-                    {feature.title}
-                  </h3>
-                  <p className="text-sm text-[#9b8bb4] leading-relaxed">
-                    {feature.description}
-                  </p>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
+          <div className="relative flex flex-col md:flex-row items-start justify-between gap-12 md:gap-0">
+            {/* step line (desktop only) */}
+            <div className="hidden md:block absolute top-[72px] left-0 right-0 h-[2px] bg-[#bdbdbd]" />
 
-      {/* Pain Point */}
-      <section id="why" className="py-24 px-6 bg-[#f5f9fc]">
-        <div className="max-w-[1200px] mx-auto">
-          <FadeIn>
-            <h2 className="text-3xl md:text-5xl font-bold text-center mb-4">
-              이런 적, 있으시죠?
-            </h2>
-            <p className="text-[#6b8db5] text-center mb-16 max-w-lg mx-auto">
-              알고리즘은 내 취향만 보여줍니다. 세상의 맥락은 보여주지 않죠.
-            </p>
-          </FadeIn>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {scenarios.map((s, i) => (
-              <FadeIn key={i} delay={i * 150}>
-                <div className="rounded-2xl bg-white border border-[#d4e6f5] p-8 hover:border-[#4a9fe5] transition-all duration-300 h-full flex flex-col items-center text-center">
-                  <span className="text-5xl mb-5">{s.emoji}</span>
-                  <p className="text-lg font-semibold text-[#1e3a5f] mb-3">
-                    {s.situation}
-                  </p>
-                  <p className="text-sm text-[#6b8db5] leading-relaxed">
-                    {s.feeling}
-                  </p>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-
-          <FadeIn delay={500}>
-            <p className="text-center mt-12 text-lg text-[#6b8db5]">
-              관심 없는 분야까지 전부 챙길 순 없습니다.
-              <br />
-              하지만{" "}
-              <span className="text-[#1e3a5f] font-semibold">
-                핵심 맥락 한 줄
-              </span>
-              이면 충분합니다.
-            </p>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-24 px-6">
-        <FadeIn>
-          <div className="max-w-[800px] mx-auto text-center rounded-3xl bg-gradient-to-br from-[#f0f7ff] to-[#e8f4fd] border border-[#d4e6f5] p-12 md:p-16 relative overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,84,66,0.05),transparent_50%),radial-gradient(circle_at_bottom_left,rgba(74,159,229,0.05),transparent_50%)] pointer-events-none" />
-            <div className="relative">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                오늘의{" "}
-                <span className="font-brush text-4xl md:text-5xl bg-gradient-to-r from-[#f0923b] to-[#ff5442] bg-clip-text text-transparent">
-                  맥락
-                </span>
-                , 놓치고 계신가요?
-              </h2>
-              <p className="font-dongle text-2xl md:text-3xl text-[#6b8db5] mb-8 max-w-md mx-auto">
-                지금 가입하고 내일 아침부터 받아보세요.
-              </p>
-              <button
-                onClick={handleStart}
-                className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg font-medium bg-[#ff5442] text-white hover:bg-[#e63a2e] transition-colors"
+            {steps.map((step, i) => (
+              <FadeIn
+                key={i}
+                delay={i * 150}
+                className="flex-1 flex flex-col items-center gap-6 relative"
               >
-                지금 시작하기
-                <svg
-                  className="w-5 h-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
+                <img
+                  src={step.icon}
+                  alt={`Step ${i + 1}`}
+                  className="w-20 h-20 md:w-24 md:h-24"
+                />
+                <div className="w-5 h-5 rounded-lg bg-[#e36901] relative z-10" />
+                <p className="text-xl md:text-2xl lg:text-[28px] font-semibold text-center leading-snug whitespace-pre-line pt-2">
+                  {step.label}
+                </p>
+              </FadeIn>
+            ))}
           </div>
-        </FadeIn>
+        </div>
+      </section>
+
+      {/* ── 마무리 CTA ── */}
+      <section className="border-b-[3px] border-[#231815] overflow-hidden">
+        <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-28">
+          <FadeIn>
+            <h2 className="text-3xl md:text-5xl lg:text-[70px] font-semibold leading-snug lg:leading-[108px] tracking-wider">
+              위즈레터를 구독하고
+              <br />
+              슬기롭게 아침을 시작하세요.
+            </h2>
+          </FadeIn>
+          <FadeIn delay={100}>
+            <button
+              onClick={handleStart}
+              className="mt-10 px-14 py-5 rounded-full text-xl md:text-2xl font-semibold bg-[#43b9d6] text-[#231815] border-[2.5px] border-[#231815] hover:brightness-110 transition-all"
+            >
+              무료 구독하기
+            </button>
+          </FadeIn>
+        </div>
       </section>
 
       <Footer />
 
-      {/* Login Modal */}
+      {/* ── Login Modal ── */}
       {loginOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
           onClick={handleCloseLogin}
         >
           <div
-            className="relative w-full max-w-sm bg-white border border-[#d4e6f5] rounded-2xl p-8 flex flex-col items-center gap-6"
+            className="relative w-full max-w-sm bg-[#fdf9ee] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-6"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 닫기 */}
             <button
               onClick={handleCloseLogin}
-              className="absolute top-4 right-4 text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
+              className="absolute top-4 right-4 text-[#231815]/50 hover:text-[#231815] transition-colors"
             >
               <svg
                 width="20"
@@ -560,12 +480,14 @@ export function LandingPage() {
               </svg>
             </button>
 
-            <img src="/OTA_logo.png" alt="OTA" className="h-10" />
+            <img src="/wl-logo.png" alt="WizLetter" className="h-10" />
 
             <div className="text-center">
-              <h2 className="text-xl font-bold text-[#1e3a5f]">시작하기</h2>
-              <p className="mt-1 text-sm text-[#6b8db5]">
-                알고리즘을 넘어, 지금 가장 뜨거운 맥락을 만나보세요
+              <h2 className="text-xl font-bold text-[#231815]">
+                무료로 구독하기
+              </h2>
+              <p className="mt-1 text-sm text-[#231815]/60">
+                매일 아침 5분, 세상의 흐름을 읽는 위즈레터
               </p>
             </div>
 

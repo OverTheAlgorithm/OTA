@@ -2,16 +2,17 @@
 
 /* Color tokens */
 :root {
-  --color-bg: white;
-  --color-fg: #1e3a5f;
-  --color-card-bg: #f0f7ff;
-  --color-border: #d4e6f5;
-  --color-text-secondary: #6b8db5;
-  --color-text-muted: #a8bcc9;
-  --color-button-primary: #26b0ff;
-  --color-button-hover: #1a9fed;
-  --color-icon-bg: #4a9fe5;
+  --color-bg: #fdf9ee;
+  --color-fg: #231815;
+  --color-card-bg: #fdf9ee;
+  --color-border: #231815;
+  --color-text-secondary: #555;
+  --color-text-muted: #888;
+  --color-button-primary: #43b9d6;
+  --color-button-hover: #3aa8c3;
+  --color-icon-bg: #43b9d6;
   --color-error: #ff5442;
+  --color-accent-orange: #e36901;
 }
 
 @theme {
@@ -35,27 +36,6 @@
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
-}
-
-/* ── 랜딩 페이지 로고 플로팅 애니메이션 ── */
-@keyframes ota-float {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-8px); }
-}
-
-.animate-float {
-  animation: ota-float 3s ease-in-out infinite;
-}
-
-/* ── 랜딩 페이지 텍스트 슬롯머신 애니메이션 ── */
-@keyframes ota-enter {
-  from { transform: translateY(-110%); }
-  to   { transform: translateY(0); }
-}
-
-@keyframes ota-exit {
-  from { transform: translateY(0); }
-  to   { transform: translateY(110%); }
 }
 
 body {
