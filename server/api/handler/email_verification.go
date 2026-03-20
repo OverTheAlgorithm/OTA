@@ -2,7 +2,7 @@ package handler
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -63,7 +63,7 @@ func (h *EmailVerificationHandler) SendCode(c *gin.Context) {
 				"error": "올바른 이메일 형식이 아닙니다.",
 			})
 		default:
-			log.Printf("send verification code failed for user %s: %v", userID, err)
+			slog.Error("send verification code failed", "user_id", userID, "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "인증 코드 전송에 실패했습니다. 다시 시도해주세요.",
 			})
@@ -87,7 +87,7 @@ func (h *EmailVerificationHandler) SendCode(c *gin.Context) {
 	`, result.Code)
 
 	if err := h.emailSender.Send(result.Email, subject, textBody, htmlBody); err != nil {
-		log.Printf("failed to send verification email to %s: %v", result.Email, err)
+		slog.Error("failed to send verification email", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "이메일 전송에 실패했습니다. 이메일 주소를 확인해주세요.",
 		})
@@ -124,7 +124,13 @@ func (h *EmailVerificationHandler) VerifyCode(c *gin.Context) {
 	}
 
 	if err := h.service.VerifyCode(c.Request.Context(), userID, req.Code); err != nil {
-		log.Printf("verify code failed for user %s: %v", userID, err)
+		slog.Warn("verify code failed", "user_id", userID, "error", err)
+		if isMaxAttemptsError(err) {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "인증 시도 횟수를 초과했습니다. 새 인증 코드를 요청해주세요.",
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "인증 코드가 올바르지 않거나 만료되었습니다.",
 		})
@@ -143,6 +149,10 @@ func isRateLimitError(err error) bool {
 
 func isValidationError(err error) bool {
 	return strings.Contains(err.Error(), "invalid email format")
+}
+
+func isMaxAttemptsError(err error) bool {
+	return strings.Contains(err.Error(), "max attempts exceeded")
 }
 
 func isNumeric(s string) bool {

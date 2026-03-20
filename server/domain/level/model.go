@@ -16,7 +16,16 @@ type LevelConfig struct {
 
 // NewLevelConfig creates a LevelConfig from coinCap and coinsPerLevel.
 // Example: coinCap=5000, coinsPerLevel=1000 → MaxLevel=5, Thresholds=[0,1000,2000,3000,4000]
+// If coinsPerLevel <= 0, returns a single-level config to prevent division by zero.
 func NewLevelConfig(coinCap, coinsPerLevel int) LevelConfig {
+	if coinsPerLevel <= 0 {
+		return LevelConfig{
+			CoinCap:       coinCap,
+			CoinsPerLevel: 1,
+			MaxLevel:      1,
+			Thresholds:    []int{0},
+		}
+	}
 	maxLevel := coinCap / coinsPerLevel
 	thresholds := make([]int, maxLevel)
 	for i := range thresholds {
@@ -71,6 +80,7 @@ const (
 	ReasonEarned     = "EARNED"
 	ReasonDuplicate  = "DUPLICATE"
 	ReasonDailyLimit = "DAILY_LIMIT"
+	ReasonCoinCap    = "COIN_CAP"
 )
 
 type UserCoins struct {

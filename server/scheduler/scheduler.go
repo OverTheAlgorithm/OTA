@@ -3,7 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -90,56 +90,54 @@ func (s *Scheduler) Stop() context.Context {
 }
 
 func (s *Scheduler) collect() {
-	log.Println("checking if collection is needed")
+	slog.Info("checking if collection is needed")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
 	result, err := s.collectorService.CollectFromSourcesIfNeeded(ctx)
 	if err != nil {
-		log.Printf("collection failed: %v", err)
+		slog.Error("collection failed", "error", err)
 		return
 	}
 	if result == nil {
-		log.Println("collection already completed today or in progress, skipping")
+		slog.Info("collection already completed today or in progress, skipping")
 		return
 	}
-	log.Printf("collection completed: run_id=%s, items=%d", result.Run.ID, len(result.Items))
+	slog.Info("collection completed", "run_id", result.Run.ID, "items", len(result.Items))
 }
 
 func (s *Scheduler) deliver() {
-	log.Println("starting message delivery")
+	slog.Info("starting message delivery")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	result, err := s.deliveryService.DeliverAll(ctx)
 	if err != nil {
-		log.Printf("delivery failed: %v", err)
+		slog.Error("delivery failed", "error", err)
 		return
 	}
-	log.Printf("delivery completed: total=%d, success=%d, failed=%d, skipped=%d",
-		result.TotalUsers, result.SuccessCount, result.FailureCount, result.SkippedCount)
+	slog.Info("delivery completed", "total", result.TotalUsers, "success", result.SuccessCount, "failed", result.FailureCount, "skipped", result.SkippedCount)
 }
 
 func (s *Scheduler) retryFailed() {
-	log.Println("starting retry for failed deliveries")
+	slog.Info("starting retry for failed deliveries")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	result, err := s.deliveryService.RetryFailedDeliveries(ctx)
 	if err != nil {
-		log.Printf("retry failed: %v", err)
+		slog.Error("retry failed", "error", err)
 		return
 	}
 	if result == nil {
-		log.Println("no failed deliveries to retry")
+		slog.Info("no failed deliveries to retry")
 		return
 	}
-	log.Printf("retry completed: total=%d, success=%d, failed=%d",
-		result.TotalUsers, result.SuccessCount, result.FailureCount)
+	slog.Info("retry completed", "total", result.TotalUsers, "success", result.SuccessCount, "failed", result.FailureCount)
 }
 
 func (s *Scheduler) cleanup() {
-	log.Println("starting data retention cleanup")
+	slog.Info("starting data retention cleanup")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	s.cleanupRunner.RunAll(ctx)
-	log.Println("data retention cleanup completed")
+	slog.Info("data retention cleanup completed")
 }
 

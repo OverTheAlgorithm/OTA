@@ -24,11 +24,13 @@ services:
     container_name: ota-redis
     restart: unless-stopped
     # Internal network only — not exposed to host.
-    command: redis-server --save 60 1 --loglevel warning
+    command: >
+      redis-server --save 60 1 --loglevel warning
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $REDIS_PASSWORD} ping"]
       interval: 10s
       timeout: 5s
       retries: 5

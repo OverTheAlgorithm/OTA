@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -51,7 +51,7 @@ func (h *AdminCoinHandler) SearchUser(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "해당 유저를 찾을 수 없습니다"})
 			return
 		}
-		log.Printf("admin search user error: %v", err)
+		slog.Error("admin search user error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "검색 중 오류가 발생했습니다"})
 		return
 	}
@@ -59,7 +59,7 @@ func (h *AdminCoinHandler) SearchUser(c *gin.Context) {
 	// Also fetch level info
 	levelInfo, err := h.levelService.GetLevel(c.Request.Context(), u.ID)
 	if err != nil {
-		log.Printf("admin get user level error: %v", err)
+		slog.Error("admin get user level error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "레벨 정보를 불러올 수 없습니다"})
 		return
 	}
@@ -101,20 +101,19 @@ func (h *AdminCoinHandler) AdjustCoins(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "해당 유저를 찾을 수 없습니다"})
 			return
 		}
-		log.Printf("admin adjust coins find user error: %v", err)
+		slog.Error("admin adjust coins find user error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "유저 조회 중 오류가 발생했습니다"})
 		return
 	}
 
 	delta, levelInfo, err := h.levelService.AdjustCoins(c.Request.Context(), req.UserID, req.NewCoins, memo, adminID)
 	if err != nil {
-		log.Printf("admin adjust coins error: admin=%s target=%s err=%v", adminID, req.UserID, err)
+		slog.Error("admin adjust coins error", "admin_id", adminID, "target_id", req.UserID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "코인 수정 중 오류가 발생했습니다"})
 		return
 	}
 
-	log.Printf("admin coin adjustment: admin=%s target=%s(%s) delta=%d new_coins=%d memo=%q",
-		adminID, targetUser.ID, targetUser.Nickname, delta, req.NewCoins, memo)
+	slog.Info("admin coin adjustment", "admin_id", adminID, "target_id", targetUser.ID, "nickname", targetUser.Nickname, "delta", delta, "new_coins", req.NewCoins)
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{

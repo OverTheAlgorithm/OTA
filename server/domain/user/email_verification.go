@@ -12,6 +12,7 @@ type EmailVerificationCode struct {
 	Code      string
 	ExpiresAt time.Time
 	Used      bool
+	Attempts  int
 	CreatedAt time.Time
 }
 
@@ -19,11 +20,18 @@ type EmailVerificationRepository interface {
 	// CreateCode stores a new verification code
 	CreateCode(ctx context.Context, code EmailVerificationCode) error
 
+	// FindLatestPendingCode returns the most recent unexpired, unused code for the user
+	// (regardless of code value) so attempts can be checked before matching
+	FindLatestPendingCode(ctx context.Context, userID string) (EmailVerificationCode, error)
+
 	// FindValidCode returns a matching, unexpired, unused code for the user
 	FindValidCode(ctx context.Context, userID string, code string) (EmailVerificationCode, error)
 
 	// MarkCodeUsed marks a code as used (idempotent)
 	MarkCodeUsed(ctx context.Context, codeID string) error
+
+	// IncrementAttempts atomically increments the attempts counter for a code
+	IncrementAttempts(ctx context.Context, codeID string) error
 
 	// CountRecentCodes returns the number of codes created for a user in the given duration
 	// Used for rate limiting

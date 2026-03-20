@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +22,7 @@ func NewBrainCategoryHandler(repo collector.BrainCategoryRepository) *BrainCateg
 func (h *BrainCategoryHandler) ListAll(c *gin.Context) {
 	categories, err := h.repo.GetAll(c.Request.Context())
 	if err != nil {
-		log.Printf("list brain categories error: %v", err)
+		slog.Error("list brain categories error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -40,7 +40,7 @@ func (h *BrainCategoryHandler) Create(c *gin.Context) {
 		return
 	}
 	if err := h.repo.Create(c.Request.Context(), bc); err != nil {
-		log.Printf("create brain category error: %v", err)
+		slog.Error("create brain category error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create brain category"})
 		return
 	}
@@ -56,7 +56,7 @@ func (h *BrainCategoryHandler) Update(c *gin.Context) {
 	}
 	bc.Key = key
 	if err := h.repo.Update(c.Request.Context(), bc); err != nil {
-		log.Printf("update brain category error: %v", err)
+		slog.Error("update brain category error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update brain category"})
 		return
 	}
@@ -66,7 +66,7 @@ func (h *BrainCategoryHandler) Update(c *gin.Context) {
 func (h *BrainCategoryHandler) Delete(c *gin.Context) {
 	key := c.Param("key")
 	if err := h.repo.Delete(c.Request.Context(), key); err != nil {
-		log.Printf("delete brain category error: %v", err)
+		slog.Error("delete brain category error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete brain category"})
 		return
 	}

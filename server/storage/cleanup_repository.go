@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -73,29 +73,29 @@ func (r *CleanupRepository) RunAll(ctx context.Context) {
 
 	n, err := r.DeleteExpiredTrendingItems(ctx)
 	if err != nil {
-		log.Printf("cleanup: delete expired trending items failed: %v", err)
+		slog.Error("cleanup: delete expired trending items failed", "error", err)
 	} else {
-		log.Printf("cleanup: deleted %d expired trending items", n)
+		slog.Info("cleanup: deleted expired trending items", "count", n)
 	}
 
 	n, err = r.DeleteOldCollectionRuns(ctx, retentionPeriod)
 	if err != nil {
-		log.Printf("cleanup: delete old collection runs failed: %v", err)
+		slog.Error("cleanup: delete old collection runs failed", "error", err)
 	} else {
-		log.Printf("cleanup: deleted %d collection runs older than 30 days", n)
+		slog.Info("cleanup: deleted old collection runs", "count", n)
 	}
 
 	n, err = r.DeleteOldDeliveryLogs(ctx, retentionPeriod)
 	if err != nil {
-		log.Printf("cleanup: delete old delivery logs failed: %v", err)
+		slog.Error("cleanup: delete old delivery logs failed", "error", err)
 	} else {
-		log.Printf("cleanup: deleted %d delivery logs older than 30 days", n)
+		slog.Info("cleanup: deleted old delivery logs", "count", n)
 	}
 
 	n, err = r.DeleteExpiredRefreshTokens(ctx)
 	if err != nil {
-		log.Printf("cleanup: delete expired refresh tokens failed: %v", err)
+		slog.Error("cleanup: delete expired refresh tokens failed", "error", err)
 	} else {
-		log.Printf("cleanup: deleted %d expired refresh tokens", n)
+		slog.Info("cleanup: deleted expired refresh tokens", "count", n)
 	}
 }

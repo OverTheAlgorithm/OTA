@@ -64,7 +64,7 @@ func SetupTestDB(t *testing.T) *TestDB {
 		t.Fatalf("failed to run migrations: %v", err)
 	}
 
-	pool, err := storage.NewPool(ctx, connStr)
+	pool, err := storage.NewPool(ctx, connStr, storage.PoolConfig{})
 	if err != nil {
 		t.Fatalf("failed to create pool: %v", err)
 	}

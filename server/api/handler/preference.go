@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +21,7 @@ func (h *PreferenceHandler) Get(c *gin.Context) {
 	userID := c.GetString("userID")
 	enabled, err := h.repo.GetPreference(c.Request.Context(), userID)
 	if err != nil {
-		log.Printf("get preference error: %v", err)
+		slog.Error("get preference error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -38,7 +38,7 @@ func (h *PreferenceHandler) Update(c *gin.Context) {
 		return
 	}
 	if err := h.repo.UpsertPreference(c.Request.Context(), userID, body.DeliveryEnabled); err != nil {
-		log.Printf("update preference error: %v", err)
+		slog.Error("update preference error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}

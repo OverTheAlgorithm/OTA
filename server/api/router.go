@@ -19,8 +19,10 @@ type RouteRegistrar interface {
 func NewRouter(apiPrefix, version string, frontendURL string, jwtManager *auth.JWTManager, ratePerMin int, rateLimitStore limiter.Store, modules []RouteModule) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(RequestIDMiddleware())
 	r.Use(LoggerMiddleware(jwtManager))
 	r.Use(CORSMiddleware(frontendURL))
+	r.Use(CSRFMiddleware(frontendURL))
 	r.Use(RateLimitMiddleware(ratePerMin, jwtManager, rateLimitStore))
 
 	api := r.Group(apiPrefix + "/" + version)

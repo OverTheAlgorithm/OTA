@@ -111,6 +111,18 @@ func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextIte
 		return EarnResult{}, fmt.Errorf("get coins before earn: %w", err)
 	}
 
+	// Check coin cap: if user is already at or above the cap, no more earning.
+	if s.levelCfg.CoinCap > 0 && before.Coins >= s.levelCfg.CoinCap {
+		info := s.calcInfo(before.Coins)
+		return EarnResult{
+			Earned:     false,
+			Reason:     ReasonCoinCap,
+			Level:      info.Level,
+			TotalCoins: info.TotalCoins,
+			DailyLimit: info.DailyLimit,
+		}, nil
+	}
+
 	// Check level-based daily coin limit (0 = unlimited)
 	if s.baseDailyLimit > 0 {
 		lv := s.levelCfg.CalcLevel(before.Coins)
@@ -134,7 +146,7 @@ func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextIte
 
 	oldLevel := s.levelCfg.CalcLevel(before.Coins)
 
-	earned, newTotal, err := s.repo.EarnCoin(ctx, userID, runID, contextItemID, coins)
+	earned, newTotal, err := s.repo.EarnCoin(ctx, userID, runID, contextItemID, coins, s.levelCfg.CoinCap)
 	if err != nil {
 		return EarnResult{}, fmt.Errorf("earn coin: %w", err)
 	}

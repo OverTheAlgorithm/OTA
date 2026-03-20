@@ -36,7 +36,7 @@ func (r *LevelRepository) GetUserCoins(ctx context.Context, userID string) (leve
 	return uc, nil
 }
 
-func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, coins int) (bool, int, error) {
+func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, coins int, coinCap int) (bool, int, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return false, 0, fmt.Errorf("begin tx: %w", err)
@@ -56,16 +56,21 @@ func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, co
 		return false, 0, fmt.Errorf("insert coin log: %w", err)
 	}
 
-	// 2. Upsert user_points and add earned coins
+	// 2. Upsert user_points and add earned coins, capped at coinCap via LEAST.
+	// When coinCap <= 0, no cap is applied: use a sentinel value large enough to never trigger.
+	effectiveCap := coinCap
+	if effectiveCap <= 0 {
+		effectiveCap = int(^uint(0) >> 1) // max int
+	}
 	var newTotal int
 	err = tx.QueryRow(ctx, `
 		INSERT INTO user_points (user_id, points, updated_at)
-		VALUES ($1, $2, NOW())
+		VALUES ($1, LEAST($2, $3), NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
-			points = user_points.points + $2,
+			points = LEAST(user_points.points + $2, $3),
 			updated_at = NOW()
 		RETURNING points
-	`, userID, coins).Scan(&newTotal)
+	`, userID, coins, effectiveCap).Scan(&newTotal)
 	if err != nil {
 		return false, 0, fmt.Errorf("upsert user coins: %w", err)
 	}
@@ -240,6 +245,9 @@ func (r *LevelRepository) GetCoinHistory(ctx context.Context, userID string, lim
 			return nil, fmt.Errorf("scan coin history: %w", err)
 		}
 		txns = append(txns, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate coin history: %w", err)
 	}
 	return txns, nil
 }

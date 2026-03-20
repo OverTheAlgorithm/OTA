@@ -3,7 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 )
 
@@ -53,19 +53,19 @@ func (a *Aggregator) Collect(ctx context.Context) (CollectedData, error) {
 	var parts []string
 
 	if trendsResult.err != nil {
-		log.Printf("source %s failed: %v", a.trends.Name(), trendsResult.err)
+		slog.Warn("source collection failed", "source", a.trends.Name(), "error", trendsResult.err)
 		errs = append(errs, fmt.Sprintf("%s: %v", a.trends.Name(), trendsResult.err))
 	} else {
-		log.Printf("source %s: %d items collected", a.trends.Name(), len(trendsResult.items))
+		slog.Info("source collection done", "source", a.trends.Name(), "items", len(trendsResult.items))
 		allItems = append(allItems, trendsResult.items...)
 		parts = append(parts, FormatTrends(trendsResult.items))
 	}
 
 	if newsResult.err != nil {
-		log.Printf("source %s failed: %v", a.news.Name(), newsResult.err)
+		slog.Warn("source collection failed", "source", a.news.Name(), "error", newsResult.err)
 		errs = append(errs, fmt.Sprintf("%s: %v", a.news.Name(), newsResult.err))
 	} else {
-		log.Printf("source %s: %d items collected", a.news.Name(), len(newsResult.items))
+		slog.Info("source collection done", "source", a.news.Name(), "items", len(newsResult.items))
 		allItems = append(allItems, newsResult.items...)
 		parts = append(parts, FormatNews(newsResult.items))
 	}

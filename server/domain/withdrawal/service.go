@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"ota/domain/apperr"
+
 	"github.com/google/uuid"
 )
 
@@ -69,20 +71,22 @@ func (s *Service) GetBankAccount(ctx context.Context, userID string) (*BankAccou
 // SaveBankAccount creates or updates the user's bank account info.
 func (s *Service) SaveBankAccount(ctx context.Context, account BankAccount) error {
 	if strings.TrimSpace(account.BankName) == "" {
-		return fmt.Errorf("bank_name is required")
+		return apperr.NewValidationError("bank_name", "is required")
 	}
 	if strings.TrimSpace(account.AccountNumber) == "" {
-		return fmt.Errorf("account_number is required")
+		return apperr.NewValidationError("account_number", "is required")
 	}
 	if strings.TrimSpace(account.AccountHolder) == "" {
-		return fmt.Errorf("account_holder is required")
+		return apperr.NewValidationError("account_holder", "is required")
 	}
 	return s.repo.UpsertBankAccount(ctx, account)
 }
 
 // RequestWithdrawal creates a new withdrawal request.
-// Validates: bank account registered, minimum amount, sufficient balance.
-// Deducts coins immediately and creates the withdrawal + pending transition.
+// Validates: bank account registered, minimum amount.
+// Uses an atomic DB transaction (SELECT FOR UPDATE) to prevent double-spend
+// race conditions — balance check, deduction, and withdrawal creation all
+// happen in a single transaction.
 func (s *Service) RequestWithdrawal(ctx context.Context, userID string, amount int) (*Withdrawal, error) {
 	// 1. Check bank account
 	account, err := s.repo.GetBankAccount(ctx, userID)
@@ -90,29 +94,15 @@ func (s *Service) RequestWithdrawal(ctx context.Context, userID string, amount i
 		return nil, fmt.Errorf("check bank account: %w", err)
 	}
 	if account == nil {
-		return nil, fmt.Errorf("bank account not registered")
+		return nil, apperr.ErrBankAccountRequired
 	}
 
 	// 2. Validate minimum amount
 	if amount < s.minWithdrawalAmount {
-		return nil, fmt.Errorf("minimum withdrawal amount is %d", s.minWithdrawalAmount)
+		return nil, apperr.NewMinimumAmountError(s.minWithdrawalAmount)
 	}
 
-	// 3. Check balance
-	coins, err := s.coinManager.GetUserCoins(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("check balance: %w", err)
-	}
-	if coins < amount {
-		return nil, fmt.Errorf("insufficient coins: have %d, need %d", coins, amount)
-	}
-
-	// 4. Deduct coins immediately
-	if err := s.coinManager.DeductCoins(ctx, userID, amount); err != nil {
-		return nil, fmt.Errorf("deduct coins: %w", err)
-	}
-
-	// 5. Create withdrawal + initial pending transition
+	// 3. Atomic: lock balance row, check, deduct, create withdrawal + transition
 	w := Withdrawal{
 		UserID:        userID,
 		Amount:        amount,
@@ -120,10 +110,8 @@ func (s *Service) RequestWithdrawal(ctx context.Context, userID string, amount i
 		AccountNumber: account.AccountNumber,
 		AccountHolder: account.AccountHolder,
 	}
-	id, err := s.repo.CreateWithdrawal(ctx, w, userID)
+	id, err := s.repo.CreateWithdrawalWithDeduction(ctx, w, userID, amount)
 	if err != nil {
-		// Attempt to restore coins on failure
-		_ = s.coinManager.RestoreCoins(ctx, userID, amount)
 		return nil, fmt.Errorf("create withdrawal: %w", err)
 	}
 
@@ -132,40 +120,20 @@ func (s *Service) RequestWithdrawal(ctx context.Context, userID string, amount i
 	return &w, nil
 }
 
-// CancelWithdrawal cancels a pending withdrawal and restores coins.
+// CancelWithdrawal cancels a pending withdrawal and restores coins atomically.
 func (s *Service) CancelWithdrawal(ctx context.Context, userID string, withdrawalID uuid.UUID) error {
-	// 1. Verify ownership
+	// 1. Verify ownership before entering the transaction
 	owner, err := s.repo.GetWithdrawalOwner(ctx, withdrawalID)
 	if err != nil {
 		return fmt.Errorf("get withdrawal owner: %w", err)
 	}
 	if owner != userID {
-		return fmt.Errorf("not authorized")
+		return apperr.ErrUnauthorized
 	}
 
-	// 2. Check current status
-	status, err := s.repo.GetLatestStatus(ctx, withdrawalID)
-	if err != nil {
-		return fmt.Errorf("get status: %w", err)
-	}
-	if status != StatusPending {
-		return fmt.Errorf("can only cancel pending withdrawals (current: %s)", status)
-	}
-
-	// 3. Get withdrawal amount for coin restoration
-	detail, err := s.repo.GetByID(ctx, withdrawalID)
-	if err != nil {
-		return fmt.Errorf("get withdrawal: %w", err)
-	}
-
-	// 4. Add cancelled transition
-	if err := s.repo.AddTransition(ctx, withdrawalID, StatusCancelled, "", userID); err != nil {
-		return fmt.Errorf("add transition: %w", err)
-	}
-
-	// 5. Restore coins
-	if err := s.coinManager.RestoreCoins(ctx, detail.UserID, detail.Amount); err != nil {
-		return fmt.Errorf("restore coins: %w", err)
+	// 2. Atomically: verify pending, insert transition, restore coins
+	if _, _, err := s.repo.CancelWithdrawalAtomic(ctx, withdrawalID, userID); err != nil {
+		return fmt.Errorf("cancel withdrawal: %w", err)
 	}
 
 	return nil
@@ -175,7 +143,7 @@ func (s *Service) CancelWithdrawal(ctx context.Context, userID string, withdrawa
 func (s *Service) ApproveWithdrawal(ctx context.Context, adminID string, withdrawalID uuid.UUID, note string) error {
 	note = strings.TrimSpace(note)
 	if note == "" {
-		return fmt.Errorf("note is required")
+		return apperr.NewValidationError("note", "is required")
 	}
 
 	status, err := s.repo.GetLatestStatus(ctx, withdrawalID)
@@ -183,41 +151,22 @@ func (s *Service) ApproveWithdrawal(ctx context.Context, adminID string, withdra
 		return fmt.Errorf("get status: %w", err)
 	}
 	if status != StatusPending {
-		return fmt.Errorf("can only approve pending withdrawals (current: %s)", status)
+		return apperr.NewConflictError(fmt.Sprintf("can only approve pending withdrawals (current: %s)", status))
 	}
 
 	return s.repo.AddTransition(ctx, withdrawalID, StatusApproved, note, adminID)
 }
 
-// RejectWithdrawal rejects a pending withdrawal (admin action) and restores coins.
+// RejectWithdrawal rejects a pending withdrawal (admin action) and restores coins atomically.
 func (s *Service) RejectWithdrawal(ctx context.Context, adminID string, withdrawalID uuid.UUID, note string) error {
 	note = strings.TrimSpace(note)
 	if note == "" {
-		return fmt.Errorf("rejection reason is required")
+		return apperr.NewValidationError("note", "rejection reason is required")
 	}
 
-	status, err := s.repo.GetLatestStatus(ctx, withdrawalID)
-	if err != nil {
-		return fmt.Errorf("get status: %w", err)
-	}
-	if status != StatusPending {
-		return fmt.Errorf("can only reject pending withdrawals (current: %s)", status)
-	}
-
-	// Get withdrawal for coin restoration
-	detail, err := s.repo.GetByID(ctx, withdrawalID)
-	if err != nil {
-		return fmt.Errorf("get withdrawal: %w", err)
-	}
-
-	// Add rejected transition
-	if err := s.repo.AddTransition(ctx, withdrawalID, StatusRejected, note, adminID); err != nil {
-		return fmt.Errorf("add transition: %w", err)
-	}
-
-	// Restore coins
-	if err := s.coinManager.RestoreCoins(ctx, detail.UserID, detail.Amount); err != nil {
-		return fmt.Errorf("restore coins: %w", err)
+	// Atomically: verify pending, insert transition with note, restore coins
+	if _, _, err := s.repo.RejectWithdrawalAtomic(ctx, withdrawalID, adminID, note); err != nil {
+		return fmt.Errorf("reject withdrawal: %w", err)
 	}
 
 	return nil
@@ -237,7 +186,7 @@ func (s *Service) ListAll(ctx context.Context, filter ListFilter) ([]WithdrawalL
 func (s *Service) UpdateNote(ctx context.Context, adminID string, transitionID uuid.UUID, note string) error {
 	note = strings.TrimSpace(note)
 	if note == "" {
-		return fmt.Errorf("note cannot be empty")
+		return apperr.NewValidationError("note", "cannot be empty")
 	}
 
 	t, err := s.repo.GetTransitionByID(ctx, transitionID)
@@ -245,7 +194,7 @@ func (s *Service) UpdateNote(ctx context.Context, adminID string, transitionID u
 		return fmt.Errorf("get transition: %w", err)
 	}
 	if t.ActorID != adminID {
-		return fmt.Errorf("can only edit your own notes")
+		return apperr.ErrUnauthorized
 	}
 
 	return s.repo.UpdateTransitionNote(ctx, transitionID, note)

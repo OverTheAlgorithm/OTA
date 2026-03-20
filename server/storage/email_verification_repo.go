@@ -21,12 +21,12 @@ func NewEmailVerificationRepository(pool *pgxpool.Pool) *EmailVerificationReposi
 
 func (r *EmailVerificationRepository) CreateCode(ctx context.Context, code user.EmailVerificationCode) error {
 	query := `
-		INSERT INTO email_verification_codes (id, user_id, email, code, expires_at, used, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO email_verification_codes (id, user_id, email, code, expires_at, used, attempts, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	_, err := r.pool.Exec(ctx, query,
 		code.ID, code.UserID, code.Email, code.Code,
-		code.ExpiresAt, code.Used, code.CreatedAt,
+		code.ExpiresAt, code.Used, code.Attempts, code.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create verification code: %w", err)
@@ -34,9 +34,33 @@ func (r *EmailVerificationRepository) CreateCode(ctx context.Context, code user.
 	return nil
 }
 
+// FindLatestPendingCode returns the most recent unexpired, unused code for the user.
+// Used to check the attempts counter before validating the submitted value.
+func (r *EmailVerificationRepository) FindLatestPendingCode(ctx context.Context, userID string) (user.EmailVerificationCode, error) {
+	query := `
+		SELECT id, user_id, email, code, expires_at, used, attempts, created_at
+		FROM email_verification_codes
+		WHERE user_id = $1 AND used = false AND expires_at > NOW()
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	var vc user.EmailVerificationCode
+	err := r.pool.QueryRow(ctx, query, userID).Scan(
+		&vc.ID, &vc.UserID, &vc.Email, &vc.Code,
+		&vc.ExpiresAt, &vc.Used, &vc.Attempts, &vc.CreatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return user.EmailVerificationCode{}, fmt.Errorf("no valid code found")
+		}
+		return user.EmailVerificationCode{}, fmt.Errorf("failed to find pending code: %w", err)
+	}
+	return vc, nil
+}
+
 func (r *EmailVerificationRepository) FindValidCode(ctx context.Context, userID string, code string) (user.EmailVerificationCode, error) {
 	query := `
-		SELECT id, user_id, email, code, expires_at, used, created_at
+		SELECT id, user_id, email, code, expires_at, used, attempts, created_at
 		FROM email_verification_codes
 		WHERE user_id = $1 AND code = $2 AND used = false AND expires_at > NOW()
 		ORDER BY created_at DESC
@@ -45,7 +69,7 @@ func (r *EmailVerificationRepository) FindValidCode(ctx context.Context, userID 
 	var vc user.EmailVerificationCode
 	err := r.pool.QueryRow(ctx, query, userID, code).Scan(
 		&vc.ID, &vc.UserID, &vc.Email, &vc.Code,
-		&vc.ExpiresAt, &vc.Used, &vc.CreatedAt,
+		&vc.ExpiresAt, &vc.Used, &vc.Attempts, &vc.CreatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -61,6 +85,16 @@ func (r *EmailVerificationRepository) MarkCodeUsed(ctx context.Context, codeID s
 	_, err := r.pool.Exec(ctx, query, codeID)
 	if err != nil {
 		return fmt.Errorf("failed to mark code used: %w", err)
+	}
+	return nil
+}
+
+// IncrementAttempts atomically increments the failed attempt counter for a code.
+func (r *EmailVerificationRepository) IncrementAttempts(ctx context.Context, codeID string) error {
+	query := `UPDATE email_verification_codes SET attempts = attempts + 1 WHERE id = $1`
+	_, err := r.pool.Exec(ctx, query, codeID)
+	if err != nil {
+		return fmt.Errorf("failed to increment attempts: %w", err)
 	}
 	return nil
 }

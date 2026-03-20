@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -78,23 +80,36 @@ func main() {
 	gin.DefaultWriter = multiWriter
 	gin.DefaultErrorWriter = multiWriter
 
+	// -- Structured logging (slog) --------------------------------------------
+	var slogHandler slog.Handler
 	if cfg.AppEnv == "production" {
+		slogHandler = slog.NewJSONHandler(multiWriter, &slog.HandlerOptions{Level: slog.LevelInfo})
 		gin.SetMode(gin.ReleaseMode)
+	} else {
+		slogHandler = slog.NewTextHandler(multiWriter, &slog.HandlerOptions{Level: slog.LevelDebug})
 	}
+	slog.SetDefault(slog.New(slogHandler))
 
 	ctx := context.Background()
 
 	if err := storage.RunMigrations(cfg.DatabaseURL(), "migrations"); err != nil {
-		log.Fatalf("failed to run migrations: %v", err)
+		slog.Error("failed to run migrations", "error", err)
+		os.Exit(1)
 	}
-	log.Println("migrations completed")
+	slog.Info("migrations completed")
 
-	pool, err := storage.NewPool(ctx, cfg.DatabaseURL())
+	pool, err := storage.NewPool(ctx, cfg.DatabaseURL(), storage.PoolConfig{
+		MaxConns:        cfg.DBMaxConns,
+		MinConns:        cfg.DBMinConns,
+		MaxConnLifetime: cfg.DBMaxConnLifetime,
+		MaxConnIdleTime: cfg.DBMaxConnIdleTime,
+	})
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
-	log.Println("database connected")
+	slog.Info("database connected")
 
 	// Data collection
 	var aiClient collector.AIClient
@@ -121,23 +136,25 @@ func main() {
 	// Rate limit store (Redis or in-memory fallback)
 	var rateLimitStore limiter.Store
 	if rls, err := cache.NewRedisLimiterStore(redisCfg, "ratelimit:"); err != nil {
-		log.Printf("redis unavailable for rate limit store, using in-memory: %v", err)
+		slog.Warn("redis unavailable for rate limit store, using in-memory", "error", err)
 		rateLimitStore = memory.NewStore()
 	} else {
 		rateLimitStore = rls
-		log.Println("rate limit store connected to redis")
+		slog.Info("rate limit store connected to redis")
 	}
 	if closer, ok := rateLimitStore.(io.Closer); ok {
 		defer closer.Close()
 	}
 
 	var earnCache cache.Cache
+	var redisPinger *cache.RedisCache // non-nil when Redis is reachable
 	if rc, err := cache.NewRedisCache(redisCfg, "earn:"); err != nil {
-		log.Printf("redis unavailable for earn cache, using in-process: %v", err)
+		slog.Warn("redis unavailable for earn cache, using in-process", "error", err)
 		earnCache = cache.NewInProcess()
 	} else {
 		earnCache = rc
-		log.Println("earn cache connected to redis")
+		redisPinger = rc
+		slog.Info("earn cache connected to redis")
 	}
 	defer earnCache.Close()
 
@@ -151,9 +168,9 @@ func main() {
 		for i, s := range dbSources {
 			newsTopics[i] = googlenews.FeedTopic{Category: s.CategoryKey, URL: s.URL}
 		}
-		log.Printf("loaded %d news sources from DB", len(newsTopics))
+		slog.Info("loaded news sources from DB", "count", len(newsTopics))
 	} else {
-		log.Printf("using default news sources (DB load: %v)", err)
+		slog.Warn("using default news sources", "db_load_error", err)
 	}
 
 	// Structured source collectors (Google Trends + Google News)
@@ -168,25 +185,27 @@ func main() {
 	// Image generation
 	const imageBaseDir = "data/images"
 	if cfg.ImageGenerationModel == "" {
-		log.Fatalf("IMAGE_GENERATION_MODEL is required")
+		slog.Error("IMAGE_GENERATION_MODEL is required")
+		os.Exit(1)
 	}
 	imgClient, imgErr := gemini.NewImageClient(ctx, cfg.GeminiAPIKey, cfg.ImageGenerationModel)
 	if imgErr != nil {
-		log.Fatalf("failed to initialize image generation: %v", imgErr)
+		slog.Error("failed to initialize image generation", "error", imgErr)
+		os.Exit(1)
 	}
 	imageGen := collector.NewImageGenerator(imgClient, imageBaseDir)
-	log.Printf("image generation initialized (model: %s)", cfg.ImageGenerationModel)
+	slog.Info("image generation initialized", "model", cfg.ImageGenerationModel)
 
 	articleFetcher := collector.NewHTTPArticleFetcher()
 	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, articleFetcher, imageGen)
 	collectorService.WithCategoryRepo(categoryRepo)
 	if fallbackAIClient != nil {
 		collectorService.WithFallback(fallbackAIClient)
-		log.Printf("collector service initialized (provider: %s, model: %s, fallback: %s)", cfg.AIProvider, cfg.GeminiModel, cfg.GeminiModelFallback)
+		slog.Info("collector service initialized", "provider", cfg.AIProvider, "model", cfg.GeminiModel, "fallback", cfg.GeminiModelFallback)
 	} else {
-		log.Printf("collector service initialized (provider: %s)", cfg.AIProvider)
+		slog.Info("collector service initialized", "provider", cfg.AIProvider)
 	}
-	log.Println("structured source pipeline initialized (google_trends + google_news)")
+	slog.Info("structured source pipeline initialized", "sources", "google_trends+google_news")
 
 	// Message delivery
 	emailSender := email.NewSMTPSender(email.SMTPConfig{
@@ -199,7 +218,7 @@ func main() {
 	deliveryRepo := storage.NewDeliveryRepository(pool)
 	collectorAdapter := storage.NewCollectorServiceAdapter(pool)
 	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter, brainCategoryRepo, cfg.FrontendURL)
-	log.Println("delivery service initialized")
+	slog.Info("delivery service initialized")
 
 	// Level
 	levelRepo := storage.NewLevelRepository(pool)
@@ -207,7 +226,7 @@ func main() {
 	levelService := level.NewService(levelRepo, levelCfg, cfg.DailyCoinLimit, cfg.ExtraCoinLimitPerLevel)
 
 	// Withdrawal
-	withdrawalRepo := storage.NewWithdrawalRepository(pool)
+	withdrawalRepo := storage.NewWithdrawalRepository(pool).WithEncryptionKey(cfg.BankAccountEncryptionKey)
 	coinManager := withdrawal.NewCoinManager(
 		func(ctx context.Context, userID string) (int, error) {
 			uc, err := levelRepo.GetUserCoins(ctx, userID)
@@ -226,21 +245,22 @@ func main() {
 	sched := scheduler.New(collectorService, deliveryService)
 	sched.WithCleanup(cleanupRepo)
 	if err := sched.Start(); err != nil {
-		log.Fatalf("failed to start scheduler: %v", err)
+		slog.Error("failed to start scheduler", "error", err)
+		os.Exit(1)
 	}
 	defer sched.Stop()
-	log.Println("scheduler started (collection 4-6 AM, delivery 7:00-7:15 AM, retry 7:30-8:30 AM, cleanup 3 AM KST)")
+	slog.Info("scheduler started", "schedule", "collection 4-6AM delivery 7AM retry 7:30-8:30AM cleanup 3AM KST")
 
 	// Terms of service
 	termsRepo := storage.NewTermsRepository(pool)
 	termsService := terms.NewService(termsRepo)
 	var signupCache cache.Cache
 	if rc, err := cache.NewRedisCache(redisCfg, "signup:"); err != nil {
-		log.Printf("redis unavailable for signup cache, using in-process: %v", err)
+		slog.Warn("redis unavailable for signup cache, using in-process", "error", err)
 		signupCache = cache.NewInProcess()
 	} else {
 		signupCache = rc
-		log.Println("signup cache connected to redis")
+		slog.Info("signup cache connected to redis")
 	}
 	defer signupCache.Close()
 
@@ -252,14 +272,23 @@ func main() {
 	subscriptionRepo := storage.NewSubscriptionRepository(pool)
 	kakaoClient := kakao.NewClient(cfg.KakaoClientID, cfg.KakaoClientSecret, cfg.KakaoRedirectURI)
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
-	stateStore := auth.NewStateStore()
+	// OAuth state store: Redis-backed when available, in-memory fallback
+	var stateStore auth.StateStorer
+	redisAddr := fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)
+	if rs, err := auth.NewRedisStateStore(redisAddr, cfg.RedisPassword, cfg.RedisDB); err != nil {
+		slog.Warn("redis unavailable for oauth state store, using in-memory", "error", err)
+		stateStore = auth.NewStateStore()
+	} else {
+		stateStore = rs
+		slog.Info("oauth state store connected to redis")
+	}
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, levelRepo, cfg.SignupBonusCoins, cfg.FrontendURL, signupCache, termsService).
 		WithWithdrawalChecker(withdrawalRepo).
 		WithRefreshTokenStore(refreshTokenRepo)
 	termsHandler := handler.NewTermsHandler(termsService)
 	termsAdminHandler := handler.NewTermsAdminHandler(termsService)
 	brainCategoryHandler := handler.NewBrainCategoryHandler(brainCategoryRepo)
-	deliveryHandler := api.NewDeliveryHandler(deliveryService, api.AuthMiddleware(jwtManager))
+	deliveryHandler := api.NewDeliveryHandler(deliveryService, api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo))
 	userDeliveryChannelsHandler := handler.NewUserDeliveryChannelsHandler(deliveryRepo, deliveryService, userRepo)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionRepo, api.AuthMiddleware(jwtManager))
 
@@ -299,6 +328,9 @@ func main() {
 		WithDeliveryService(deliveryService)
 
 	healthHandler := handler.NewHealthHandler(pool)
+	if redisPinger != nil {
+		healthHandler = healthHandler.WithRedisPinger(redisPinger)
+	}
 
 	// Router
 	r := api.NewRouter("api", "v1", cfg.FrontendURL, jwtManager, cfg.RateLimitPerMin, rateLimitStore, []api.RouteModule{
@@ -393,22 +425,24 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("server starting on :%s", cfg.ServerPort)
+		slog.Info("server starting", "port", cfg.ServerPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server listen error: %v", err)
+			slog.Error("server listen error", "error", err)
+		os.Exit(1)
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("shutdown signal received, draining requests...")
+	slog.Info("shutdown signal received, draining requests")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("server forced to shutdown: %v", err)
+		slog.Error("server forced to shutdown", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("server exited cleanly")
+	slog.Info("server exited cleanly")
 }

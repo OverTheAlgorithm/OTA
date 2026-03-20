@@ -42,6 +42,12 @@ func (r *CollectorRepository) CompleteRun(ctx context.Context, id uuid.UUID, sta
 func (r *CollectorRepository) SaveContextItems(ctx context.Context, items []collector.ContextItem) error {
 	query := `INSERT INTO context_items (id, collection_run_id, category, brain_category, rank, topic, summary, detail, details, buzz_score, sources, image_path, priority) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
 
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	for _, item := range items {
 		sourcesJSON, err := json.Marshal(item.Sources)
 		if err != nil {
@@ -63,12 +69,15 @@ func (r *CollectorRepository) SaveContextItems(ctx context.Context, items []coll
 			priority = "none"
 		}
 
-		_, err = r.pool.Exec(ctx, query, item.ID, item.CollectionRunID, item.Category, brainCat, item.Rank, item.Topic, item.Summary, item.Detail, detailsJSON, item.BuzzScore, sourcesJSON, item.ImagePath, priority)
+		_, err = tx.Exec(ctx, query, item.ID, item.CollectionRunID, item.Category, brainCat, item.Rank, item.Topic, item.Summary, item.Detail, detailsJSON, item.BuzzScore, sourcesJSON, item.ImagePath, priority)
 		if err != nil {
 			return fmt.Errorf("inserting context item: %w", err)
 		}
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
 	return nil
 }
 

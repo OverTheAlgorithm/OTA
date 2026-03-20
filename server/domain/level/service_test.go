@@ -22,7 +22,7 @@ func (m *mockRepo) GetUserCoins(_ context.Context, _ string) (UserCoins, error) 
 	return m.coins, nil
 }
 
-func (m *mockRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, _ int) (bool, int, error) {
+func (m *mockRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, _ int, _ int) (bool, int, error) {
 	return m.earnResult, m.earnTotal, m.earnErr
 }
 
@@ -158,6 +158,41 @@ func TestEarnCoin_AtMaxLevel(t *testing.T) {
 	}
 	if res.Level != testCfg.MaxLevel {
 		t.Errorf("Level = %d, want %d", res.Level, testCfg.MaxLevel)
+	}
+}
+
+func TestEarnCoin_CoinCap(t *testing.T) {
+	cases := []struct {
+		name       string
+		coins      int
+		coinCap    int
+		wantEarned bool
+		wantReason string
+	}{
+		{"at cap → blocked", 5000, 5000, false, ReasonCoinCap},
+		{"above cap → blocked", 5001, 5000, false, ReasonCoinCap},
+		{"below cap → allowed", 4999, 5000, true, ReasonEarned},
+		{"coinCap=0 → no cap", 9999, 0, true, ReasonEarned},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewLevelConfig(tt.coinCap, 1000)
+			svc := NewService(&mockRepo{
+				coins:      UserCoins{Coins: tt.coins},
+				earnResult: true,
+				earnTotal:  tt.coins + BaseCoinPreferred,
+			}, cfg, 0, 0)
+			res, err := svc.EarnCoin(context.Background(), "user1", uuid.New(), uuid.New(), true)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if res.Earned != tt.wantEarned {
+				t.Errorf("Earned = %v, want %v", res.Earned, tt.wantEarned)
+			}
+			if res.Reason != tt.wantReason {
+				t.Errorf("Reason = %q, want %q", res.Reason, tt.wantReason)
+			}
+		})
 	}
 }
 

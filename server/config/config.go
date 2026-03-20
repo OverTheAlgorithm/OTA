@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -58,6 +59,13 @@ type Config struct {
 	RedisPort     string // REDIS_PORT: Redis server port; default "6379"
 	RedisPassword string // REDIS_PASSWORD: Redis auth password; default ""
 	RedisDB       int    // REDIS_DB: Redis logical database index; default 0
+
+	DBMaxConns        int           // DB_MAX_CONNS: max open connections in pool; default 20
+	DBMinConns        int           // DB_MIN_CONNS: min idle connections in pool; default 5
+	DBMaxConnLifetime time.Duration // DB_MAX_CONN_LIFETIME: max connection lifetime; default 30m
+	DBMaxConnIdleTime time.Duration // DB_MAX_CONN_IDLE_TIME: max connection idle time; default 5m
+
+	BankAccountEncryptionKey string // BANK_ACCOUNT_ENCRYPTION_KEY: 32-byte hex key for AES-256-GCM encryption; empty = no encryption
 
 	ServerPort  string
 	FrontendURL string
@@ -123,6 +131,13 @@ func Load() (Config, error) {
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 		RedisDB:       getEnvInt("REDIS_DB", 0),
 
+		DBMaxConns:        getEnvInt("DB_MAX_CONNS", 20),
+		DBMinConns:        getEnvInt("DB_MIN_CONNS", 5),
+		DBMaxConnLifetime: getEnvDuration("DB_MAX_CONN_LIFETIME", 30*time.Minute),
+		DBMaxConnIdleTime: getEnvDuration("DB_MAX_CONN_IDLE_TIME", 5*time.Minute),
+
+		BankAccountEncryptionKey: getEnv("BANK_ACCOUNT_ENCRYPTION_KEY", ""),
+
 		ServerPort:  getEnv("SERVER_PORT", "8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),
 		AppEnv:      getEnv("APP_ENV", "development"),
@@ -161,6 +176,15 @@ func getEnvInt(key string, fallback int) int {
 	if val := os.Getenv(key); val != "" {
 		if intVal, err := strconv.Atoi(val); err == nil {
 			return intVal
+		}
+	}
+	return fallback
+}
+
+func getEnvDuration(key string, fallback time.Duration) time.Duration {
+	if val := os.Getenv(key); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			return d
 		}
 	}
 	return fallback

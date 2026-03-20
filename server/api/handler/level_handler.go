@@ -3,8 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -66,7 +67,7 @@ func (h *LevelHandler) GetLevel(c *gin.Context) {
 	userID := c.GetString("userID")
 	info, err := h.service.GetLevel(c.Request.Context(), userID)
 	if err != nil {
-		log.Printf("get level error: %v", err)
+		slog.Error("get level error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -85,14 +86,14 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 		ContextItemID string `json:"context_item_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("init-earn: bad request from user=%s ip=%s — %v", userID, c.ClientIP(), err)
+		slog.Warn("init-earn: bad request", "user_id", userID, "ip", c.ClientIP(), "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "context_item_id is required"})
 		return
 	}
 
 	itemID, err := uuid.Parse(req.ContextItemID)
 	if err != nil {
-		log.Printf("init-earn: invalid context_item_id=%q from user=%s", req.ContextItemID, userID)
+		slog.Warn("init-earn: invalid context_item_id", "item_id", req.ContextItemID, "user_id", userID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid context_item_id"})
 		return
 	}
@@ -102,12 +103,12 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	// ── Gate check 1: context item must exist ────────────────────────────────
 	topic, err := h.histRepo.GetContextItemByID(ctx, itemID)
 	if err != nil {
-		log.Printf("init-earn: DB error getting item=%s user=%s — %v", itemID, userID, err)
+		slog.Error("init-earn: DB error getting item", "item_id", itemID, "user_id", userID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if topic == nil {
-		log.Printf("init-earn: item not found item=%s user=%s", itemID, userID)
+		slog.Warn("init-earn: item not found", "item_id", itemID, "user_id", userID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "context item not found"})
 		return
 	}
@@ -117,12 +118,12 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	// ── Gate check 2: must not already have earned for this run+item ─────────
 	earned, err := h.service.HasEarned(ctx, userID, runID, itemID)
 	if err != nil {
-		log.Printf("init-earn: DB error checking has-earned user=%s run=%s item=%s — %v", userID, runID, itemID, err)
+		slog.Error("init-earn: DB error checking has-earned", "user_id", userID, "run_id", runID, "item_id", itemID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if earned {
-		log.Printf("init-earn: DUPLICATE user=%s item=%s run=%s", userID, itemID, runID)
+		slog.Info("init-earn: DUPLICATE", "user_id", userID, "item_id", itemID, "run_id", runID)
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "DUPLICATE"}})
 		return
 	}
@@ -130,12 +131,12 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	// ── Gate check 3: run must be from today ──────────────────────────────────
 	isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
 	if err != nil {
-		log.Printf("init-earn: DB error checking run date run=%s user=%s item=%s — %v", runID, userID, itemID, err)
+		slog.Error("init-earn: DB error checking run date", "run_id", runID, "user_id", userID, "item_id", itemID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if !isToday {
-		log.Printf("init-earn: EXPIRED user=%s item=%s run=%s", userID, itemID, runID)
+		slog.Info("init-earn: EXPIRED", "user_id", userID, "item_id", itemID, "run_id", runID)
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "EXPIRED"}})
 		return
 	}
@@ -143,12 +144,12 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	// ── Gate check 4: daily coin limit ───────────────────────────────────────
 	limited, err := h.service.IsAtDailyLimit(ctx, userID)
 	if err != nil {
-		log.Printf("init-earn: DB error checking daily limit user=%s — %v", userID, err)
+		slog.Error("init-earn: DB error checking daily limit", "user_id", userID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if limited {
-		log.Printf("init-earn: DAILY_LIMIT user=%s item=%s", userID, itemID)
+		slog.Info("init-earn: DAILY_LIMIT", "user_id", userID, "item_id", itemID)
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "DAILY_LIMIT"}})
 		return
 	}
@@ -163,7 +164,7 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 	ttl := h.earnMinDuration * 2
 	h.earnCache.Set(earnCacheKey(userID, itemID), pending, ttl)
 
-	log.Printf("init-earn: PENDING user=%s item=%s run=%s duration=%ds", userID, itemID, runID, int(h.earnMinDuration.Seconds()))
+	slog.Info("init-earn: PENDING", "user_id", userID, "item_id", itemID, "run_id", runID, "required_seconds", int(h.earnMinDuration.Seconds()))
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"status":           "PENDING",
 		"required_seconds": int(h.earnMinDuration.Seconds()),
@@ -181,14 +182,14 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 		TurnstileToken string `json:"turnstile_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("earn: bad request from user=%s ip=%s — %v", userID, c.ClientIP(), err)
+		slog.Warn("earn: bad request", "user_id", userID, "ip", c.ClientIP(), "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "context_item_id and turnstile_token are required"})
 		return
 	}
 
 	itemID, err := uuid.Parse(req.ContextItemID)
 	if err != nil {
-		log.Printf("earn: invalid context_item_id=%q from user=%s", req.ContextItemID, userID)
+		slog.Warn("earn: invalid context_item_id", "item_id", req.ContextItemID, "user_id", userID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid context_item_id"})
 		return
 	}
@@ -197,21 +198,21 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	key := earnCacheKey(userID, itemID)
 	pending, ok := cache.GetTyped[EarnPending](h.earnCache, key)
 	if !ok {
-		log.Printf("earn: TOO_EARLY (no cache) user=%s item=%s ip=%s", userID, itemID, c.ClientIP())
+		slog.Warn("earn: TOO_EARLY (no cache)", "user_id", userID, "item_id", itemID, "ip", c.ClientIP())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "TOO_EARLY"})
 		return
 	}
 	elapsed := time.Since(pending.InitiatedAt)
 	if elapsed < h.earnMinDuration {
-		log.Printf("earn: TOO_EARLY (elapsed=%s < min=%s) user=%s item=%s", elapsed.Round(time.Millisecond), h.earnMinDuration, userID, itemID)
+		slog.Warn("earn: TOO_EARLY", "elapsed", elapsed.Round(time.Millisecond), "min_duration", h.earnMinDuration, "user_id", userID, "item_id", itemID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "TOO_EARLY"})
 		return
 	}
 
 	// ── Turnstile validation (Layer 3) ────────────────────────────────────────
-	log.Printf("init-earn user=%s token_len=%d", userID, len(req.TurnstileToken))
+	slog.Info("earn: verifying turnstile", "user_id", userID, "token_len", len(req.TurnstileToken))
 	if err := h.verifyTurnstileToken(req.TurnstileToken, c.ClientIP()); err != nil {
-		log.Printf("earn: TURNSTILE_FAIL user=%s item=%s ip=%s token_len=%d — %v", userID, itemID, c.ClientIP(), len(req.TurnstileToken), err)
+		slog.Warn("earn: turnstile verification failed", "user_id", userID, "item_id", itemID, "ip", c.ClientIP(), "error", err)
 		c.JSON(http.StatusForbidden, gin.H{"error": "bot verification failed"})
 		return
 	}
@@ -232,32 +233,32 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 
 	isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
 	if err != nil {
-		log.Printf("earn: DB error checking run date user=%s run=%s item=%s — %v", userID, runID, itemID, err)
+		slog.Error("earn: DB error checking run date", "user_id", userID, "run_id", runID, "item_id", itemID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if !isToday {
 		h.earnCache.Delete(key)
-		log.Printf("earn: EXPIRED (re-validate) user=%s item=%s run=%s", userID, itemID, runID)
+		slog.Info("earn: EXPIRED (re-validate)", "user_id", userID, "item_id", itemID, "run_id", runID)
 		c.JSON(http.StatusOK, gin.H{"data": earnResponse{Attempted: true, Reason: "EXPIRED"}})
 		return
 	}
 
 	topic, err := h.histRepo.GetContextItemByID(ctx, itemID)
 	if err != nil {
-		log.Printf("earn: DB error getting item=%s user=%s — %v", itemID, userID, err)
+		slog.Error("earn: DB error getting item", "item_id", itemID, "user_id", userID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	if topic == nil {
-		log.Printf("earn: item not found item=%s user=%s (deleted between init and earn?)", itemID, userID)
+		slog.Warn("earn: item not found", "item_id", itemID, "user_id", userID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "context item not found"})
 		return
 	}
 
 	subs, err := h.subGetter.GetSubscriptions(ctx, userID)
 	if err != nil {
-		log.Printf("earn: DB error getting subscriptions user=%s — %v", userID, err)
+		slog.Error("earn: DB error getting subscriptions", "user_id", userID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -265,7 +266,7 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 
 	result, err := h.service.EarnCoin(ctx, userID, runID, itemID, preferred)
 	if err != nil {
-		log.Printf("earn: EarnCoin service error user=%s run=%s item=%s preferred=%v — %v", userID, runID, itemID, preferred, err)
+		slog.Error("earn: EarnCoin service error", "user_id", userID, "run_id", runID, "item_id", itemID, "preferred", preferred, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -273,8 +274,7 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	// Remove the pending entry so a second call is rejected.
 	h.earnCache.Delete(key)
 
-	log.Printf("earn: result user=%s item=%s run=%s earned=%v reason=%s coins=%d level_up=%v elapsed=%s",
-		userID, itemID, runID, result.Earned, result.Reason, result.CoinsEarned, result.LeveledUp, elapsed.Round(time.Millisecond))
+	slog.Info("earn: result", "user_id", userID, "item_id", itemID, "run_id", runID, "earned", result.Earned, "reason", result.Reason, "coins", result.CoinsEarned, "leveled_up", result.LeveledUp, "elapsed", elapsed.Round(time.Millisecond))
 
 	c.JSON(http.StatusOK, gin.H{"data": earnResponse{
 		Attempted:   true,
@@ -323,7 +323,7 @@ func (h *LevelHandler) BatchEarnStatus(c *gin.Context) {
 	// 1. Get item metadata (category, priority, run_id)
 	itemMap, err := h.histRepo.GetItemCategoryMap(ctx, itemIDs)
 	if err != nil {
-		log.Printf("batch-earn-status: GetItemCategoryMap error user=%s — %v", userID, err)
+		slog.Error("batch-earn-status: GetItemCategoryMap error", "user_id", userID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -331,7 +331,7 @@ func (h *LevelHandler) BatchEarnStatus(c *gin.Context) {
 	// 2. Get earned item IDs
 	earnedIDs, err := h.service.GetEarnedItemIDs(ctx, userID, itemIDs)
 	if err != nil {
-		log.Printf("batch-earn-status: GetEarnedItemIDs error user=%s — %v", userID, err)
+		slog.Error("batch-earn-status: GetEarnedItemIDs error", "user_id", userID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -348,7 +348,7 @@ func (h *LevelHandler) BatchEarnStatus(c *gin.Context) {
 	for runID := range uniqueRunIDs {
 		isToday, err := h.histRepo.IsRunCreatedToday(ctx, runID)
 		if err != nil {
-			log.Printf("batch-earn-status: IsRunCreatedToday error run=%s — %v", runID, err)
+			slog.Warn("batch-earn-status: IsRunCreatedToday error", "run_id", runID, "error", err)
 			continue
 		}
 		uniqueRunIDs[runID] = isToday
@@ -357,14 +357,14 @@ func (h *LevelHandler) BatchEarnStatus(c *gin.Context) {
 	// 4. Check daily limit
 	atDailyLimit, err := h.service.IsAtDailyLimit(ctx, userID)
 	if err != nil {
-		log.Printf("batch-earn-status: IsAtDailyLimit error user=%s — %v", userID, err)
+		slog.Warn("batch-earn-status: IsAtDailyLimit error", "user_id", userID, "error", err)
 		atDailyLimit = false
 	}
 
 	// 5. Get subscriptions
 	subs, err := h.subGetter.GetSubscriptions(ctx, userID)
 	if err != nil {
-		log.Printf("batch-earn-status: GetSubscriptions error user=%s — %v", userID, err)
+		slog.Warn("batch-earn-status: GetSubscriptions error", "user_id", userID, "error", err)
 		subs = nil
 	}
 
@@ -430,13 +430,16 @@ func (h *LevelHandler) verifyTurnstileToken(token string, remoteIP string) error
 
 	endpoint := "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
-	// Create x-www-form-urlencoded body
-	data := fmt.Sprintf("secret=%s&response=%s", h.turnstileSecretKey, token)
+	// Create x-www-form-urlencoded body (url.Values handles proper encoding)
+	form := url.Values{
+		"secret":   {h.turnstileSecretKey},
+		"response": {token},
+	}
 	if remoteIP != "" {
-		data += fmt.Sprintf("&remoteip=%s", remoteIP)
+		form.Set("remoteip", remoteIP)
 	}
 
-	req, err := http.NewRequest("POST", endpoint, strings.NewReader(data))
+	req, err := http.NewRequest("POST", endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return fmt.Errorf("could not create turnstile req: %w", err)
 	}

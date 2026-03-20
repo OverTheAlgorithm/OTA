@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,7 +60,7 @@ func DecodeGoogleNewsURLs(ctx context.Context, urls []string) map[string]string 
 
 	inputJSON, err := json.Marshal(urls)
 	if err != nil {
-		log.Printf("[gnews-decoder] failed to marshal urls: %v", err)
+		slog.Error("gnews-decoder: failed to marshal urls", "error", err)
 		return result
 	}
 
@@ -72,13 +72,13 @@ func DecodeGoogleNewsURLs(ctx context.Context, urls []string) map[string]string 
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		log.Printf("[gnews-decoder] python script failed: %v, stderr: %s", err, stderr.String())
+		slog.Error("gnews-decoder: python script failed", "error", err, "stderr", stderr.String())
 		return result
 	}
 
 	var decoded []decodeResult
 	if err := json.Unmarshal(stdout.Bytes(), &decoded); err != nil {
-		log.Printf("[gnews-decoder] failed to parse output: %v", err)
+		slog.Error("gnews-decoder: failed to parse output", "error", err)
 		return result
 	}
 
@@ -90,7 +90,7 @@ func DecodeGoogleNewsURLs(ctx context.Context, urls []string) map[string]string 
 		}
 	}
 
-	log.Printf("[gnews-decoder] decoded %d/%d URLs successfully", successCount, len(urls))
+	slog.Info("gnews-decoder: decoded URLs", "success", successCount, "total", len(urls))
 	return result
 }
 

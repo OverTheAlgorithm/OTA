@@ -2,20 +2,38 @@ package api
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	limiter "github.com/ulule/limiter/v3"
 	"ota/auth"
 	"ota/domain/user"
 )
 
-// LoggerMiddleware replaces gin.Default()'s logger. It adds user ID to every
-// log line by best-effort parsing the JWT from the request cookie/header.
+// RequestIDMiddleware ensures every request has a unique X-Request-ID header.
+// It reads the incoming header if present (for upstream propagation), otherwise
+// generates a new UUID. The ID is stored in the Gin context and set on the
+// response header so clients and downstream services can correlate log entries.
+func RequestIDMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.GetHeader("X-Request-ID")
+		if id == "" {
+			id = uuid.New().String()
+		}
+		c.Set("request_id", id)
+		c.Header("X-Request-ID", id)
+		c.Next()
+	}
+}
+
+// LoggerMiddleware replaces gin.Default()'s logger. It adds user ID and
+// request ID to every log line by best-effort parsing the JWT from the
+// request cookie/header.
 func LoggerMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -35,7 +53,8 @@ func LoggerMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 
 		c.Next()
 
-		fmt.Fprintf(gin.DefaultWriter, "[GIN] %s | %3d | %12s | %s | %s | %-7s %s\n",
+		requestID := c.GetString("request_id")
+		fmt.Fprintf(gin.DefaultWriter, "[GIN] %s | %3d | %12s | %s | %s | %-7s %s | req=%s\n",
 			time.Now().Format("2006/01/02 - 15:04:05"),
 			c.Writer.Status(),
 			time.Since(start),
@@ -43,6 +62,7 @@ func LoggerMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 			userID,
 			c.Request.Method,
 			c.Request.URL.Path,
+			requestID,
 		)
 	}
 }
@@ -99,6 +119,49 @@ func AdminMiddleware(userRepo user.Repository) gin.HandlerFunc {
 	}
 }
 
+// CSRFMiddleware validates the Origin or Referer header for state-mutating
+// requests (POST/PUT/PATCH/DELETE) to prevent cross-site request forgery.
+// Requests with neither header are allowed (non-browser clients / curl).
+// On mismatch a 403 is returned immediately.
+func CSRFMiddleware(frontendURL string) gin.HandlerFunc {
+	mutatingMethods := map[string]bool{
+		http.MethodPost:   true,
+		http.MethodPut:    true,
+		http.MethodPatch:  true,
+		http.MethodDelete: true,
+	}
+
+	return func(c *gin.Context) {
+		if !mutatingMethods[c.Request.Method] {
+			c.Next()
+			return
+		}
+
+		origin := c.GetHeader("Origin")
+		if origin != "" {
+			if strings.TrimRight(origin, "/") != strings.TrimRight(frontendURL, "/") {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "origin not allowed"})
+				return
+			}
+			c.Next()
+			return
+		}
+
+		referer := c.GetHeader("Referer")
+		if referer != "" {
+			if !strings.HasPrefix(referer, frontendURL) {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "origin not allowed"})
+				return
+			}
+			c.Next()
+			return
+		}
+
+		// No Origin or Referer — allow (non-browser client)
+		c.Next()
+	}
+}
+
 // RateLimitMiddleware applies a sliding-window per-key rate limit.
 // Authenticated users are keyed by user ID; anonymous requests by client IP.
 // On internal limiter errors the request is allowed (fail-open).
@@ -114,22 +177,20 @@ func RateLimitMiddleware(ratePerMin int, jwtManager *auth.JWTManager, store limi
 
 		ctx, err := instance.Get(c.Request.Context(), key)
 		if err != nil {
-			log.Printf("[rate-limit] limiter error for key=%s: %v (fail-open)", key, err)
+			slog.Error("rate-limit: limiter error (fail-open)", "key", key, "error", err)
 			c.Next()
 			return
 		}
 
 		if ctx.Reached {
-			log.Printf("[rate-limit] BLOCKED key=%s method=%s path=%s limit=%d remaining=%d reset=%v",
-				key, c.Request.Method, c.Request.URL.Path, ctx.Limit, ctx.Remaining, ctx.Reset)
+			slog.Warn("rate-limit: request blocked", "key", key, "method", c.Request.Method, "path", c.Request.URL.Path, "limit", ctx.Limit, "remaining", ctx.Remaining)
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many requests"})
 			return
 		}
 
 		// Log warning when approaching the limit (< 20% remaining)
 		if ctx.Remaining < ctx.Limit/5 {
-			log.Printf("[rate-limit] WARNING key=%s approaching limit: %d/%d remaining, path=%s",
-				key, ctx.Remaining, ctx.Limit, c.Request.URL.Path)
+			slog.Warn("rate-limit: approaching limit", "key", key, "remaining", ctx.Remaining, "limit", ctx.Limit, "path", c.Request.URL.Path)
 		}
 
 		c.Next()

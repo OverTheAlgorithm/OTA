@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +21,7 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 	userID := c.GetString("userID")
 	cats, err := h.repo.GetSubscriptions(c.Request.Context(), userID)
 	if err != nil {
-		log.Printf("get subscriptions error: %v", err)
+		slog.Error("get subscriptions error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -38,7 +38,7 @@ func (h *SubscriptionHandler) Add(c *gin.Context) {
 		return
 	}
 	if err := h.repo.AddSubscription(c.Request.Context(), userID, body.Category); err != nil {
-		log.Printf("add subscription error: %v", err)
+		slog.Error("add subscription error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -53,7 +53,7 @@ func (h *SubscriptionHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.repo.DeleteSubscription(c.Request.Context(), userID, category); err != nil {
-		log.Printf("delete subscription error: %v", err)
+		slog.Error("delete subscription error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}

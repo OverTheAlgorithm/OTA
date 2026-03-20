@@ -12,19 +12,21 @@ import (
 type DeliveryHandler struct {
 	service        *delivery.Service
 	authMiddleware gin.HandlerFunc
+	adminMiddleware gin.HandlerFunc
 }
 
 // NewDeliveryHandler creates a new delivery handler
-func NewDeliveryHandler(service *delivery.Service, authMiddleware gin.HandlerFunc) *DeliveryHandler {
+func NewDeliveryHandler(service *delivery.Service, authMiddleware, adminMiddleware gin.HandlerFunc) *DeliveryHandler {
 	return &DeliveryHandler{
-		service:        service,
-		authMiddleware: authMiddleware,
+		service:         service,
+		authMiddleware:  authMiddleware,
+		adminMiddleware: adminMiddleware,
 	}
 }
 
 // RegisterRoutes registers delivery-related routes
 func (h *DeliveryHandler) RegisterRoutes(group *gin.RouterGroup) {
-	group.POST("/trigger", h.TriggerDelivery)
+	group.POST("/trigger", h.authMiddleware, h.adminMiddleware, h.TriggerDelivery)
 	group.POST("/send", h.authMiddleware, h.SendToCurrentUser)
 }
 

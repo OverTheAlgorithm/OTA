@@ -36,6 +36,9 @@ func (r *BrainCategoryRepository) GetAll(ctx context.Context) ([]collector.Brain
 		}
 		categories = append(categories, bc)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate brain categories: %w", err)
+	}
 	if categories == nil {
 		categories = []collector.BrainCategory{}
 	}

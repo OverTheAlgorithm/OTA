@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"ota/domain/collector"
@@ -35,7 +35,7 @@ func (h *ContextHistoryHandler) GetHistory(c *gin.Context) {
 
 	entries, hasMore, err := h.repo.GetHistoryForUser(c.Request.Context(), userID, limit, offset)
 	if err != nil {
-		log.Printf("get context history error: %v", err)
+		slog.Error("get context history error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -53,7 +53,7 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 	}
 	topic, err := h.repo.GetContextItemByID(c.Request.Context(), id)
 	if err != nil {
-		log.Printf("get topic by id error: %v", err)
+		slog.Error("get topic by id error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -70,7 +70,7 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 func (h *ContextHistoryHandler) GetRecentTopics(c *gin.Context) {
 	topics, err := h.repo.GetRecentTopics(c.Request.Context(), 3)
 	if err != nil {
-		log.Printf("get recent topics error: %v", err)
+		slog.Warn("get recent topics error", "error", err)
 		c.JSON(http.StatusOK, gin.H{"data": []any{}})
 		return
 	}
@@ -85,7 +85,7 @@ func (h *ContextHistoryHandler) GetRecentTopics(c *gin.Context) {
 func (h *ContextHistoryHandler) GetLatestRunTopics(c *gin.Context) {
 	topics, err := h.repo.GetLatestRunTopics(c.Request.Context())
 	if err != nil {
-		log.Printf("get latest run topics error: %v", err)
+		slog.Warn("get latest run topics error", "error", err)
 		c.JSON(http.StatusOK, gin.H{"data": []collector.TopicPreview{}})
 		return
 	}
@@ -111,7 +111,7 @@ func (h *ContextHistoryHandler) GetAllTopics(c *gin.Context) {
 
 	topics, hasMore, err := h.repo.GetAllTopics(c.Request.Context(), filterType, filterValue, limit, offset)
 	if err != nil {
-		log.Printf("get all topics error: %v", err)
+		slog.Error("get all topics error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -131,7 +131,7 @@ func (h *ContextHistoryHandler) GetCategories(c *gin.Context) {
 		var err error
 		categories, err = h.categoryRepo.GetAllCategories(ctx)
 		if err != nil {
-			log.Printf("get categories error: %v", err)
+			slog.Warn("get categories error", "error", err)
 			categories = nil
 		}
 	}
@@ -144,7 +144,7 @@ func (h *ContextHistoryHandler) GetCategories(c *gin.Context) {
 		var err error
 		brainCategories, err = h.brainCatRepo.GetAll(ctx)
 		if err != nil {
-			log.Printf("get brain categories error: %v", err)
+			slog.Warn("get brain categories error", "error", err)
 			brainCategories = nil
 		}
 	}

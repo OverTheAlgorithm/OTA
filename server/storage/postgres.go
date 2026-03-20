@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
@@ -10,8 +11,39 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(ctx, databaseURL)
+// PoolConfig holds connection pool tuning parameters.
+type PoolConfig struct {
+	MaxConns        int
+	MinConns        int
+	MaxConnLifetime time.Duration // 0 = use default (30m)
+	MaxConnIdleTime time.Duration // 0 = use default (5m)
+}
+
+func NewPool(ctx context.Context, databaseURL string, cfg PoolConfig) (*pgxpool.Pool, error) {
+	pcfg, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse database URL: %w", err)
+	}
+
+	if cfg.MaxConns > 0 {
+		pcfg.MaxConns = int32(cfg.MaxConns)
+	}
+	if cfg.MinConns > 0 {
+		pcfg.MinConns = int32(cfg.MinConns)
+	}
+	if cfg.MaxConnLifetime > 0 {
+		pcfg.MaxConnLifetime = cfg.MaxConnLifetime
+	} else {
+		pcfg.MaxConnLifetime = 30 * time.Minute
+	}
+	if cfg.MaxConnIdleTime > 0 {
+		pcfg.MaxConnIdleTime = cfg.MaxConnIdleTime
+	} else {
+		pcfg.MaxConnIdleTime = 5 * time.Minute
+	}
+	pcfg.HealthCheckPeriod = 1 * time.Minute
+
+	pool, err := pgxpool.NewWithConfig(ctx, pcfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}

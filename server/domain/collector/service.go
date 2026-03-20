@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -85,29 +85,29 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	}
 
 	failRun := func(err error, rawResp *string) (CollectionResult, error) {
-		log.Printf("collection run %s: FAILED — %v", run.ID, err)
+		slog.Error("collection run failed", "run_id", run.ID, "error", err)
 		errMsg := err.Error()
 		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, rawResp)
 		return CollectionResult{}, err
 	}
 
 	// Stage 0: collect from structured sources (no AI involved).
-	log.Printf("collection run %s: stage 0 — structured source collection", run.ID)
+	slog.Info("collection run stage 0: structured source collection", "run_id", run.ID)
 	data, err := s.aggregator.Collect(ctx)
 	if err != nil {
 		return failRun(fmt.Errorf("source collection: %w", err), nil)
 	}
-	log.Printf("collection run %s: stage 0 done — %d items from sources", run.ID, len(data.Items))
+	slog.Info("collection run stage 0 done", "run_id", run.ID, "items", len(data.Items))
 
 	// Persist raw trending data for tracking/analysis.
 	if err := s.trendingRepo.SaveTrendingItems(ctx, run.ID, data.Items); err != nil {
-		log.Printf("warning: failed to save trending items: %v", err)
+		slog.Warn("failed to save trending items", "error", err)
 	}
 
 	// Load brain categories for AI prompt injection.
 	brainCategories, err := s.brainCatRepo.GetAll(ctx)
 	if err != nil {
-		log.Printf("warning: failed to load brain categories: %v — proceeding without them", err)
+		slog.Warn("failed to load brain categories, proceeding without them", "error", err)
 		brainCategories = nil
 	}
 
@@ -116,13 +116,13 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	if s.catRepo != nil {
 		categories, err = s.catRepo.GetAllCategories(ctx)
 		if err != nil {
-			log.Printf("warning: failed to load categories: %v — using defaults", err)
+			slog.Warn("failed to load categories, using defaults", "error", err)
 			categories = nil
 		}
 	}
 
 	// Stage 1: Phase 1 AI — clustering + categorization + buzz_score + source selection.
-	log.Printf("collection run %s: stage 1 — Phase 1 AI clustering", run.ID)
+	slog.Info("collection run stage 1: Phase 1 AI clustering", "run_id", run.ID)
 	phase1Prompt := BuildClusterPrompt(data.FormattedText, brainCategories, categories)
 	phase1Resp, err := s.callAIWithRetry(ctx, phase1Prompt)
 	if err != nil {
@@ -134,29 +134,29 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 		rawResp := phase1Resp.RawJSON
 		return failRun(fmt.Errorf("parsing Phase 1 response: %w", err), &rawResp)
 	}
-	log.Printf("collection run %s: stage 1 done — %d topics clustered", run.ID, len(topics))
+	slog.Info("collection run stage 1 done", "run_id", run.ID, "topics", len(topics))
 
 	// Stage 2: Decode redirect URLs to original article URLs.
 	topics = s.decodePhase1URLs(ctx, run.ID, topics)
 
 	// Stage 3: Fetch article content + validate sources.
 	// Blocked hosts and failed fetches are removed. Topics with zero valid sources are dropped.
-	log.Printf("collection run %s: stage 3 — fetching articles + validating sources", run.ID)
+	slog.Info("collection run stage 3: fetching articles + validating sources", "run_id", run.ID)
 	topics, articleMap := s.fetchAndValidateSources(ctx, run.ID, topics)
 	if len(topics) == 0 {
 		rawResp := phase1Resp.RawJSON
 		return failRun(fmt.Errorf("all topics dropped after source validation/fetch"), &rawResp)
 	}
-	log.Printf("collection run %s: stage 3 done — %d topics with valid sources", run.ID, len(topics))
+	slog.Info("collection run stage 3 done", "run_id", run.ID, "topics", len(topics))
 
 	// Stage 4: Phase 2 AI — per-topic detail writing (parallel with semaphore).
-	log.Printf("collection run %s: stage 4 — Phase 2 AI detail writing", run.ID)
+	slog.Info("collection run stage 4: Phase 2 AI detail writing", "run_id", run.ID)
 	items, phase2RawResponses := s.runPhase2(ctx, run.ID, topics, articleMap, brainCategories)
 	if len(items) == 0 {
 		rawResp := phase1Resp.RawJSON
 		return failRun(fmt.Errorf("Phase 2 AI: all topics failed"), &rawResp)
 	}
-	log.Printf("collection run %s: stage 4 done — %d/%d topics written", run.ID, len(items), len(topics))
+	slog.Info("collection run stage 4 done", "run_id", run.ID, "written", len(items), "total", len(topics))
 
 	// Build combined raw response for debugging (before save so it's available on failure).
 	combinedRaw := buildCombinedRawResponse(phase1Resp.RawJSON, phase2RawResponses)
@@ -169,13 +169,13 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	if err := s.repo.CompleteRun(ctx, run.ID, RunStatusSuccess, nil, &combinedRaw); err != nil {
 		return CollectionResult{}, fmt.Errorf("completing run: %w", err)
 	}
-	log.Printf("collection run %s: stage 5 done — %d items saved, run marked success", run.ID, len(items))
+	slog.Info("collection run stage 5 done", "run_id", run.ID, "items_saved", len(items))
 
 	// Stage 6: Generate thumbnail images (best-effort, does NOT affect run status).
 	items = s.generateImages(ctx, run.ID, items)
 	s.persistImagePaths(ctx, run.ID, items)
 
-	log.Printf("collection run %s: complete — %d items from %d source items", run.ID, len(items), len(data.Items))
+	slog.Info("collection run complete", "run_id", run.ID, "items", len(items), "source_items", len(data.Items))
 
 	now := time.Now().UTC()
 	run.CompletedAt = &now
@@ -192,7 +192,7 @@ func (s *Service) CollectFromSourcesIfNeeded(ctx context.Context) (*CollectionRe
 	}
 
 	if !canRun {
-		log.Printf("collection skipped — already collected today")
+		slog.Info("collection skipped: already collected today")
 		return nil, nil
 	}
 
@@ -226,7 +226,7 @@ func parsePhase1Response(outputText string) ([]Phase1Topic, error) {
 	valid := make([]Phase1Topic, 0, len(payload.Topics))
 	for _, t := range payload.Topics {
 		if t.TopicHint == "" || t.Category == "" || len(t.Sources) == 0 {
-			log.Printf("Phase 1: dropping invalid topic (hint=%q, category=%q, sources=%d)", t.TopicHint, t.Category, len(t.Sources))
+			slog.Warn("Phase 1: dropping invalid topic", "hint", t.TopicHint, "category", t.Category, "sources", len(t.Sources))
 			continue
 		}
 		// Default priority to "none" if empty
@@ -241,7 +241,7 @@ func parsePhase1Response(outputText string) ([]Phase1Topic, error) {
 	}
 
 	for _, t := range valid {
-		log.Printf("Phase 1 topic: %q [%s] priority=%s brain=%s buzz=%d sources=%d", t.TopicHint, t.Category, t.Priority, t.BrainCategory, t.BuzzScore, len(t.Sources))
+		slog.Info("Phase 1 topic", "hint", t.TopicHint, "category", t.Category, "priority", t.Priority, "brain", t.BrainCategory, "buzz", t.BuzzScore, "sources", len(t.Sources))
 	}
 	return valid, nil
 }
@@ -260,7 +260,7 @@ func rankForTopic(topic Phase1Topic, allTopics []Phase1Topic) int {
 // --- Phase 1 URL decoding ---
 
 func (s *Service) decodePhase1URLs(ctx context.Context, runID uuid.UUID, topics []Phase1Topic) []Phase1Topic {
-	log.Printf("collection run %s: stage 2 — decoding redirect URLs", runID)
+	slog.Info("collection run stage 2: decoding redirect URLs", "run_id", runID)
 
 	result := make([]Phase1Topic, len(topics))
 	var slices [][]string
@@ -273,7 +273,7 @@ func (s *Service) decodePhase1URLs(ctx context.Context, runID uuid.UUID, topics 
 	}
 
 	decoded := s.urlDecoder(ctx, slices...)
-	log.Printf("collection run %s: stage 2 done — decoded %d URLs across %d topics", runID, decoded, len(topics))
+	slog.Info("collection run stage 2 done", "run_id", runID, "decoded_urls", decoded, "topics", len(topics))
 	return result
 }
 
@@ -295,14 +295,13 @@ func (s *Service) fetchAndValidateSources(ctx context.Context, runID uuid.UUID, 
 		var fetchable []string
 		for _, src := range t.Sources {
 			if reason := checkBlockedURL(src); reason != "" {
-				log.Printf("  topic %q: pre-fetch blocked %s — %s", t.TopicHint, src, reason)
+				slog.Warn("topic source blocked pre-fetch", "topic", t.TopicHint, "url", src, "reason", reason)
 				continue
 			}
 			fetchable = append(fetchable, src)
 		}
 		if len(fetchable) == 0 {
-			log.Printf("collection run %s: DROPPED topic %q [%s] buzz=%d — all %d source(s) are blocked hosts",
-				runID, t.TopicHint, t.Category, t.BuzzScore, len(t.Sources))
+			slog.Warn("collection run: dropped topic (all sources blocked)", "run_id", runID, "topic", t.TopicHint)
 			continue
 		}
 
@@ -312,11 +311,11 @@ func (s *Service) fetchAndValidateSources(ctx context.Context, runID uuid.UUID, 
 		var validArticles []FetchedArticle
 		for _, a := range articles {
 			if a.Err != nil {
-				log.Printf("  topic %q: fetch failed %s — %v", t.TopicHint, a.URL, a.Err)
+				slog.Warn("topic source fetch failed", "topic", t.TopicHint, "url", a.URL, "error", a.Err)
 				continue
 			}
 			if a.Body == "" {
-				log.Printf("  topic %q: fetch empty body %s", t.TopicHint, a.URL)
+				slog.Warn("topic source fetch empty body", "topic", t.TopicHint, "url", a.URL)
 				continue
 			}
 			validSources = append(validSources, a.URL)
@@ -324,13 +323,11 @@ func (s *Service) fetchAndValidateSources(ctx context.Context, runID uuid.UUID, 
 		}
 
 		if len(validSources) == 0 {
-			log.Printf("collection run %s: DROPPED topic %q [%s] buzz=%d — 0/%d sources returned content (blocked=%d, fetch_failed=%d)",
-				runID, t.TopicHint, t.Category, t.BuzzScore, len(t.Sources),
-				len(t.Sources)-len(fetchable), len(fetchable)-len(validArticles))
+			slog.Warn("collection run: dropped topic (no content)", "run_id", runID, "topic", t.TopicHint)
 			continue
 		}
 
-		log.Printf("  topic %q: %d/%d sources valid", t.TopicHint, len(validSources), len(t.Sources))
+		slog.Info("topic sources validated", "topic", t.TopicHint, "valid", len(validSources), "total", len(t.Sources))
 
 		newIdx := len(surviving)
 		validated := t
@@ -378,14 +375,14 @@ func (s *Service) runPhase2(
 
 			resp, err := s.callAIWithRetry(ctx, prompt)
 			if err != nil {
-				log.Printf("collection run %s: Phase 2 failed for topic %q: %v", runID, t.TopicHint, err)
+				slog.Warn("Phase 2 failed for topic", "run_id", runID, "topic", t.TopicHint, "error", err)
 				results <- phase2Output{index: idx, err: err}
 				return
 			}
 
 			p2Result, err := parsePhase2Response(resp.OutputText)
 			if err != nil {
-				log.Printf("collection run %s: Phase 2 parse failed for topic %q: %v", runID, t.TopicHint, err)
+				slog.Warn("Phase 2 parse failed for topic", "run_id", runID, "topic", t.TopicHint, "error", err)
 				results <- phase2Output{index: idx, err: err, raw: resp.RawJSON}
 				return
 			}
@@ -461,7 +458,7 @@ func (s *Service) callAIWithRetry(ctx context.Context, prompt string) (AIRespons
 
 	aiErr := ClassifyError(err)
 	if aiErr.Type == ErrorTypeInfrastructure && s.fallbackAI != nil {
-		log.Printf("primary AI exhausted retries with infrastructure error, switching to fallback model")
+		slog.Warn("primary AI exhausted retries with infrastructure error, switching to fallback model")
 		return s.retryClient(ctx, s.fallbackAI, prompt, "fallback")
 	}
 
@@ -485,16 +482,16 @@ func (s *Service) retryClient(ctx context.Context, client AIClient, prompt strin
 
 		// Don't retry format errors — retrying won't fix a bad response shape
 		if !aiErr.IsRetryable() {
-			log.Printf("%s AI error (non-retryable, attempt %d/%d): %v", label, attempt, maxRetries, aiErr)
+			slog.Error("AI error (non-retryable)", "model", label, "attempt", attempt, "max", maxRetries, "error", aiErr)
 			return AIResponse{}, aiErr
 		}
 
 		if attempt == maxRetries {
-			log.Printf("%s AI error (final attempt %d/%d): %v", label, attempt, maxRetries, aiErr)
+			slog.Error("AI error (final attempt)", "model", label, "attempt", attempt, "max", maxRetries, "error", aiErr)
 			break
 		}
 
-		log.Printf("%s AI error (attempt %d/%d, retrying in %v): %v", label, attempt, maxRetries, backoff, aiErr)
+		slog.Warn("AI error, retrying", "model", label, "attempt", attempt, "max", maxRetries, "backoff", backoff, "error", aiErr)
 
 		select {
 		case <-ctx.Done():
@@ -563,7 +560,7 @@ func (s *Service) persistImagePaths(ctx context.Context, runID uuid.UUID, items 
 			continue
 		}
 		if err := s.repo.UpdateItemImagePath(ctx, item.ID, *item.ImagePath); err != nil {
-			log.Printf("collection run %s: failed to persist image path for %s %q — %v", runID, item.ID, item.Topic, err)
+			slog.Warn("failed to persist image path", "run_id", runID, "item_id", item.ID, "topic", item.Topic, "error", err)
 			failed++
 			continue
 		}
@@ -574,14 +571,14 @@ func (s *Service) persistImagePaths(ctx context.Context, runID uuid.UUID, items 
 		_ = s.repo.CompleteRun(ctx, runID, RunStatusSuccess, &errMsg, nil)
 	}
 	if saved > 0 {
-		log.Printf("collection run %s: persisted %d image paths", runID, saved)
+		slog.Info("persisted image paths", "run_id", runID, "count", saved)
 	}
 }
 
 // generateImages creates thumbnail images for each item using the image generator.
 // Returns a new slice with ImagePath populated for items that succeeded.
 func (s *Service) generateImages(ctx context.Context, runID uuid.UUID, items []ContextItem) []ContextItem {
-	log.Printf("collection run %s: stage 6 — generating thumbnail images", runID)
+	slog.Info("collection run stage 6: generating thumbnail images", "run_id", runID)
 
 	pathMap := s.imageGen.GenerateForItems(ctx, items)
 
@@ -595,7 +592,7 @@ func (s *Service) generateImages(ctx context.Context, runID uuid.UUID, items []C
 		}
 	}
 
-	log.Printf("collection run %s: stage 6 done — %d/%d images generated", runID, generated, len(items))
+	slog.Info("collection run stage 6 done", "run_id", runID, "generated", generated, "total", len(items))
 	return result
 }
 

@@ -56,6 +56,9 @@ func (r *TermsRepository) ListAll(ctx context.Context) ([]terms.Term, error) {
 		}
 		result = append(result, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate terms: %w", err)
+	}
 	return result, nil
 }
 
@@ -77,6 +80,9 @@ func (r *TermsRepository) ListActive(ctx context.Context) ([]terms.Term, error) 
 		}
 		result = append(result, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate terms: %w", err)
+	}
 	return result, nil
 }
 
@@ -97,6 +103,9 @@ func (r *TermsRepository) FindActiveRequired(ctx context.Context) ([]terms.Term,
 			return nil, fmt.Errorf("scan term: %w", err)
 		}
 		result = append(result, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate terms: %w", err)
 	}
 	return result, nil
 }
@@ -164,6 +173,9 @@ func (r *TermsRepository) GetUserConsents(ctx context.Context, userID string) ([
 			return nil, fmt.Errorf("scan consent: %w", err)
 		}
 		result = append(result, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate consents: %w", err)
 	}
 	return result, nil
 }

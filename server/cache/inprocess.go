@@ -14,13 +14,42 @@ type entry struct {
 // InProcessCache is a simple thread-safe in-memory cache for use in tests
 // and local development when Redis is not available.
 type InProcessCache struct {
-	mu   sync.RWMutex
-	data map[string]entry
+	mu      sync.RWMutex
+	data    map[string]entry
+	stopCh  chan struct{}
+	stopped bool
 }
 
-// NewInProcess returns a ready-to-use InProcessCache.
+// NewInProcess returns a ready-to-use InProcessCache with a background sweeper
+// that removes expired entries every 60 seconds.
 func NewInProcess() *InProcessCache {
-	return &InProcessCache{data: make(map[string]entry)}
+	c := &InProcessCache{
+		data:   make(map[string]entry),
+		stopCh: make(chan struct{}),
+	}
+	go c.sweep()
+	return c
+}
+
+// sweep removes expired entries every 60 seconds until Close is called.
+func (c *InProcessCache) sweep() {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			c.mu.Lock()
+			for k, e := range c.data {
+				if now.After(e.expiresAt) {
+					delete(c.data, k)
+				}
+			}
+			c.mu.Unlock()
+		case <-c.stopCh:
+			return
+		}
+	}
 }
 
 // Get returns the value and whether it was found and not expired.
@@ -54,5 +83,13 @@ func (c *InProcessCache) Has(k string) bool {
 	return ok
 }
 
-// Close is a no-op for in-process caches; satisfies the Cache interface.
-func (c *InProcessCache) Close() error { return nil }
+// Close stops the background sweeper goroutine. Safe to call multiple times.
+func (c *InProcessCache) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.stopped {
+		c.stopped = true
+		close(c.stopCh)
+	}
+	return nil
+}

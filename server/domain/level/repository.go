@@ -10,8 +10,9 @@ type Repository interface {
 	// GetUserCoins returns current coins for a user. Returns Lv1/0 default if no record exists.
 	GetUserCoins(ctx context.Context, userID string) (UserCoins, error)
 	// EarnCoin attempts to award coins for viewing a context item within a collection run.
+	// coinCap is the maximum total coins a user can hold; coins are capped at LEAST(current+coins, coinCap).
 	// Returns (false, 0, nil) if already earned (duplicate), (true, newTotal, nil) on success.
-	EarnCoin(ctx context.Context, userID string, runID uuid.UUID, contextItemID uuid.UUID, coins int) (earned bool, newTotal int, err error)
+	EarnCoin(ctx context.Context, userID string, runID uuid.UUID, contextItemID uuid.UUID, coins int, coinCap int) (earned bool, newTotal int, err error)
 	// SetCoins atomically overwrites a user's coins and records the delta as a coin_event.
 	// actorID identifies who triggered the change; empty string means system-triggered.
 	SetCoins(ctx context.Context, userID string, coins int, actorID string) error

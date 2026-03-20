@@ -84,6 +84,11 @@ func (r *RedisCache) Close() error {
 	return r.client.Close()
 }
 
+// Ping checks Redis connectivity. Satisfies handler.RedisPinger.
+func (r *RedisCache) Ping(ctx context.Context) error {
+	return r.client.Ping(ctx).Err()
+}
+
 // GetTyped retrieves a value from any Cache and deserialises it into T.
 // Works transparently for both OtterCache (native type assertion) and
 // RedisCache (JSON unmarshal from raw bytes).

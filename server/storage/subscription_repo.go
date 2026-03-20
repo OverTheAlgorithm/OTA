@@ -32,6 +32,9 @@ func (r *SubscriptionRepository) GetSubscriptions(ctx context.Context, userID st
 		}
 		categories = append(categories, cat)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	if categories == nil {
 		categories = []string{}
 	}

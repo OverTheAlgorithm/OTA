@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -79,7 +79,7 @@ type RefreshTokenStore interface {
 type AuthHandler struct {
 	kakao             *kakao.Client
 	jwt               *auth.JWTManager
-	states            *auth.StateStore
+	states            auth.StateStorer
 	userRepo          user.Repository
 	welcomeDeliverer  delivery.WelcomeDeliverer
 	bonusGranter      SignupBonusGranter
@@ -94,7 +94,7 @@ type AuthHandler struct {
 func NewAuthHandler(
 	kakao *kakao.Client,
 	jwt *auth.JWTManager,
-	states *auth.StateStore,
+	states auth.StateStorer,
 	userRepo user.Repository,
 	welcomeDeliverer delivery.WelcomeDeliverer,
 	bonusGranter SignupBonusGranter,
@@ -198,7 +198,7 @@ func clearAuthCookies(w http.ResponseWriter) {
 func (h *AuthHandler) KakaoLogin(c *gin.Context) {
 	state, err := h.states.Generate()
 	if err != nil {
-		log.Printf("failed to generate state: %v", err)
+		slog.Error("failed to generate state", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -223,21 +223,21 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 
 	tokenResp, err := h.kakao.ExchangeCode(c.Request.Context(), code)
 	if err != nil {
-		log.Printf("failed to exchange code: %v", err)
+		slog.Error("failed to exchange code", "error", err)
 		c.Redirect(http.StatusFound, h.frontendURL+"/login?error=token_exchange_failed")
 		return
 	}
 
 	kakaoUser, err := h.kakao.FetchUser(c.Request.Context(), tokenResp.AccessToken)
 	if err != nil {
-		log.Printf("failed to fetch kakao user: %v", err)
+		slog.Error("failed to fetch kakao user", "error", err)
 		c.Redirect(http.StatusFound, h.frontendURL+"/login?error=user_fetch_failed")
 		return
 	}
 
 	_, found, err := h.userRepo.FindByKakaoID(c.Request.Context(), kakaoUser.ID)
 	if err != nil {
-		log.Printf("failed to check existing user: %v", err)
+		slog.Error("failed to check existing user", "error", err)
 		c.Redirect(http.StatusFound, h.frontendURL+"/login?error=db_error")
 		return
 	}
@@ -251,13 +251,13 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 			kakaoUser.Account.Profile.ProfileImageURL,
 		)
 		if err != nil {
-			log.Printf("failed to upsert user: %v", err)
+			slog.Error("failed to upsert user", "error", err)
 			c.Redirect(http.StatusFound, h.frontendURL+"/login?error=db_error")
 			return
 		}
 
 		if err := h.setAuthCookies(c.Writer, u.ID, u.Role); err != nil {
-			log.Printf("failed to set auth cookies: %v", err)
+			slog.Error("failed to set auth cookies", "error", err)
 			c.Redirect(http.StatusFound, h.frontendURL+"/login?error=jwt_error")
 			return
 		}
@@ -274,7 +274,7 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 		ProfileImageURL: kakaoUser.Account.Profile.ProfileImageURL,
 	}, signupCacheTTL)
 
-	log.Printf("new user signup pending -- kakao_id=%d, signup_key=%s", kakaoUser.ID, signupKey)
+	slog.Info("new user signup pending", "kakao_id", kakaoUser.ID)
 	c.Redirect(http.StatusFound, h.frontendURL+"/terms-consent?signup_key="+signupKey)
 }
 
@@ -322,41 +322,41 @@ func (h *AuthHandler) CompleteSignup(c *gin.Context) {
 		pending.ProfileImageURL,
 	)
 	if err != nil {
-		log.Printf("failed to create user during signup: %v", err)
+		slog.Error("failed to create user during signup", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "signup failed"})
 		return
 	}
 
 	if err := h.termsService.SaveConsents(c.Request.Context(), u.ID, req.AgreedTermIDs); err != nil {
-		log.Printf("failed to save consents for user %s: %v", u.ID, err)
+		slog.Error("failed to save consents", "user_id", u.ID, "error", err)
 	}
 
 	if h.signupBonus > 0 && h.bonusGranter != nil {
 		if err := h.bonusGranter.AddPoints(c.Request.Context(), u.ID, h.signupBonus); err != nil {
-			log.Printf("signup bonus grant failed for user %s: %v", u.ID, err)
+			slog.Warn("signup bonus grant failed", "user_id", u.ID, "error", err)
 		} else {
 			_ = h.bonusGranter.InsertCoinEvent(c.Request.Context(), u.ID, h.signupBonus, "signup_bonus", "가입 보너스", "")
-			log.Printf("granted %d signup bonus coins to new user %s", h.signupBonus, u.ID)
+			slog.Info("signup bonus granted", "coins", h.signupBonus, "user_id", u.ID)
 		}
 	}
 
 	if u.Email != "" && h.welcomeDeliverer != nil {
 		go func() {
 			if err := h.welcomeDeliverer.DeliverToNewUser(context.Background(), u.ID, u.Email); err != nil {
-				log.Printf("welcome delivery failed for user %s: %v", u.ID, err)
+				slog.Warn("welcome delivery failed", "user_id", u.ID, "error", err)
 			} else {
-				log.Printf("welcome delivery sent to new user %s (%s)", u.ID, u.Email)
+				slog.Info("welcome delivery sent", "user_id", u.ID)
 			}
 		}()
 	}
 
 	if err := h.setAuthCookies(c.Writer, u.ID, u.Role); err != nil {
-		log.Printf("failed to set auth cookies: %v", err)
+		slog.Error("failed to set auth cookies", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "login failed"})
 		return
 	}
 
-	log.Printf("new user signup completed -- user_id=%s, kakao_id=%d, consents=%d", u.ID, pending.KakaoID, len(req.AgreedTermIDs))
+	slog.Info("new user signup completed", "user_id", u.ID, "kakao_id", pending.KakaoID, "consents", len(req.AgreedTermIDs))
 	c.JSON(http.StatusOK, gin.H{"data": u})
 }
 
@@ -369,7 +369,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 	u, err := h.userRepo.FindByID(c.Request.Context(), userID)
 	if err != nil {
-		log.Printf("failed to find user: %v", err)
+		slog.Error("failed to find user", "error", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
@@ -393,7 +393,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	tokenHash := auth.HashRefreshToken(rawToken)
 	record, found, err := h.refreshTokenStore.FindByHash(c.Request.Context(), tokenHash)
 	if err != nil {
-		log.Printf("refresh token lookup error: %v", err)
+		slog.Error("refresh token lookup error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -404,21 +404,21 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	}
 
 	if err := h.refreshTokenStore.DeleteByHash(c.Request.Context(), tokenHash); err != nil {
-		log.Printf("failed to delete old refresh token: %v", err)
+		slog.Error("failed to delete old refresh token", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
 	u, err := h.userRepo.FindByID(c.Request.Context(), record.UserID)
 	if err != nil {
-		log.Printf("refresh: user %s not found: %v", record.UserID, err)
+		slog.Error("refresh: user not found", "user_id", record.UserID, "error", err)
 		clearAuthCookies(c.Writer)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
 		return
 	}
 
 	if err := h.setAuthCookies(c.Writer, u.ID, u.Role); err != nil {
-		log.Printf("failed to set auth cookies during refresh: %v", err)
+		slog.Error("failed to set auth cookies during refresh", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -431,7 +431,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		if rawToken, err := c.Cookie(refreshCookieName); err == nil && rawToken != "" {
 			tokenHash := auth.HashRefreshToken(rawToken)
 			if err := h.refreshTokenStore.DeleteByHash(c.Request.Context(), tokenHash); err != nil {
-				log.Printf("failed to revoke refresh token on logout: %v", err)
+				slog.Warn("failed to revoke refresh token on logout", "error", err)
 			}
 		}
 	}
@@ -450,7 +450,7 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 	if h.withdrawalChecker != nil {
 		hasPending, err := h.withdrawalChecker.HasPendingWithdrawals(c.Request.Context(), uid)
 		if err != nil {
-			log.Printf("failed to check pending withdrawals for user %s: %v", uid, err)
+			slog.Error("failed to check pending withdrawals", "user_id", uid, "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error during account deletion"})
 			return
 		}
@@ -462,18 +462,18 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 
 	if h.refreshTokenStore != nil {
 		if err := h.refreshTokenStore.DeleteAllForUser(c.Request.Context(), uid); err != nil {
-			log.Printf("failed to revoke refresh tokens for user %s: %v", uid, err)
+			slog.Warn("failed to revoke refresh tokens", "user_id", uid, "error", err)
 		}
 	}
 
 	if err := h.userRepo.DeleteByID(c.Request.Context(), uid); err != nil {
-		log.Printf("failed to delete user %s: %v", uid, err)
+		slog.Error("failed to delete user", "user_id", uid, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "account deletion failed"})
 		return
 	}
 
 	clearAuthCookies(c.Writer)
-	log.Printf("user account deleted -- user_id=%s", uid)
+	slog.Info("user account deleted", "user_id", uid)
 	c.JSON(http.StatusOK, gin.H{"message": "account deleted"})
 }
 

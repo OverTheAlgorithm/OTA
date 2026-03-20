@@ -3,6 +3,7 @@ package delivery
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,6 +11,9 @@ import (
 	"ota/domain/collector"
 	"ota/platform/email"
 )
+
+// deliveryConcurrency is the maximum number of concurrent deliveries within a batch.
+const deliveryConcurrency = 20
 
 const deliveryBatchSize = 1000
 
@@ -160,45 +164,68 @@ func (s *Service) DeliverToTargets(ctx context.Context, runID string, items []co
 	return result
 }
 
-// deliverBatch processes one batch of targets.
+// deliverBatch processes one batch of targets using a semaphore-bounded worker pool.
+// Up to deliveryConcurrency goroutines run concurrently; result is mutex-protected.
 func (s *Service) deliverBatch(ctx context.Context, runID string, items []collector.ContextItem, targets []DeliveryTarget, brainCats []collector.BrainCategory, result *DeliveryResult) {
-	for _, target := range targets {
-		// Check idempotency
-		alreadySent, err := s.repo.HasDeliveryLog(ctx, runID, target.User.UserID, target.Channel)
-		if err != nil {
-			result.FailureCount++
-			result.FailedUsers = append(result.FailedUsers, target.User.UserID)
-			result.DeliveryErrors[fmt.Sprintf("%s_%s", target.User.UserID, target.Channel)] = fmt.Sprintf("failed to check delivery log: %v", err)
-			continue
-		}
-		if alreadySent {
-			result.SkippedCount++
-			continue
-		}
+	var mu sync.Mutex
+	sem := make(chan struct{}, deliveryConcurrency)
+	var wg sync.WaitGroup
 
-		// Build message context for personalized links and point display
-		var msgCtx *MessageContext
-		if runID != "" {
-			msgCtx = &MessageContext{
-				UserID: target.User.UserID,
-				RunID:  runID,
+	for _, t := range targets {
+		target := t // capture loop variable
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			// Check idempotency
+			alreadySent, err := s.repo.HasDeliveryLog(ctx, runID, target.User.UserID, target.Channel)
+			if err != nil {
+				mu.Lock()
+				result.FailureCount++
+				result.FailedUsers = append(result.FailedUsers, target.User.UserID)
+				result.DeliveryErrors[fmt.Sprintf("%s_%s", target.User.UserID, target.Channel)] = fmt.Sprintf("failed to check delivery log: %v", err)
+				mu.Unlock()
+				return
 			}
-		}
+			if alreadySent {
+				mu.Lock()
+				result.SkippedCount++
+				mu.Unlock()
+				return
+			}
 
-		levelInfo := s.loadUserLevel(ctx, target.User.UserID)
-		message := FormatMessage(items, target.User.Subscriptions, brainCats, s.frontendURL, levelInfo, msgCtx)
+			// Build message context for personalized links and point display
+			var msgCtx *MessageContext
+			if runID != "" {
+				msgCtx = &MessageContext{
+					UserID: target.User.UserID,
+					RunID:  runID,
+				}
+			}
 
-		err = s.sendViaChannel(ctx, target.Channel, target.User, message)
-		if err != nil {
-			result.FailureCount++
-			result.FailedUsers = append(result.FailedUsers, target.User.UserID)
-			result.DeliveryErrors[fmt.Sprintf("%s_%s", target.User.UserID, target.Channel)] = err.Error()
-			s.logDelivery(ctx, runID, target.User.UserID, target.Channel, target.RetryCount, StatusFailed, err.Error())
-		} else {
-			result.SuccessCount++
-			s.logDelivery(ctx, runID, target.User.UserID, target.Channel, target.RetryCount, StatusSent, "")
-		}
+			levelInfo := s.loadUserLevel(ctx, target.User.UserID)
+			message := FormatMessage(items, target.User.Subscriptions, brainCats, s.frontendURL, levelInfo, msgCtx)
+
+			sendErr := s.sendViaChannel(ctx, target.Channel, target.User, message)
+			if sendErr != nil {
+				mu.Lock()
+				result.FailureCount++
+				result.FailedUsers = append(result.FailedUsers, target.User.UserID)
+				result.DeliveryErrors[fmt.Sprintf("%s_%s", target.User.UserID, target.Channel)] = sendErr.Error()
+				mu.Unlock()
+				s.logDelivery(ctx, runID, target.User.UserID, target.Channel, target.RetryCount, StatusFailed, sendErr.Error())
+			} else {
+				mu.Lock()
+				result.SuccessCount++
+				mu.Unlock()
+				s.logDelivery(ctx, runID, target.User.UserID, target.Channel, target.RetryCount, StatusSent, "")
+			}
+		}()
 	}
+
+	wg.Wait()
 }
 
 // DeliverToUser sends the latest briefing to a single authenticated user on-demand.

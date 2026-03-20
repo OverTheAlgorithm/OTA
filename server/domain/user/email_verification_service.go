@@ -16,6 +16,7 @@ const (
 	CodeExpiryDuration = 5 * time.Minute
 	MaxCodesPerHour    = 5
 	RateLimitWindow    = 1 * time.Hour
+	MaxVerifyAttempts  = 5
 )
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
@@ -81,30 +82,47 @@ func (s *EmailVerificationService) SendCode(ctx context.Context, userID string, 
 	return SendCodeResult{Code: code, Email: email}, nil
 }
 
-// VerifyCode validates the code and updates the user's email
+// VerifyCode validates the code and updates the user's email.
+// Returns ErrMaxAttemptsExceeded when the code has been guessed too many times.
 func (s *EmailVerificationService) VerifyCode(ctx context.Context, userID string, code string) error {
-	// 1. Find valid (unexpired, unused) code
-	verificationCode, err := s.verificationRepo.FindValidCode(ctx, userID, code)
+	// 1. Load the latest pending code to check attempts before matching.
+	//    This prevents brute-force: even if the attacker submits different values
+	//    each time, we lock them out after MaxVerifyAttempts failures.
+	latestCode, err := s.verificationRepo.FindLatestPendingCode(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("invalid or expired verification code")
 	}
 
-	// 2. Check expiry (defense in depth; query also filters)
+	// 2. Reject if max attempts reached (code is burned regardless of value).
+	if latestCode.Attempts >= MaxVerifyAttempts {
+		return fmt.Errorf("max attempts exceeded: please request a new code")
+	}
+
+	// 3. Try to match the submitted code. On mismatch, increment attempts then reject.
+	verificationCode, err := s.verificationRepo.FindValidCode(ctx, userID, code)
+	if err != nil {
+		// Best-effort increment; ignore error so user gets correct status.
+		_ = s.verificationRepo.IncrementAttempts(ctx, latestCode.ID)
+		return fmt.Errorf("invalid or expired verification code")
+	}
+
+	// 4. Check expiry (defense in depth; query also filters).
 	if time.Now().UTC().After(verificationCode.ExpiresAt) {
+		_ = s.verificationRepo.IncrementAttempts(ctx, verificationCode.ID)
 		return fmt.Errorf("verification code has expired")
 	}
 
-	// 3. Mark code as used
+	// 5. Mark code as used.
 	if err := s.verificationRepo.MarkCodeUsed(ctx, verificationCode.ID); err != nil {
 		return fmt.Errorf("failed to mark code as used: %w", err)
 	}
 
-	// 4. Update user email
+	// 6. Update user email.
 	if err := s.userRepo.UpdateEmail(ctx, userID, verificationCode.Email); err != nil {
 		return fmt.Errorf("failed to update email: %w", err)
 	}
 
-	// 5. Invalidate other pending codes for this user
+	// 7. Invalidate other pending codes for this user.
 	_ = s.verificationRepo.InvalidatePendingCodes(ctx, userID)
 
 	return nil

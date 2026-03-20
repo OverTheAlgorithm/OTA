@@ -1,10 +1,12 @@
 package handler
 
 import (
-	"log"
+	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
+	"ota/domain/apperr"
 	"ota/domain/withdrawal"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +28,7 @@ func (h *WithdrawalHandler) GetBankAccount(c *gin.Context) {
 	userID := c.GetString("userID")
 	account, err := h.service.GetBankAccount(c.Request.Context(), userID)
 	if err != nil {
-		log.Printf("get bank account error: %v", err)
+		slog.Error("get bank account error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -52,7 +54,12 @@ func (h *WithdrawalHandler) SaveBankAccount(c *gin.Context) {
 		AccountHolder: strings.TrimSpace(req.AccountHolder),
 	}
 	if err := h.service.SaveBankAccount(c.Request.Context(), account); err != nil {
-		log.Printf("save bank account error: %v", err)
+		slog.Error("save bank account error", "error", err)
+		var ve *apperr.ValidationError
+		if errors.As(err, &ve) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": ve.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -73,14 +80,18 @@ func (h *WithdrawalHandler) RequestWithdrawal(c *gin.Context) {
 
 	w, err := h.service.RequestWithdrawal(c.Request.Context(), userID, req.Amount)
 	if err != nil {
-		log.Printf("request withdrawal error: %v", err)
-		// Return user-friendly error for known validation failures
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "minimum") || strings.Contains(errMsg, "insufficient") || strings.Contains(errMsg, "bank account") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
-			return
+		slog.Error("request withdrawal error", "error", err)
+		var me *apperr.MinimumAmountError
+		switch {
+		case errors.Is(err, apperr.ErrBankAccountRequired):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case errors.As(err, &me):
+			c.JSON(http.StatusBadRequest, gin.H{"error": me.Error()})
+		case errors.Is(err, apperr.ErrInsufficientBalance):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": w})
@@ -92,7 +103,7 @@ func (h *WithdrawalHandler) GetHistory(c *gin.Context) {
 
 	items, hasMore, err := h.service.GetUserHistory(c.Request.Context(), userID, limit, offset)
 	if err != nil {
-		log.Printf("get withdrawal history error: %v", err)
+		slog.Error("get withdrawal history error", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -109,17 +120,16 @@ func (h *WithdrawalHandler) CancelWithdrawal(c *gin.Context) {
 	}
 
 	if err := h.service.CancelWithdrawal(c.Request.Context(), userID, id); err != nil {
-		log.Printf("cancel withdrawal error: %v", err)
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "not authorized") {
+		slog.Error("cancel withdrawal error", "error", err)
+		var ce *apperr.ConflictError
+		switch {
+		case errors.Is(err, apperr.ErrUnauthorized):
 			c.JSON(http.StatusForbidden, gin.H{"error": "not authorized"})
-			return
+		case errors.As(err, &ce):
+			c.JSON(http.StatusBadRequest, gin.H{"error": ce.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		}
-		if strings.Contains(errMsg, "can only cancel") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": "ok"})

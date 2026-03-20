@@ -79,6 +79,9 @@ func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string
 		}
 		entryMap[date].Items = append(entryMap[date].Items, item)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
 
 	hasMore := len(order) > limit
 	if hasMore {
