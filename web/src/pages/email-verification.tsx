@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { sendVerificationCode, verifyEmailCode } from "@/lib/api";
+import { Header } from "@/components/header";
 
 export function EmailVerificationPage() {
   const { refreshUser } = useAuth();
@@ -17,7 +18,6 @@ export function EmailVerificationPage() {
     e.preventDefault();
     setError("");
 
-    // Email format validation
     const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(email)) {
       setError("올바른 이메일 형식을 입력해주세요");
@@ -48,7 +48,7 @@ export function EmailVerificationPage() {
     try {
       await verifyEmailCode(code);
       await refreshUser();
-      navigate("/home", { replace: true });
+      navigate("/mypage?tab=settings", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "인증 코드 확인에 실패했습니다");
     } finally {
@@ -57,121 +57,113 @@ export function EmailVerificationPage() {
   };
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-4"
-      style={{
-        backgroundColor: "var(--color-bg)",
-        color: "var(--color-fg)"
-      }}
-    >
-      <div className="w-full max-w-md space-y-6">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-[#1e3a5f] mb-2">이메일 인증</h1>
-          <p className="text-sm text-[#6b8db5]">
-            {step === "email"
-              ? "이메일 주소를 입력하고 인증 코드를 받아주세요"
-              : `${email}로 인증 코드를 전송했습니다`}
-          </p>
-        </div>
+    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+      <Header />
 
-        {/* Email Input Step */}
-        {step === "email" && (
-          <form onSubmit={handleSendCode} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#6b8db5] mb-2">
-                이메일 주소
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="example@email.com"
-                className="w-full px-4 py-3 bg-white border border-[#d4e6f5] rounded-lg text-[#1e3a5f] placeholder-[#a8bcc9] focus:outline-none focus:border-[#26b0ff] transition-colors"
-                disabled={loading}
-                required
-              />
-            </div>
+      <main className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="relative w-full max-w-[500px] bg-white rounded-[30px] px-10 py-12 md:px-14 md:py-16">
+          {/* Close button */}
+          <button
+            onClick={() => navigate(-1)}
+            className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#f5f5f5] transition-colors"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#231815" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
 
-            {error && (
-              <div className="p-3 bg-[#ff5442]/10 border border-[#ff5442]/30 rounded-lg">
-                <p className="text-sm text-[#ff5442]">{error}</p>
+          {/* Title */}
+          <h1 className="text-4xl md:text-5xl font-semibold text-[#231815] tracking-tight leading-tight mb-8">
+            이메일 인증하기
+          </h1>
+
+          {/* Step 1: Email Input */}
+          {step === "email" && (
+            <form onSubmit={handleSendCode} className="space-y-6">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-[#231815] mb-2">
+                  이메일 주소
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="example@email.com"
+                  className="w-full px-6 py-4 bg-white border border-[#bdc4cd] rounded-xl text-[#231815] text-base placeholder-[#96a0ad] focus:outline-none focus:border-[#43b9d6] transition-colors"
+                  disabled={loading}
+                  required
+                />
               </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-[#26b0ff] hover:bg-[#1a9fed] disabled:bg-[#d4e6f5] disabled:text-[#6b8db5] text-white font-medium rounded-lg transition-colors"
-            >
-              {loading ? "전송 중..." : "인증 코드 전송"}
-            </button>
-          </form>
-        )}
-
-        {/* Code Verification Step */}
-        {step === "code" && (
-          <form onSubmit={handleVerifyCode} className="space-y-4">
-            <div>
-              <label htmlFor="code" className="block text-sm font-medium text-[#6b8db5] mb-2">
-                인증 코드 (6자리)
-              </label>
-              <input
-                id="code"
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="000000"
-                className="w-full px-4 py-3 bg-white border border-[#d4e6f5] rounded-lg text-[#1e3a5f] text-center text-2xl tracking-widest placeholder-[#a8bcc9] focus:outline-none focus:border-[#26b0ff] transition-colors"
-                disabled={loading}
-                maxLength={6}
-                required
-              />
-              <p className="text-xs text-[#a8bcc9] mt-2">
-                인증 코드는 5분 동안 유효합니다
-              </p>
-            </div>
-
-            {error && (
-              <div className="p-3 bg-[#ff5442]/10 border border-[#ff5442]/30 rounded-lg">
+              {error && (
                 <p className="text-sm text-[#ff5442]">{error}</p>
-              </div>
-            )}
+              )}
 
-            <div className="space-y-2">
               <button
                 type="submit"
-                disabled={loading || code.length !== 6}
-                className="w-full py-3 bg-[#26b0ff] hover:bg-[#1a9fed] disabled:bg-[#d4e6f5] disabled:text-[#6b8db5] text-white font-medium rounded-lg transition-colors"
-              >
-                {loading ? "확인 중..." : "인증 완료"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("email");
-                  setCode("");
-                  setError("");
-                }}
                 disabled={loading}
-                className="w-full py-3 bg-transparent border border-[#d4e6f5] hover:border-[#26b0ff] text-[#6b8db5] hover:text-[#1e3a5f] font-medium rounded-lg transition-colors"
+                className="w-full py-4 rounded-full text-lg font-semibold bg-[#43b9d6] text-[#231815] border-[2px] border-[#231815] hover:brightness-110 disabled:opacity-50 transition-all"
               >
-                이메일 다시 입력
+                {loading ? "전송 중..." : "인증번호 보내기"}
               </button>
-            </div>
-          </form>
-        )}
+            </form>
+          )}
 
-        {/* Back to Home */}
-        <button
-          onClick={() => navigate("/home")}
-          className="w-full py-2 text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
-        >
-          홈으로 돌아가기
-        </button>
-      </div>
+          {/* Step 2: Code Verification */}
+          {step === "code" && (
+            <form onSubmit={handleVerifyCode} className="space-y-6">
+              <p className="text-[15px] text-[#231815]">
+                {email}로 인증 코드를 전송했습니다
+              </p>
+
+              <div>
+                <label htmlFor="code" className="block text-sm font-medium text-[#231815] mb-2">
+                  인증 코드 (6자리)
+                </label>
+                <input
+                  id="code"
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  className="w-full px-6 py-4 bg-white border border-[#bdc4cd] rounded-xl text-[#231815] text-base placeholder-[#96a0ad] focus:outline-none focus:border-[#43b9d6] transition-colors"
+                  disabled={loading}
+                  maxLength={6}
+                  required
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-[#ff5442]">{error}</p>
+              )}
+
+              <div className="space-y-3">
+                <button
+                  type="submit"
+                  disabled={loading || code.length !== 6}
+                  className="w-full py-4 rounded-full text-lg font-semibold bg-[#43b9d6] text-[#231815] border-[2px] border-[#231815] hover:brightness-110 disabled:opacity-50 transition-all"
+                >
+                  {loading ? "확인 중..." : "인증 완료"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep("email");
+                    setCode("");
+                    setError("");
+                  }}
+                  disabled={loading}
+                  className="w-full py-4 rounded-full text-lg font-semibold bg-white text-[#231815] border-[2px] border-[#231815] hover:bg-[#f5f5f5] disabled:opacity-50 transition-all"
+                >
+                  이메일 다시 입력하기
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
