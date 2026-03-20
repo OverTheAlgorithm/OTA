@@ -208,7 +208,7 @@ export function LatestPage() {
     ? formatDate(topics[0].created_at)
     : "";
 
-  // Filter topics if "포인트 획득 전" is checked
+  // Filter topics if "획득 가능만 보기" is checked
   const filteredTopics = unearnedOnly
     ? topics.filter((t) => {
         const status = earnMap[t.id];
@@ -273,7 +273,7 @@ export function LatestPage() {
                   onChange={(e) => setUnearnedOnly(e.target.checked)}
                   className="w-4 h-4 rounded border-[#231815] text-[#43b9d6] focus:ring-[#43b9d6] cursor-pointer"
                 />
-                <span className="text-sm text-[#231815]/70">포인트 획득 전</span>
+                <span className="text-sm text-[#231815]/70">획득 가능만 보기</span>
               </label>
             )}
           </div>
