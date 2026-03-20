@@ -33,6 +33,11 @@ jobs:
           username: ubuntu
           key: ${{ secrets.ORACLE_SSH_KEY }}
           script: |
+            set -e
             cd ~/OTA
             git pull origin main
-            sudo docker compose up --build -d server
+            # Rebuild server and recreate any service whose compose config changed.
+            # --build only affects services with a build: key (server).
+            # Other services (redis, postgres, caddy, backup) get recreated only
+            # if their compose definition changed; otherwise left untouched.
+            sudo docker compose up --build -d

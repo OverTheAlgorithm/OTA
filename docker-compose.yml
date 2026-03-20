@@ -19,20 +19,62 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: ota-redis
+    restart: unless-stopped
+    # Internal network only — not exposed to host.
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   server:
     build:
       context: ./server
       dockerfile: Dockerfile
     container_name: ota-server
     restart: unless-stopped
+    stop_grace_period: 35s
     expose:
       - "8080"
     env_file:
       - ./server/.env
     environment:
       DB_HOST: postgres
+      REDIS_HOST: redis
     volumes:
       - server_images:/app/data/images
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  backup:
+    image: postgres:16-alpine
+    container_name: ota-backup
+    restart: unless-stopped
+    volumes:
+      - ./backups:/backups
+    environment:
+      - PGHOST=postgres
+      - PGUSER=${DB_USER:-ota}
+      - PGPASSWORD=${DB_PASSWORD:-ota_dev_password}
+      - PGDATABASE=${DB_NAME:-ota}
+    entrypoint: /bin/sh
+    command: >
+      -c 'while true; do
+        echo "[$(date)] Starting backup...";
+        pg_dump -Fc > /backups/backup_$$(date +%Y%m%d_%H%M%S).dump &&
+        echo "[$(date)] Backup complete." &&
+        find /backups -name "*.dump" -mtime +7 -delete;
+        sleep 86400;
+      done'
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +95,7 @@ services:
 
 volumes:
   pgdata:
+  redisdata:
   server_images:
   caddy_data:
   caddy_config:

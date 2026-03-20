@@ -16,6 +16,9 @@ server/tmp/
 server/logs/
 server/data/
 
+# Database backups
+backups/
+
 # Node
 web/node_modules/
 web/dist/
@@ -26,3 +29,8 @@ Thumbs.db
 
 .playwright-mcp
 server.log
+
+# OMC state
+.omc/
+server/.omc/
+web/.omc/
