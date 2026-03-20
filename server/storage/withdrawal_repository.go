@@ -109,13 +109,19 @@ func (r *WithdrawalRepository) CreateWithdrawalWithDeduction(ctx context.Context
 		return uuid.Nil, fmt.Errorf("deduct coins: %w", err)
 	}
 
+	// Encrypt account number before storing
+	encAcct, err := crypto.Encrypt(r.encryptionKey, w.AccountNumber)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("encrypt account number: %w", err)
+	}
+
 	// Create withdrawal record
 	var id uuid.UUID
 	err = tx.QueryRow(ctx, `
 		INSERT INTO withdrawals (user_id, amount, bank_name, account_number, account_holder)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
-	`, w.UserID, w.Amount, w.BankName, w.AccountNumber, w.AccountHolder).Scan(&id)
+	`, w.UserID, w.Amount, w.BankName, encAcct, w.AccountHolder).Scan(&id)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("insert withdrawal: %w", err)
 	}
@@ -142,12 +148,17 @@ func (r *WithdrawalRepository) CreateWithdrawal(ctx context.Context, w withdrawa
 	}
 	defer tx.Rollback(ctx)
 
+	encAcct2, err := crypto.Encrypt(r.encryptionKey, w.AccountNumber)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("encrypt account number: %w", err)
+	}
+
 	var id uuid.UUID
 	err = tx.QueryRow(ctx, `
 		INSERT INTO withdrawals (user_id, amount, bank_name, account_number, account_holder)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
-	`, w.UserID, w.Amount, w.BankName, w.AccountNumber, w.AccountHolder).Scan(&id)
+	`, w.UserID, w.Amount, w.BankName, encAcct2, w.AccountHolder).Scan(&id)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("insert withdrawal: %w", err)
 	}
@@ -183,6 +194,11 @@ func (r *WithdrawalRepository) GetByID(ctx context.Context, id uuid.UUID) (*with
 	if err != nil {
 		return nil, fmt.Errorf("get withdrawal by id: %w", err)
 	}
+	decrypted, err := crypto.Decrypt(r.encryptionKey, d.AccountNumber)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt withdrawal account number: %w", err)
+	}
+	d.AccountNumber = decrypted
 
 	rows, err := r.pool.Query(ctx, `
 		SELECT t.id, t.withdrawal_id, t.status, t.note, COALESCE(t.actor_id::text, ''),
@@ -231,6 +247,11 @@ func (r *WithdrawalRepository) GetByUser(ctx context.Context, userID string, lim
 		if err := rows.Scan(&d.ID, &d.UserID, &d.Amount, &d.BankName, &d.AccountNumber, &d.AccountHolder, &d.CreatedAt, &d.CurrentStatus); err != nil {
 			return nil, false, fmt.Errorf("scan withdrawal: %w", err)
 		}
+		dec, err := crypto.Decrypt(r.encryptionKey, d.AccountNumber)
+		if err != nil {
+			return nil, false, fmt.Errorf("decrypt withdrawal account number: %w", err)
+		}
+		d.AccountNumber = dec
 		items = append(items, d)
 	}
 	if err := rows.Err(); err != nil {
@@ -341,6 +362,11 @@ func (r *WithdrawalRepository) ListAll(ctx context.Context, filter withdrawal.Li
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan withdrawal list item: %w", err)
 		}
+		decItem, err := crypto.Decrypt(r.encryptionKey, item.AccountNumber)
+		if err != nil {
+			return nil, 0, fmt.Errorf("decrypt withdrawal account number: %w", err)
+		}
+		item.AccountNumber = decItem
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
