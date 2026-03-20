@@ -61,7 +61,7 @@ const steps = [
 ];
 
 export function LandingPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const loginError = searchParams.get("error");
@@ -159,13 +159,30 @@ export function LandingPage() {
               </a>
             </div>
 
-            <div className="hidden md:block">
-              <button
-                onClick={() => user ? navigate("/mypage") : setLoginOpen(true)}
-                className="px-6 py-2 rounded-full text-sm font-medium bg-[#43b9d6] text-[#231815] border border-[#231815] hover:brightness-110 transition-all"
-              >
-                {user ? "마이페이지" : "무료로 구독하기"}
-              </button>
+            <div className="hidden md:flex items-center gap-3">
+              {user ? (
+                <>
+                  <button
+                    onClick={async () => { await logout(); navigate("/", { replace: true }); }}
+                    className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+                  >
+                    로그아웃
+                  </button>
+                  <button
+                    onClick={() => navigate("/mypage")}
+                    className="px-5 h-9 rounded-full text-sm font-medium bg-[#43b9d6] text-[#231815] border-[2px] border-[#231815] hover:opacity-80 transition-opacity"
+                  >
+                    마이페이지
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setLoginOpen(true)}
+                  className="px-6 py-2 rounded-full text-sm font-medium bg-[#43b9d6] text-[#231815] border border-[#231815] hover:brightness-110 transition-all"
+                >
+                  무료로 구독하기
+                </button>
+              )}
             </div>
 
             <button
@@ -213,15 +230,29 @@ export function LandingPage() {
             >
               이용 방법
             </a>
-            <button
-              className="px-6 py-2 rounded-full text-sm font-medium text-center bg-[#43b9d6] text-[#231815] border border-[#231815]"
-              onClick={() => {
-                setMenuOpen(false);
-                user ? navigate("/mypage") : setLoginOpen(true);
-              }}
-            >
-              {user ? "마이페이지" : "무료로 구독하기"}
-            </button>
+            {user ? (
+              <>
+                <button
+                  className="text-base font-medium text-[#231815]"
+                  onClick={async () => { setMenuOpen(false); await logout(); navigate("/", { replace: true }); }}
+                >
+                  로그아웃
+                </button>
+                <button
+                  className="px-6 py-2 rounded-full text-sm font-medium text-center bg-[#43b9d6] text-[#231815] border border-[#231815]"
+                  onClick={() => { setMenuOpen(false); navigate("/mypage"); }}
+                >
+                  마이페이지
+                </button>
+              </>
+            ) : (
+              <button
+                className="px-6 py-2 rounded-full text-sm font-medium text-center bg-[#43b9d6] text-[#231815] border border-[#231815]"
+                onClick={() => { setMenuOpen(false); setLoginOpen(true); }}
+              >
+                무료로 구독하기
+              </button>
+            )}
           </div>
         )}
       </nav>
