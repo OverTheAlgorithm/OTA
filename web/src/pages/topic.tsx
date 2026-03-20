@@ -449,6 +449,7 @@ export function TopicPage() {
                   src={topic.image_url}
                   alt=""
                   className="rounded-xl max-h-[400px] object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
+                  onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
                 />
               </div>
             )}

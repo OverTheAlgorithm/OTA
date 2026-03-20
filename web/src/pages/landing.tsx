@@ -387,6 +387,7 @@ export function LandingPage() {
                         src={news.image_url}
                         alt={news.topic}
                         className="w-full h-full object-contain [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
+                        onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
                       />
                     </div>
                   )}

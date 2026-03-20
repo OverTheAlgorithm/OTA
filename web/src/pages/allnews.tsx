@@ -95,6 +95,7 @@ function NewsCard({
             src={topic.image_url}
             alt={topic.topic}
             className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform] group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
           />
         </div>
       )}

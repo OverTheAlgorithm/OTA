@@ -129,6 +129,7 @@ function NewsItem({
               src={topic.image_url}
               alt=""
               className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
+              onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
             />
           </div>
         )}
