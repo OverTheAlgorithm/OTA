@@ -44,6 +44,10 @@ func (m *mockLevelHistoryRepo) GetRecentTopics(_ context.Context, _ int) ([]coll
 	return nil, nil
 }
 
+func (m *mockLevelHistoryRepo) GetLatestRunTopics(_ context.Context) ([]collector.TopicPreview, error) {
+	return nil, nil
+}
+
 func (m *mockLevelHistoryRepo) GetAllTopics(_ context.Context, _, _ string, _, _ int) ([]collector.TopicPreview, bool, error) {
 	return nil, false, nil
 }

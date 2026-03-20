@@ -308,6 +308,13 @@ export async function fetchRecentTopics(): Promise<TopicPreview[]> {
   return body.data ?? [];
 }
 
+export async function fetchLatestRunTopics(): Promise<TopicPreview[]> {
+  const res = await fetch(`${API_BASE}/api/v1/context/latest`);
+  if (!res.ok) return [];
+  const body: ApiResponse<TopicPreview[]> = await res.json();
+  return body.data ?? [];
+}
+
 // ── 전체 뉴스 (allnews 페이지) ──────────────────────────
 export type FilterType = "category" | "brain_category" | "";
 

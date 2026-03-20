@@ -72,6 +72,8 @@ type HistoryRepository interface {
 	IsRunCreatedToday(ctx context.Context, runID uuid.UUID) (bool, error)
 	// GetRecentTopics returns up to `count` random topics from the latest collection run.
 	GetRecentTopics(ctx context.Context, count int) ([]TopicPreview, error)
+	// GetLatestRunTopics returns all topics from the latest successful collection run.
+	GetLatestRunTopics(ctx context.Context) ([]TopicPreview, error)
 	// GetAllTopics returns paginated topics with optional filter.
 	// filterType: "category" | "brain_category" | "" (all)
 	// Returns topics, hasMore, error.

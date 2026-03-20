@@ -152,6 +152,42 @@ func (r *HistoryRepository) GetRecentTopics(ctx context.Context, count int) ([]c
 	return items, rows.Err()
 }
 
+// GetLatestRunTopics returns all topics from the latest successful collection run.
+func (r *HistoryRepository) GetLatestRunTopics(ctx context.Context) ([]collector.TopicPreview, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT ci.id, ci.topic, ci.summary, ci.image_path,
+			ci.collection_run_id, ci.category, COALESCE(ci.brain_category, ''), COALESCE(ci.priority, 'none'), ci.created_at
+		FROM context_items ci
+		WHERE ci.collection_run_id = (
+			SELECT id FROM collection_runs
+			WHERE status = 'success'
+			ORDER BY started_at DESC
+			LIMIT 1
+		)
+		ORDER BY ci.priority DESC, ci.rank ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []collector.TopicPreview
+	for rows.Next() {
+		var item collector.TopicPreview
+		var imagePath *string
+		if err := rows.Scan(&item.ID, &item.Topic, &item.Summary, &imagePath,
+			&item.RunID, &item.Category, &item.BrainCategory, &item.Priority, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		if imagePath != nil {
+			url := "/api/v1/images/" + *imagePath
+			item.ImageURL = &url
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 // IsRunCreatedToday returns true if the run was started today (KST).
 func (r *HistoryRepository) IsRunCreatedToday(ctx context.Context, runID uuid.UUID) (bool, error) {
 	query := `

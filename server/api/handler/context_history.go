@@ -97,6 +97,21 @@ func (h *ContextHistoryHandler) GetRecentTopics(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": topics})
 }
 
+// GetLatestRunTopics returns all topics from the latest successful collection run.
+// Public endpoint — used on the home (latest news) page.
+func (h *ContextHistoryHandler) GetLatestRunTopics(c *gin.Context) {
+	topics, err := h.repo.GetLatestRunTopics(c.Request.Context())
+	if err != nil {
+		log.Printf("get latest run topics error: %v", err)
+		c.JSON(http.StatusOK, gin.H{"data": []collector.TopicPreview{}})
+		return
+	}
+	if topics == nil {
+		topics = []collector.TopicPreview{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": topics})
+}
+
 // GetAllTopics returns paginated topics with optional category/brain_category filter.
 // Public endpoint — used on the all-news page.
 func (h *ContextHistoryHandler) GetAllTopics(c *gin.Context) {
@@ -177,6 +192,9 @@ func (h *ContextHistoryHandler) RegisterRoutes(group *gin.RouterGroup) {
 
 	// Public: recent topics for landing page
 	group.GET("/recent", h.GetRecentTopics)
+
+	// Public: all topics from the latest collection run
+	group.GET("/latest", h.GetLatestRunTopics)
 
 	// Public: all topics with pagination + filter
 	group.GET("/topics", h.GetAllTopics)

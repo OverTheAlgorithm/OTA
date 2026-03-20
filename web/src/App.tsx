@@ -12,6 +12,7 @@ import { AdminTermsPage } from "@/pages/admin-terms";
 import { AdminCoinsPage } from "@/pages/admin-coins";
 import { TermsConsentPage } from "@/pages/terms-consent";
 import { AllNewsPage } from "@/pages/allnews";
+import { HomePage } from "@/pages/home";
 import { NotFoundPage } from "@/pages/not-found";
 
 function LoginRedirect() {
@@ -28,6 +29,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginRedirect />} />
 
+          <Route path="/home" element={<HomePage />} />
           <Route path="/allnews" element={<AllNewsPage />} />
           <Route path="/email-verification" element={<EmailVerificationPage />} />
           <Route path="/topic/:id" element={<TopicPage />} />
