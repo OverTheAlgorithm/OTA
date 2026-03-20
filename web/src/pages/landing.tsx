@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { KakaoLoginButton, LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/contexts/auth-context";
-import { fetchRecentTopics, type TopicPreview } from "@/lib/api";
+import { fetchRecentTopics, getDefaultImage, type TopicPreview } from "@/lib/api";
 
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -381,16 +381,14 @@ export function LandingPage() {
             {recentTopics.map((news, i) => (
               <FadeIn key={news.id} delay={i * 100}>
                 <div className="border-b-[3px] border-[#231815] flex flex-col md:flex-row">
-                  {news.image_url && (
-                    <div className="md:w-[42%] aspect-[16/9] md:aspect-auto overflow-hidden bg-[#f0ece0] flex items-center justify-center">
-                      <img
-                        src={news.image_url}
-                        alt={news.topic}
-                        className="w-full h-full object-contain [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
-                        onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
-                      />
-                    </div>
-                  )}
+                  <div className="md:w-[42%] aspect-[16/9] md:aspect-auto overflow-hidden bg-[#f0ece0] flex items-center justify-center">
+                    <img
+                      src={news.image_url || getDefaultImage(news.id)}
+                      alt={news.topic}
+                      className="w-full h-full object-contain [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
+                      onError={(e) => { e.currentTarget.src = getDefaultImage(news.id); }}
+                    />
+                  </div>
                   <div
                     className={`flex-1 ${news.image_url ? "border-t-[3px] md:border-t-0 md:border-l-[3px]" : ""} border-[#231815] p-6 md:p-8 lg:p-10 flex flex-col justify-between relative`}
                   >

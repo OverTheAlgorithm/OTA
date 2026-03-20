@@ -8,6 +8,7 @@ import {
   fetchAllTopics,
   fetchFilterOptions,
   batchEarnStatus,
+  getDefaultImage,
   type TopicPreview,
   type FilterOptions,
   type FilterType,
@@ -89,16 +90,14 @@ function NewsCard({
 
   return (
     <Link to={`/topic/${topic.id}`} className="group block">
-      {topic.image_url && (
-        <div className="aspect-[16/10] overflow-hidden rounded-xl bg-[#f0ece0] mb-3">
-          <img
-            src={topic.image_url}
-            alt={topic.topic}
-            className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform] group-hover:scale-105 transition-transform duration-300"
-            onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
-          />
-        </div>
-      )}
+      <div className="aspect-[16/10] overflow-hidden rounded-xl bg-[#f0ece0] mb-3">
+        <img
+          src={topic.image_url || getDefaultImage(topic.id)}
+          alt={topic.topic}
+          className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform] group-hover:scale-105 transition-transform duration-300"
+          onError={(e) => { e.currentTarget.src = getDefaultImage(topic.id); }}
+        />
+      </div>
 
       <div className="flex items-center gap-2 mb-1">
         {topic.created_at && (

@@ -1,5 +1,19 @@
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
+const DEFAULT_IMAGES: string[] = Object.values(
+  import.meta.glob<string>("@/assets/default_img_*.*", { eager: true, import: "default" }),
+);
+
+/** Deterministically pick a default placeholder image based on topic ID. */
+export function getDefaultImage(id: string): string {
+  if (DEFAULT_IMAGES.length === 0) return "";
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+  }
+  return DEFAULT_IMAGES[Math.abs(hash) % DEFAULT_IMAGES.length];
+}
+
 // -- Token refresh ------------------------------------------------------------
 
 let isRefreshing = false;
