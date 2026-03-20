@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Turnstile } from "@marsidev/react-turnstile";
 import {
   fetchTopicDetail,
@@ -225,7 +225,7 @@ function CoinTag({ state }: { state: CoinTagState }) {
 
 export function TopicPage() {
   const { id } = useParams<{ id: string }>();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
@@ -235,10 +235,6 @@ export function TopicPage() {
   const [loading, setLoading] = useState(true);
   const [loginOpen, setLoginOpen] = useState(false);
   const [showCountdown, setShowCountdown] = useState<{ seconds: number; topicId: string } | null>(null);
-
-  const handleLogout = async () => {
-    await logout();
-  };
 
   const earnCalledRef = useRef(false);
   const handleCountdownComplete = useCallback((topicId: string, turnstileToken: string) => {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { Header } from "@/components/header";
 import { useAuth } from "@/contexts/auth-context";
@@ -174,7 +174,7 @@ function SettingsTab() {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function MypagePage() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") === "settings" ? "settings" : "points";
@@ -183,11 +183,6 @@ export function MypagePage() {
   useEffect(() => {
     if (!authLoading && !user) navigate("/", { replace: true });
   }, [user, authLoading, navigate]);
-
-  const handleLogout = useCallback(async () => {
-    await logout();
-    navigate("/", { replace: true });
-  }, [logout, navigate]);
 
   if (authLoading || !user) {
     return (

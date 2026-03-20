@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { UserLevelCard } from "@/components/user-level-card";
 import { Footer } from "@/components/footer";
@@ -91,7 +91,6 @@ function NewsCard({
 
 export function AllNewsPage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     categories: [],
