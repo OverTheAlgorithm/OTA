@@ -85,23 +85,17 @@ export function ChannelPreferencesSection() {
 
   if (loading) {
     return (
-      <section className="rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-6">
-        <p className="text-sm text-[#6b8db5]">채널 정보를 불러오는 중...</p>
+      <section className="border-l-[3px] border-[#43b9d6] pl-5">
+        <p className="text-sm text-[#231815]/50">채널 정보를 불러오는 중...</p>
       </section>
     );
   }
 
   return (
-    <section className="rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-6">
-      <div className="flex items-center gap-2 mb-5">
-        <div className="w-8 h-8 rounded-lg bg-[#ff5442]/10 flex items-center justify-center">
-          <svg className="w-4 h-4 text-[#ff5442]" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-          </svg>
-        </div>
-        <h2 className="font-semibold text-[#1e3a5f]">알림 수신 채널</h2>
-        <span className="ml-auto text-xs text-[#6b8db5]">
+    <section className="border-l-[3px] border-[#43b9d6] pl-5">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-lg font-bold text-[#231815]">알림 수신 채널</h2>
+        <span className="text-sm text-[#231815]/50">
           {enabledCount > 0 ? `${enabledCount}개 활성화됨` : "채널을 선택하세요"}
         </span>
       </div>
@@ -118,15 +112,15 @@ export function ChannelPreferencesSection() {
           return (
             <div key={ch.channel}>
               <div
-                className={`flex items-center justify-between p-4 rounded-xl bg-white border transition-colors ${
-                  needsVerification ? "border-[#ff5442]/40" : "border-[#d4e6f5]"
+                className={`flex items-center justify-between p-4 rounded-xl bg-white border-[2px] transition-colors ${
+                  needsVerification ? "border-[#ff5442]/40" : "border-[#231815]"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{info.icon}</span>
                   <div>
-                    <p className="text-sm font-medium text-[#1e3a5f]">{info.label}</p>
-                    <p className="text-xs text-[#6b8db5] mt-0.5">{info.description}</p>
+                    <p className="text-sm font-medium text-[#231815]">{info.label}</p>
+                    <p className="text-xs text-[#231815]/50 mt-0.5">{info.description}</p>
                   </div>
                 </div>
 
@@ -137,8 +131,8 @@ export function ChannelPreferencesSection() {
                     needsVerification
                       ? "bg-[#ff5442]/30 cursor-not-allowed"
                       : ch.enabled
-                        ? "bg-[#26b0ff]"
-                        : "bg-[#d4e6f5]"
+                        ? "bg-[#43b9d6]"
+                        : "bg-[#231815]/20"
                   } ${saving ? "opacity-50 cursor-not-allowed" : !needsVerification ? "cursor-pointer" : ""}`}
                   aria-label={`${info.label} ${ch.enabled ? "비활성화" : "활성화"}`}
                 >
@@ -178,17 +172,17 @@ export function ChannelPreferencesSection() {
 
               {/* Verified email info */}
               {isEmail && emailVerified && ch.enabled && (
-                <div className="mt-2 ml-4 text-xs text-[#6b8db5]">
+                <div className="mt-2 ml-4 text-xs text-[#231815]/50">
                   <p>
                     현재 등록된 이메일: {user?.email}{" "}
-                    <Link to="/email-verification" className="underline hover:text-[#1e3a5f] transition-colors">
+                    <Link to="/email-verification" className="underline text-[#008fb2] hover:text-[#006d8a] transition-colors">
                       변경하기
                     </Link>
                   </p>
                 </div>
               )}
             </div>
-          );  
+          );
         })}
       </div>
 
@@ -198,7 +192,7 @@ export function ChannelPreferencesSection() {
         </p>
       )}
 
-      <p className="mt-4 text-xs text-[#6b8db5] text-center">
+      <p className="mt-4 text-xs text-[#231815]/50 text-center">
         선택한 채널로 매일 아침 7시에 소식이 전달됩니다
       </p>
     </section>
