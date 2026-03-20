@@ -35,7 +35,7 @@ export function AdminCoinsPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate("/", { replace: true }); return; }
-    if (user.role !== "admin") { navigate("/home", { replace: true }); return; }
+    if (user.role !== "admin") { navigate("/", { replace: true }); return; }
   }, [user, authLoading, navigate]);
 
   const handleSearch = async () => {

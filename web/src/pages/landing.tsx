@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { KakaoLoginButton } from "@/components/kakao-login-button";
+import { KakaoLoginButton, LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/contexts/auth-context";
 import { fetchRecentTopics, type TopicPreview } from "@/lib/api";
@@ -61,16 +61,20 @@ const steps = [
 ];
 
 export function LandingPage() {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const loginError = searchParams.get("error");
 
+  // Redirect to the page where login was initiated (if any)
   useEffect(() => {
-    if (!loading && user) {
-      navigate("/home", { replace: true });
+    if (!user) return;
+    const redirectPath = localStorage.getItem(LOGIN_REDIRECT_KEY);
+    if (redirectPath) {
+      localStorage.removeItem(LOGIN_REDIRECT_KEY);
+      navigate(redirectPath, { replace: true });
     }
-  }, [loading, user, navigate]);
+  }, [user, navigate]);
 
   const [recentTopics, setRecentTopics] = useState<TopicPreview[]>([]);
 
@@ -110,7 +114,7 @@ export function LandingPage() {
 
   const handleStart = () => {
     if (user) {
-      navigate("/home");
+      navigate("/mypage");
     } else {
       setLoginOpen(true);
     }
@@ -157,10 +161,10 @@ export function LandingPage() {
 
             <div className="hidden md:block">
               <button
-                onClick={handleStart}
+                onClick={() => user ? navigate("/mypage") : setLoginOpen(true)}
                 className="px-6 py-2 rounded-full text-sm font-medium bg-[#43b9d6] text-[#231815] border border-[#231815] hover:brightness-110 transition-all"
               >
-                무료로 구독하기
+                {user ? "마이페이지" : "무료로 구독하기"}
               </button>
             </div>
 
@@ -213,10 +217,10 @@ export function LandingPage() {
               className="px-6 py-2 rounded-full text-sm font-medium text-center bg-[#43b9d6] text-[#231815] border border-[#231815]"
               onClick={() => {
                 setMenuOpen(false);
-                handleStart();
+                user ? navigate("/mypage") : setLoginOpen(true);
               }}
             >
-              무료로 구독하기
+              {user ? "마이페이지" : "무료로 구독하기"}
             </button>
           </div>
         )}
@@ -480,7 +484,7 @@ export function LandingPage() {
               </svg>
             </button>
 
-            <img src="/wl-logo.png" alt="WizLetter" className="h-10" />
+            <img src="/wl-logo.png" alt="WizLetter" className="w-[140px] md:w-[200px] object-contain" />
 
             <div className="text-center">
               <h2 className="text-xl font-bold text-[#231815]">

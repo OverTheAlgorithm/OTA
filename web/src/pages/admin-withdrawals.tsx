@@ -274,7 +274,7 @@ export function AdminWithdrawalsPage() {
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "admin")) {
-      navigate(user ? "/home" : "/", { replace: true });
+      navigate("/", { replace: true });
     }
   }, [user, authLoading, navigate]);
 

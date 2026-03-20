@@ -17,7 +17,7 @@ export function AdminTermsPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate("/", { replace: true }); return; }
-    if (user.role !== "admin") { navigate("/home", { replace: true }); return; }
+    if (user.role !== "admin") { navigate("/", { replace: true }); return; }
     loadTerms();
   }, [user, authLoading, navigate]);
 

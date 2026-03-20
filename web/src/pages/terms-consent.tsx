@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getActiveTerms, completeSignup, type Term } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
+import { LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
 
 export function TermsConsentPage() {
   const [searchParams] = useSearchParams();
@@ -59,7 +60,9 @@ export function TermsConsentPage() {
     try {
       await completeSignup(signupKey, Array.from(agreed));
       await refreshUser();
-      navigate("/home", { replace: true });
+      const redirectPath = localStorage.getItem(LOGIN_REDIRECT_KEY);
+      localStorage.removeItem(LOGIN_REDIRECT_KEY);
+      navigate(redirectPath || "/", { replace: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "회원가입에 실패했습니다");
       setSubmitting(false);

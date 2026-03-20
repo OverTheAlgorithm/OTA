@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/auth-context";
 import { LandingPage } from "@/pages/landing";
-import { HomePage } from "@/pages/home";
+
 import { EmailVerificationPage } from "@/pages/email-verification";
 import { TopicPage } from "@/pages/topic";
 import { AdminPage } from "@/pages/admin";
@@ -12,6 +12,7 @@ import { AdminTermsPage } from "@/pages/admin-terms";
 import { AdminCoinsPage } from "@/pages/admin-coins";
 import { TermsConsentPage } from "@/pages/terms-consent";
 import { AllNewsPage } from "@/pages/allnews";
+import { NotFoundPage } from "@/pages/not-found";
 
 function LoginRedirect() {
   const [searchParams] = useSearchParams();
@@ -26,7 +27,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginRedirect />} />
-          <Route path="/home" element={<HomePage />} />
+
           <Route path="/allnews" element={<AllNewsPage />} />
           <Route path="/email-verification" element={<EmailVerificationPage />} />
           <Route path="/topic/:id" element={<TopicPage />} />
@@ -37,7 +38,7 @@ function App() {
           <Route path="/terms-consent" element={<TermsConsentPage />} />
           <Route path="/mypage" element={<MypagePage />} />
           <Route path="/withdrawal" element={<WithdrawalPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -262,7 +262,7 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 			return
 		}
 
-		c.Redirect(http.StatusFound, h.frontendURL+"/home")
+		c.Redirect(http.StatusFound, h.frontendURL+"/")
 		return
 	}
 

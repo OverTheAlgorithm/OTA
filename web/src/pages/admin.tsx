@@ -286,7 +286,7 @@ export function AdminPage() {
   useEffect(() => {
     if (loading) return;
     if (!user) { navigate("/", { replace: true }); return; }
-    if (user.role !== "admin") { navigate("/home", { replace: true }); return; }
+    if (user.role !== "admin") { navigate("/", { replace: true }); return; }
   }, [user, loading, navigate]);
 
   if (loading || !user || user.role !== "admin") {
@@ -322,7 +322,7 @@ export function AdminPage() {
           <h1 className="text-2xl font-bold">관리자 페이지</h1>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate("/home")}
+              onClick={() => navigate("/")}
               className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
             >
               ← 홈으로
