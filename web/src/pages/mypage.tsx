@@ -131,24 +131,21 @@ function PointHistoryTab() {
 function SettingsTab() {
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     getSubscriptions().then(setSubscriptions).catch(() => {});
   }, []);
 
   const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      "정말로 계정을 삭제하시겠습니까?\n\n" +
-      "삭제된 계정은 복구할 수 없으며, 보유 중인 포인트과 모든 데이터가 영구적으로 삭제됩니다."
-    );
-    if (!confirmed) return;
-
     setDeleting(true);
+    setDeleteError(null);
     try {
       await deleteAccount();
       window.location.href = "/";
     } catch (e) {
-      alert(e instanceof Error ? e.message : "계정 삭제에 실패했습니다");
+      setDeleteError(e instanceof Error ? e.message : "계정 삭제에 실패했습니다");
       setDeleting(false);
     }
   };
@@ -160,13 +157,59 @@ function SettingsTab() {
 
       <div className="pt-4">
         <button
-          onClick={handleDeleteAccount}
+          onClick={() => { setDeleteError(null); setShowDeleteModal(true); }}
           disabled={deleting}
           className="text-sm text-[#231815]/60 hover:text-[#231815] underline transition-colors disabled:opacity-50"
         >
           {deleting ? "처리 중..." : "회원 탈퇴"}
         </button>
       </div>
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={() => !deleting && setShowDeleteModal(false)}
+        >
+          <div
+            className="relative w-full max-w-sm bg-white rounded-[30px] px-8 py-10 flex flex-col items-center gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deleting}
+              className="absolute top-5 right-5 text-[#231815]/60 hover:text-[#231815] transition-colors disabled:opacity-50"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+
+            <h2 className="text-3xl font-semibold text-[#231815] tracking-tight">회원 탈퇴</h2>
+
+            <p className="text-sm text-[#231815] leading-relaxed text-center tracking-tight">
+              삭제된 계정은 복구할 수 없으며, 보유 중인 포인트와<br />
+              모든 데이터는 삭제 됩니다.<br />
+              그래도 탈퇴하시겠습니까?
+            </p>
+
+            {deleteError && (
+              <p className="text-xs text-[#ff5442] bg-[#ff5442]/10 rounded-lg px-3 py-2 border border-[#ff5442]/20 w-full text-center">
+                {deleteError}
+              </p>
+            )}
+
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              className="w-[70%] py-3.5 rounded-full bg-[#ececec] text-[#636363] text-sm font-semibold hover:bg-[#ff5442] hover:text-white transition-colors disabled:opacity-50"
+            >
+              {deleting ? "처리 중..." : "탈퇴 하기"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
