@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { Header } from "@/components/header";
 import { useAuth } from "@/contexts/auth-context";
 import { UserLevelCard } from "@/components/user-level-card";
 import { InterestSection } from "@/components/interest-section";
@@ -22,6 +23,16 @@ function formatDate(iso: string) {
   const h = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   return `${y}.${mo}.${day} ${h}:${mi}`;
+}
+
+const COIN_TYPE_LABELS: Record<string, string> = {
+  signup_bonus: "가입 보너스",
+  admin_set: "포인트 조정",
+  admin_adjust: "포인트 조정",
+};
+
+function getCoinLabel(tx: CoinTransaction): string {
+  return COIN_TYPE_LABELS[tx.type] ?? tx.description ?? tx.type;
 }
 
 // ── Point History Tab ────────────────────────────────────────────────────────
@@ -66,7 +77,7 @@ function PointHistoryTab() {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h3 className="text-base font-bold text-[#231815] leading-snug truncate">
-                {tx.description || tx.type}
+                {getCoinLabel(tx)}
               </h3>
               <p className="text-sm text-[#231815]/60 mt-1">
                 {formatDate(tx.created_at)}
@@ -165,7 +176,9 @@ function SettingsTab() {
 export function MypagePage() {
   const { user, loading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("points");
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "settings" ? "settings" : "points";
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/", { replace: true });
@@ -187,30 +200,7 @@ export function MypagePage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
       {/* ── Header ── */}
-      <header className="sticky top-0 z-40 bg-[#fdf9ee] border-b-[3px] border-[#231815]">
-        <div className="max-w-[1200px] mx-auto px-6 h-[65px] flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-2xl bg-[#43b9d6] flex items-center justify-center">
-              <span className="text-[#231815] font-bold text-lg" style={{ fontFamily: "Gluten, cursive" }}>W</span>
-            </div>
-            <span className="text-xl font-bold text-[#231815]">WizLetter</span>
-          </Link>
-          <div className="hidden md:flex items-center gap-3">
-            <button
-              onClick={handleLogout}
-              className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
-            >
-              로그아웃
-            </button>
-            <Link
-              to="/mypage"
-              className="inline-flex items-center justify-center px-5 h-9 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-sm font-medium text-[#231815] hover:opacity-80 transition-opacity"
-            >
-              마이페이지
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* ── Content ── */}
       <main className="flex-1">
@@ -222,7 +212,7 @@ export function MypagePage() {
 
           {/* Back to Home */}
           <Link
-            to="/home"
+            to="/"
             className="flex items-center gap-2 mb-6 group"
           >
             <svg
@@ -265,7 +255,7 @@ export function MypagePage() {
                   : "text-[#231815] hover:text-[#008fb2]/70"
               }`}
             >
-              회원정보 수정
+              내 정보
               {tab === "settings" && (
                 <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#008fb2]" />
               )}
