@@ -171,7 +171,7 @@ function CoinTag({ state }: { state: CoinTagState }) {
       bgColor = "rgba(67, 185, 214, 0.15)";
       break;
     case "expired":
-      label = "지난 기사";
+      label = "획득 기간 경과";
       color = "#231815";
       bgColor = "#e8e8e8";
       break;

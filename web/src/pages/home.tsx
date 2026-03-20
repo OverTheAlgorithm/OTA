@@ -43,7 +43,7 @@ function CoinTag({ status }: { status: EarnStatusItem }) {
   if (status.status === "EXPIRED") {
     return (
       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#231815]/10 text-[#231815]/50">
-        만료됨
+        획득 기간 경과
       </span>
     );
   }
