@@ -1,0 +1,2480 @@
+openapi: 3.0.3
+info:
+  title: WizLetter API
+  description: |
+    WizLetter (위즈레터) backend API — AI-curated daily briefing service with coin/level gamification.
+
+    ## Authentication
+    Most endpoints require a JWT access token stored in an HttpOnly cookie (`ota_token`).
+    The token is issued automatically after Kakao OAuth login. A short-lived access token
+    (15 min) and a long-lived refresh token (7 days, cookie `ota_refresh`) are issued together.
+
+    Endpoints may also accept `Authorization: Bearer <token>` as a fallback.
+
+    ## Base URL
+    - Production: `https://server.mindhacker.club`
+    - Local: `http://localhost:8080`
+  version: "1.0.0"
+  contact:
+    email: contact@wizletter.kr
+
+servers:
+  - url: https://server.mindhacker.club/api/v1
+    description: Production
+  - url: http://localhost:8080/api/v1
+    description: Local development
+
+tags:
+  - name: auth
+    description: Authentication (Kakao OAuth, signup, session management)
+  - name: context
+    description: Topics and content (public)
+  - name: brain-categories
+    description: Brain category taxonomy (public)
+  - name: level
+    description: Coin earning and user level
+  - name: subscriptions
+    description: User category interest subscriptions
+  - name: user
+    description: User delivery channel preferences
+  - name: delivery
+    description: Briefing delivery
+  - name: email-verification
+    description: Email OTP verification
+  - name: withdrawal
+    description: Coin withdrawal (cashout)
+  - name: mypage
+    description: Personal coin history
+  - name: terms
+    description: Terms of service (public)
+  - name: admin
+    description: Admin-only operations (requires admin role)
+  - name: health
+    description: Health check endpoints
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: ota_token
+      description: JWT access token (15 min TTL). Set automatically after Kakao login.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Fallback bearer token (same JWT as cookie).
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kakao_id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        nickname:
+          type: string
+        profile_image:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+        email_verified:
+          type: boolean
+
+    TopicPreview:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        run_id:
+          type: string
+          format: uuid
+        category:
+          type: string
+        brain_category:
+          type: string
+        priority:
+          type: string
+        rank:
+          type: integer
+        topic:
+          type: string
+        summary:
+          type: string
+        buzz_score:
+          type: number
+        image_path:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    TopicDetail:
+      allOf:
+        - $ref: '#/components/schemas/TopicPreview'
+        - type: object
+          properties:
+            detail:
+              type: string
+            details:
+              type: object
+              description: Extended AI-generated details (JSON blob)
+            sources:
+              type: array
+              items:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  url:
+                    type: string
+
+    BrainCategory:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Unique identifier
+        emoji:
+          type: string
+        label:
+          type: string
+        accent_color:
+          type: string
+        display_order:
+          type: integer
+        instruction:
+          type: string
+
+    Category:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        display_order:
+          type: integer
+
+    LevelInfo:
+      type: object
+      properties:
+        level:
+          type: integer
+        total_coins:
+          type: integer
+        daily_limit:
+          type: integer
+        coin_cap:
+          type: integer
+        thresholds:
+          type: array
+          items:
+            type: integer
+        description:
+          type: string
+
+    CoinTransaction:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [earn, event, withdrawal]
+        amount:
+          type: integer
+        memo:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    BankAccount:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        bank_name:
+          type: string
+        account_number:
+          type: string
+          description: Returned decrypted; stored AES-256-GCM encrypted at rest
+        account_holder:
+          type: string
+
+    Withdrawal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+        bank_name:
+          type: string
+        account_number:
+          type: string
+        account_holder:
+          type: string
+        current_status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+        created_at:
+          type: string
+          format: date-time
+
+    WithdrawalTransition:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        withdrawal_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+        note:
+          type: string
+        actor_id:
+          type: string
+        actor_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WithdrawalDetail:
+      allOf:
+        - $ref: '#/components/schemas/Withdrawal'
+        - type: object
+          properties:
+            transitions:
+              type: array
+              items:
+                $ref: '#/components/schemas/WithdrawalTransition'
+
+    Term:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+        version:
+          type: string
+        active:
+          type: boolean
+        required:
+          type: boolean
+
+    ChannelPreference:
+      type: object
+      properties:
+        channel:
+          type: string
+          enum: [email, kakao, telegram, sms, push]
+        enabled:
+          type: boolean
+
+    DeliveryStatus:
+      type: object
+      properties:
+        channel:
+          type: string
+        status:
+          type: string
+        error_message:
+          type: string
+        retry_count:
+          type: integer
+        last_attempt:
+          type: string
+          format: date-time
+
+    DeliveryResult:
+      type: object
+      properties:
+        success_count:
+          type: integer
+        failure_count:
+          type: integer
+        skipped_count:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+
+paths:
+
+  # ── Health ──────────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      tags: [health]
+      summary: Liveness check
+      description: Returns 200 if the server process is running.
+      security: []
+      responses:
+        '200':
+          description: Server is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Readiness check
+      description: Returns 200 if the server is ready to serve traffic (DB connection healthy).
+      security: []
+      responses:
+        '200':
+          description: Server is ready
+        '503':
+          description: Server is not ready (DB unavailable)
+
+  # ── Auth ────────────────────────────────────────────────────────────────────
+
+  /auth/kakao/login:
+    get:
+      tags: [auth]
+      summary: Initiate Kakao OAuth login
+      description: Redirects the browser to Kakao's authorization URL with a CSRF state parameter.
+      security: []
+      responses:
+        '302':
+          description: Redirect to Kakao authorization URL
+
+  /auth/kakao/callback:
+    get:
+      tags: [auth]
+      summary: Kakao OAuth callback
+      description: |
+        Handles the OAuth redirect from Kakao. For existing users, issues auth cookies
+        and redirects to the frontend home page. For new users, caches a pending signup
+        and redirects to `/terms-consent?signup_key=<uuid>`.
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to frontend (home or terms-consent page)
+
+  /auth/complete-signup:
+    post:
+      tags: [auth]
+      summary: Complete two-phase signup with terms consent
+      description: |
+        Finalises new-user registration. The `signup_key` was issued by the Kakao callback
+        and cached for 3 minutes. Required terms must be included in `agreed_term_ids`.
+        On success, issues auth cookies and returns the new user object.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signup_key, agreed_term_ids]
+              properties:
+                signup_key:
+                  type: string
+                  format: uuid
+                  description: One-time key received from the Kakao callback redirect
+                agreed_term_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: IDs of terms the user has agreed to
+      responses:
+        '200':
+          description: Signup complete; auth cookies set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Missing/expired signup key, missing required terms, or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Get current authenticated user
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout — revoke tokens and clear cookies
+      description: Revokes the refresh token from the store and clears both auth cookies.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: logged out
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Rotate refresh token and issue a new access token
+      description: |
+        Reads the `ota_refresh` cookie, validates it against the DB, deletes the old
+        token (rotation), and issues a fresh access + refresh token pair.
+      security: []
+      responses:
+        '200':
+          description: Token refreshed; new cookies set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: token refreshed
+        '401':
+          description: Missing or invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/delete-account:
+    delete:
+      tags: [auth]
+      summary: Delete the authenticated user's account
+      description: |
+        Permanently deletes the account. Blocked if there are pending withdrawal requests.
+        Revokes all refresh tokens and clears auth cookies.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: account deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Cannot delete — pending withdrawal exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Context / Topics ────────────────────────────────────────────────────────
+
+  /context/topic/{id}:
+    get:
+      tags: [context]
+      summary: Get a single topic by ID
+      description: Public endpoint. Returns full topic detail including AI summary, sources, and image.
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Topic detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TopicDetail'
+        '400':
+          description: Invalid UUID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Topic not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /context/recent:
+    get:
+      tags: [context]
+      summary: Get recent topics for the landing page
+      description: Returns up to 3 randomly-selected topics from the latest collection run. Public.
+      security: []
+      responses:
+        '200':
+          description: Recent topics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TopicPreview'
+
+  /context/latest:
+    get:
+      tags: [context]
+      summary: Get all topics from the latest collection run
+      description: Returns all topics from the most recent successful collection run. Public.
+      security: []
+      responses:
+        '200':
+          description: Latest run topics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TopicPreview'
+
+  /context/topics:
+    get:
+      tags: [context]
+      summary: Get paginated topics with optional category filter
+      description: Public endpoint used on the all-news page.
+      security: []
+      parameters:
+        - name: filter_type
+          in: query
+          schema:
+            type: string
+            enum: [category, brain_category]
+          description: Filter dimension
+        - name: filter_value
+          in: query
+          schema:
+            type: string
+          description: Filter value (category key or brain_category key)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 12
+            maximum: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated topics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TopicPreview'
+                  has_more:
+                    type: boolean
+        '400':
+          description: Invalid filter_type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /context/categories:
+    get:
+      tags: [context]
+      summary: Get all categories and brain categories for the filter UI
+      description: Public endpoint.
+      security: []
+      responses:
+        '200':
+          description: Categories and brain categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      categories:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Category'
+                      brain_categories:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BrainCategory'
+
+  /context/history:
+    get:
+      tags: [context]
+      summary: Get the authenticated user's reading history
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Reading history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TopicPreview'
+                  has_more:
+                    type: boolean
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Brain Categories ────────────────────────────────────────────────────────
+
+  /brain-categories:
+    get:
+      tags: [brain-categories]
+      summary: List all brain categories
+      description: Public endpoint. Returns categories ordered by display_order.
+      security: []
+      responses:
+        '200':
+          description: Brain categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrainCategory'
+
+  # ── Level / Coin Earning ────────────────────────────────────────────────────
+
+  /level:
+    get:
+      tags: [level]
+      summary: Get the authenticated user's level and coin info
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Level info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LevelInfo'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /level/init-earn:
+    post:
+      tags: [level]
+      summary: Initiate coin earn for a topic view
+      description: |
+        Step 1 of the two-step coin earning flow. Validates all eligibility conditions
+        (item exists, not already earned, run is from today, daily limit not reached)
+        and records a pending entry in the cache. Call `/level/earn` after the minimum
+        dwell time has elapsed.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [context_item_id]
+              properties:
+                context_item_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Earn initiation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [PENDING, DUPLICATE, EXPIRED, DAILY_LIMIT]
+                      required_seconds:
+                        type: integer
+                        description: Only present when status=PENDING
+        '400':
+          description: Invalid or missing context_item_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Context item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /level/earn:
+    post:
+      tags: [level]
+      summary: Confirm coin earn after dwell time
+      description: |
+        Step 2 of the two-step coin earning flow. Requires a Cloudflare Turnstile token
+        for bot verification. Verifies that the minimum dwell time has elapsed since
+        `/level/init-earn`. Awards coins on success.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [context_item_id, turnstile_token]
+              properties:
+                context_item_id:
+                  type: string
+                  format: uuid
+                turnstile_token:
+                  type: string
+                  description: Cloudflare Turnstile challenge token
+      responses:
+        '200':
+          description: Earn result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      attempted:
+                        type: boolean
+                      earned:
+                        type: boolean
+                      reason:
+                        type: string
+                        enum: [EARNED, DUPLICATE, EXPIRED, DAILY_LIMIT, CAP_REACHED]
+                      coins_earned:
+                        type: integer
+                      leveled_up:
+                        type: boolean
+                      new_level:
+                        type: integer
+        '400':
+          description: TOO_EARLY (dwell time not met) or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Bot verification failed (Turnstile)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /level/batch-earn-status:
+    post:
+      tags: [level]
+      summary: Batch query earn status for multiple topics (max 50)
+      description: |
+        Returns the earn status and potential coin value for each requested topic.
+        Used to render earn indicators on the topic list page.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [context_item_ids]
+              properties:
+                context_item_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  maxItems: 50
+      responses:
+        '200':
+          description: Earn status per item
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        status:
+                          type: string
+                          enum: [PENDING, DUPLICATE, EXPIRED, DAILY_LIMIT, NOT_FOUND]
+                        coins:
+                          type: integer
+        '400':
+          description: Invalid input or too many items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Subscriptions ───────────────────────────────────────────────────────────
+
+  /subscriptions:
+    get:
+      tags: [subscriptions]
+      summary: List user's subscribed categories
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscribed categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                    example: [technology, science]
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [subscriptions]
+      summary: Add a category subscription
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category]
+              properties:
+                category:
+                  type: string
+                  example: technology
+      responses:
+        '200':
+          description: Subscription added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: ok
+        '400':
+          description: Missing category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [subscriptions]
+      summary: Remove a category subscription
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Subscription removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: ok
+        '400':
+          description: Missing category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── User Delivery Channels ──────────────────────────────────────────────────
+
+  /user/delivery-channels:
+    get:
+      tags: [user]
+      summary: Get user's delivery channel preferences
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Channel preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  channels:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChannelPreference'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [user]
+      summary: Update user's delivery channel preferences
+      description: |
+        Enabling the `email` channel requires a verified email address.
+        Valid channels: `email`, `kakao`, `telegram`, `sms`, `push`.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channels:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ChannelPreference'
+      responses:
+        '200':
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  channels:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChannelPreference'
+        '400':
+          description: Invalid channel or email not verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /user/delivery-status:
+    get:
+      tags: [user]
+      summary: Get user's latest delivery status per channel
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Delivery status per channel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DeliveryStatus'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Delivery ────────────────────────────────────────────────────────────────
+
+  /delivery/send:
+    post:
+      tags: [delivery]
+      summary: Send the latest briefing to the authenticated user on-demand
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Delivery result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DeliveryResult'
+        '400':
+          description: Delivery error (e.g. no content available)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /delivery/trigger:
+    post:
+      tags: [delivery]
+      summary: Trigger delivery to all eligible users (admin only)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Delivery results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_users:
+                    type: integer
+                  success_count:
+                    type: integer
+                  failure_count:
+                    type: integer
+                  skipped_count:
+                    type: integer
+                  failed_users:
+                    type: array
+                    items:
+                      type: string
+                  errors:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden (not admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Email Verification ──────────────────────────────────────────────────────
+
+  /email-verification/send-code:
+    post:
+      tags: [email-verification]
+      summary: Send a 6-digit OTP to the given email address
+      description: Rate-limited. Requires authentication.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Invalid email format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /email-verification/verify-code:
+    post:
+      tags: [email-verification]
+      summary: Verify the 6-digit OTP
+      description: |
+        Validates the code sent to the user's email. Marks the email as verified on success.
+        Locked out after too many failed attempts (requires new code request).
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  description: 6-digit numeric OTP
+      responses:
+        '200':
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Invalid or expired code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Max attempts exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Withdrawal ──────────────────────────────────────────────────────────────
+
+  /withdrawal/info:
+    get:
+      tags: [withdrawal]
+      summary: Get withdrawal configuration (minimum amount)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Withdrawal info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      min_withdrawal_amount:
+                        type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /withdrawal/bank-account:
+    get:
+      tags: [withdrawal]
+      summary: Get user's registered bank account
+      description: Returns null data if no bank account is registered.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Bank account (null if not set)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/BankAccount'
+                      - type: 'null'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [withdrawal]
+      summary: Save (create or update) user's bank account
+      description: Account number is encrypted with AES-256-GCM before storage.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bank_name, account_number, account_holder]
+              properties:
+                bank_name:
+                  type: string
+                account_number:
+                  type: string
+                account_holder:
+                  type: string
+      responses:
+        '200':
+          description: Bank account saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: ok
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /withdrawal/request:
+    post:
+      tags: [withdrawal]
+      summary: Request a coin withdrawal
+      description: |
+        Atomically checks balance, deducts coins, and creates the withdrawal record
+        in a single DB transaction (SELECT FOR UPDATE). Requires a registered bank account
+        and a minimum amount.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: integer
+                  description: Coins to withdraw (must meet minimum withdrawal amount)
+      responses:
+        '200':
+          description: Withdrawal created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Withdrawal'
+        '400':
+          description: No bank account, below minimum amount
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /withdrawal/history:
+    get:
+      tags: [withdrawal]
+      summary: Get user's withdrawal history with transitions
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Withdrawal history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WithdrawalDetail'
+                  has_more:
+                    type: boolean
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /withdrawal/{id}/cancel:
+    post:
+      tags: [withdrawal]
+      summary: Cancel a pending withdrawal and restore coins
+      description: Only the withdrawal owner can cancel. Only pending withdrawals can be cancelled.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Withdrawal cancelled; coins restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: ok
+        '400':
+          description: Cannot cancel (not pending)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden (not the owner)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Mypage ──────────────────────────────────────────────────────────────────
+
+  /mypage/coin-history:
+    get:
+      tags: [mypage]
+      summary: Get user's full coin transaction history
+      description: |
+        Unified history: coin_logs (topic earnings) + coin_events (signup bonus, admin adjustments)
+        + withdrawals, sorted by created_at DESC.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Coin transaction history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CoinTransaction'
+                  has_more:
+                    type: boolean
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Terms ───────────────────────────────────────────────────────────────────
+
+  /terms/active:
+    get:
+      tags: [terms]
+      summary: List active terms of service
+      description: Public endpoint. Returns active terms displayed on the consent screen during signup.
+      security: []
+      responses:
+        '200':
+          description: Active terms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Term'
+
+  # ── Admin ───────────────────────────────────────────────────────────────────
+
+  /admin/collect:
+    post:
+      tags: [admin]
+      summary: Trigger AI content collection pipeline (async)
+      description: |
+        Returns 202 immediately and runs the full pipeline in the background.
+        Result is posted to the configured Slack webhook when done.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '202':
+          description: Collection started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: collection started
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden (not admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/delivery/send-test:
+    post:
+      tags: [admin]
+      summary: Send the latest briefing to the authenticated admin for testing
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Test email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success_count:
+                    type: integer
+                  skipped_count:
+                    type: integer
+                  failure_count:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      type: string
+        '400':
+          description: No content available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/level/set-coins:
+    post:
+      tags: [admin]
+      summary: Directly set the admin's own coin balance (testing)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                coins:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Coins set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LevelInfo'
+        '400':
+          description: Invalid coins value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/level/create-mock-item:
+    post:
+      tags: [admin]
+      summary: Create a mock topic item for testing coin earning
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mock item created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item_id:
+                    type: string
+                    format: uuid
+                  url:
+                    type: string
+                    example: /topic/550e8400-e29b-41d4-a716-446655440000
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/brain-categories:
+    get:
+      tags: [admin]
+      summary: List all brain categories (admin)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Brain categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrainCategory'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [admin]
+      summary: Create a brain category
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrainCategory'
+      responses:
+        '201':
+          description: Brain category created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BrainCategory'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/brain-categories/{key}:
+    put:
+      tags: [admin]
+      summary: Update a brain category
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrainCategory'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BrainCategory'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [admin]
+      summary: Delete a brain category
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/coins/search:
+    get:
+      tags: [admin]
+      summary: Search user by ID or email for coin adjustment
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [id, email]
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User and level info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                      level:
+                        $ref: '#/components/schemas/LevelInfo'
+        '400':
+          description: Missing query or invalid type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/coins/adjust:
+    post:
+      tags: [admin]
+      summary: Adjust a user's coin balance with audit memo
+      description: Sets the user's coin balance to `new_coins` and records a coin_event with the memo and actor_id.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, new_coins, memo]
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                new_coins:
+                  type: integer
+                  minimum: 0
+                memo:
+                  type: string
+                  description: Audit note for this adjustment
+      responses:
+        '200':
+          description: Coins adjusted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                      delta:
+                        type: integer
+                        description: Change in coins (positive = gain, negative = deduction)
+                      new_coins:
+                        type: integer
+                      level:
+                        $ref: '#/components/schemas/LevelInfo'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/withdrawals:
+    get:
+      tags: [admin]
+      summary: List all withdrawals with optional status filter
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected, cancelled]
+          description: Filter by status (omit for all)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Withdrawal list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Withdrawal'
+                        - type: object
+                          properties:
+                            user_nickname:
+                              type: string
+                            user_email:
+                              type: string
+                  total:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/withdrawals/{id}:
+    get:
+      tags: [admin]
+      summary: Get withdrawal detail with full transition history
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Withdrawal detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WithdrawalDetail'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/withdrawals/{id}/approve:
+    post:
+      tags: [admin]
+      summary: Approve a pending withdrawal
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: ok
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Not in pending status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/withdrawals/{id}/reject:
+    post:
+      tags: [admin]
+      summary: Reject a pending withdrawal and restore coins atomically
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note:
+                  type: string
+                  description: Rejection reason
+      responses:
+        '200':
+          description: Rejected; coins restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: ok
+        '400':
+          description: Missing note
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Not in pending status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/withdrawals/transitions/{id}/note:
+    put:
+      tags: [admin]
+      summary: Edit an admin's own note on a withdrawal transition
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Transition ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Note updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: ok
+        '400':
+          description: Empty note
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Can only edit your own notes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/terms:
+    get:
+      tags: [admin]
+      summary: List all terms (including inactive)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All terms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Term'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [admin]
+      summary: Create a new term record
+      description: |
+        Title + version must be unique. Creating a new version of an existing term
+        means creating a new record (immutable title/version pair).
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, url, version, active, required]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                url:
+                  type: string
+                  format: uri
+                version:
+                  type: string
+                active:
+                  type: boolean
+                required:
+                  type: boolean
+      responses:
+        '201':
+          description: Term created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Term'
+        '400':
+          description: Validation error or duplicate title+version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/terms/{id}/active:
+    patch:
+      tags: [admin]
+      summary: Toggle active status of a term
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active:
+                  type: boolean
+      responses:
+        '200':
+          description: Active status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: ok
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/terms/{id}:
+    patch:
+      tags: [admin]
+      summary: Update mutable fields of a term (url, description, required)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, required]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                description:
+                  type: string
+                required:
+                  type: boolean
+      responses:
+        '200':
+          description: Term updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Term'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+security:
+  - cookieAuth: []
+  - bearerAuth: []
