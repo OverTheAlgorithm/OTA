@@ -64,7 +64,7 @@ export function InterestSection({ selected, onChange }: Props) {
         </div>
         <h2 className="font-semibold text-[#1e3a5f]">내 관심사</h2>
         <span className="ml-auto text-xs text-[#6b8db5]">
-          {selected.length > 0 ? `${selected.length}개 선택됨` : "관심사를 선택하면 맞춤 맥락을 받아요"}
+          {selected.length > 0 ? `${selected.length}개 선택됨` : "관심사를 선택하면 맞춤 소식을 받아요"}
         </span>
       </div>
 

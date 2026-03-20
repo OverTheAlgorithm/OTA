@@ -31,7 +31,7 @@ export function LoginPage() {
             Over the Algorithm
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            알고리즘을 넘어, 지금 가장 뜨거운 맥락을 만나보세요
+            알고리즘을 넘어, 지금 가장 뜨거운 소식을 만나보세요
           </p>
         </div>
 

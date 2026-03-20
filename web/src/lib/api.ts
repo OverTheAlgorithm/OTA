@@ -112,7 +112,7 @@ export async function deleteSubscription(category: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete subscription");
 }
 
-// ── 맥락 이력 ─────────────────────────────────────────
+// ── 소식 이력 ─────────────────────────────────────────
 export interface DetailItem {
   title: string;
   content: string;

@@ -228,7 +228,7 @@ export function HistorySection({ subscriptions, onFirstLoad }: Props) {
             <polyline points="10 9 9 9 8 9"/>
           </svg>
         </div>
-        <h2 className="font-semibold text-[#1e3a5f]">받아본 맥락</h2>
+        <h2 className="font-semibold text-[#1e3a5f]">받아본 소식</h2>
       </div>
 
       {loading ? (
@@ -245,7 +245,7 @@ export function HistorySection({ subscriptions, onFirstLoad }: Props) {
         </div>
       ) : entries.length === 0 ? (
         <div className="rounded-2xl bg-[#f0f7ff] border border-[#d4e6f5] p-12 text-center">
-          <p className="text-[#6b8db5] text-sm">아직 받은 맥락이 없습니다.</p>
+          <p className="text-[#6b8db5] text-sm">아직 받은 소식이 없습니다.</p>
           <p className="text-[#6b8db5]/60 text-xs mt-1">매일 아침 7시에 첫 브리핑이 전달됩니다.</p>
         </div>
       ) : (
@@ -270,14 +270,14 @@ export function HistorySection({ subscriptions, onFirstLoad }: Props) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                이전 맥락을 불러오는 중...
+                이전 소식을 불러오는 중...
               </div>
             </div>
           )}
 
           {!hasMore && entries.length > 0 && (
             <p className="text-center text-xs text-[#6b8db5]/60 py-2">
-              모든 맥락을 불러왔습니다
+              모든 소식을 불러왔습니다
             </p>
           )}
         </div>

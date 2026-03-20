@@ -10,7 +10,7 @@ import {
 } from "@/lib/api";
 
 const CHANNEL_INFO = {
-  email: { label: "이메일", icon: "📧", description: "이메일로 맥락을 받아요" },
+  email: { label: "이메일", icon: "📧", description: "이메일로 소식을 받아요" },
 };
 
 const CHANNEL_ORDER = ["email"];
@@ -199,7 +199,7 @@ export function ChannelPreferencesSection() {
       )}
 
       <p className="mt-4 text-xs text-[#6b8db5] text-center">
-        선택한 채널로 매일 아침 7시에 맥락이 전달됩니다
+        선택한 채널로 매일 아침 7시에 소식이 전달됩니다
       </p>
     </section>
   );
