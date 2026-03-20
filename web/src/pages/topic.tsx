@@ -54,12 +54,15 @@ type CoinTagState =
 function CountdownTag({
   requiredSeconds,
   onComplete,
+  externalPaused = false,
 }: {
   requiredSeconds: number;
   onComplete: (token: string) => void;
+  externalPaused?: boolean;
 }) {
   const [remaining, setRemaining] = useState(requiredSeconds);
-  const [isPaused, setIsPaused] = useState(false);
+  const [visibilityPaused, setVisibilityPaused] = useState(false);
+  const isPaused = visibilityPaused || externalPaused;
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [timerDone, setTimerDone] = useState(false);
 
@@ -77,9 +80,9 @@ function CountdownTag({
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        setIsPaused(true);
+        setVisibilityPaused(true);
       } else {
-        setIsPaused(false);
+        setVisibilityPaused(false);
         lastTimeRef.current = performance.now();
       }
     };
@@ -396,6 +399,7 @@ export function TopicPage() {
     <CountdownTag
       requiredSeconds={showCountdown.seconds}
       onComplete={(token) => handleCountdownComplete(showCountdown.topicId, token)}
+      externalPaused={showLeaveModal}
     />
   ) : (
     <CoinTag state={coinTag} />
