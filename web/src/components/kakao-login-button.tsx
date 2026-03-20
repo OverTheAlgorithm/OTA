@@ -1,7 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
-export function KakaoLoginButton() {
+export const LOGIN_REDIRECT_KEY = "ota_login_redirect";
+
+export function KakaoLoginButton({ redirectPath }: { redirectPath?: string } = {}) {
   const handleClick = () => {
+    if (redirectPath) {
+      localStorage.setItem(LOGIN_REDIRECT_KEY, redirectPath);
+    }
     window.location.href = `${API_BASE}/api/v1/auth/kakao/login`;
   };
 

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { UserLevelCard } from "@/components/user-level-card";
 import { Footer } from "@/components/footer";
+import { Header } from "@/components/header";
 import {
   fetchAllTopics,
   fetchFilterOptions,
@@ -194,28 +195,7 @@ export function AllNewsPage() {
 
   return (
     <div className="min-h-screen bg-[#fafcff]">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-[#e2e8f0]">
-        <div className="max-w-[1200px] mx-auto px-4 h-14 flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-1.5 rounded-lg hover:bg-[#f0f7ff] transition-colors"
-          >
-            <svg
-              className="w-5 h-5 text-[#1e3a5f]"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <h1 className="text-lg font-bold text-[#1e3a5f]">전체 뉴스</h1>
-        </div>
-      </header>
+      <Header />
 
       <main className="max-w-[1200px] mx-auto px-4 py-6">
         {/* Level card for logged-in users */}

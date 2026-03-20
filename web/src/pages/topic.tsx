@@ -12,6 +12,8 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { detectAdBlock } from "@/lib/adblock";
 import { UserLevelCard } from "@/components/user-level-card";
+import { KakaoLoginButton } from "@/components/kakao-login-button";
+import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
@@ -59,11 +61,18 @@ function CountdownTag({
   const [remaining, setRemaining] = useState(requiredSeconds);
   const [isPaused, setIsPaused] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string>("");
+  const [timerDone, setTimerDone] = useState(false);
 
   const requestRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const elapsedRef = useRef<number>(0);
   const completedRef = useRef(false);
+  const tokenRef = useRef<string>("");
+
+  // Keep ref in sync so rAF closure always sees latest token
+  useEffect(() => {
+    tokenRef.current = turnstileToken;
+  }, [turnstileToken]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -89,12 +98,12 @@ function CountdownTag({
           const next = prev - 1;
           if (next <= 0 && !completedRef.current) {
             completedRef.current = true;
-            if (turnstileToken) {
-              onComplete(turnstileToken);
-            } else {
-              console.warn("Timer completed but turnstile token is missing!");
-              onComplete("");
+            setTimerDone(true);
+            // If token is already available, fire immediately
+            if (tokenRef.current) {
+              onComplete(tokenRef.current);
             }
+            // Otherwise, the useEffect below will fire when token arrives
             return 0;
           }
           return Math.max(0, next);
@@ -105,7 +114,14 @@ function CountdownTag({
     if (remaining > 0) {
       requestRef.current = requestAnimationFrame(animate);
     }
-  }, [isPaused, remaining, turnstileToken, onComplete]);
+  }, [isPaused, remaining, onComplete]);
+
+  // Fire onComplete when both timer is done AND token is available
+  useEffect(() => {
+    if (timerDone && turnstileToken && completedRef.current) {
+      onComplete(turnstileToken);
+    }
+  }, [timerDone, turnstileToken, onComplete]);
 
   useEffect(() => {
     lastTimeRef.current = performance.now();
@@ -139,13 +155,18 @@ function CountdownTag({
 // ── CoinTag component ────────────────────────────────────────────────────────
 
 function CoinTag({ state }: { state: CoinTagState }) {
-  if (!state || state.kind === "loading") return null;
+  if (!state) return null;
 
   let label: string;
   let color: string;
   let bgColor: string;
 
   switch (state.kind) {
+    case "loading":
+      label = "대기 중...";
+      color = "#43b9d6";
+      bgColor = "rgba(67, 185, 214, 0.15)";
+      break;
     case "expired":
       label = "지난 기사";
       color = "#231815";
@@ -204,7 +225,7 @@ function CoinTag({ state }: { state: CoinTagState }) {
 
 export function TopicPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
@@ -212,9 +233,19 @@ export function TopicPage() {
   const [levelRefreshKey, setLevelRefreshKey] = useState(0);
   const [error, setError] = useState<"not_found" | "server_error" | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loginOpen, setLoginOpen] = useState(false);
   const [showCountdown, setShowCountdown] = useState<{ seconds: number; topicId: string } | null>(null);
 
+  const handleLogout = async () => {
+    await logout();
+  };
+
+  const earnCalledRef = useRef(false);
   const handleCountdownComplete = useCallback((topicId: string, turnstileToken: string) => {
+    // Guard against double-fire (rAF + useEffect race)
+    if (earnCalledRef.current) return;
+    earnCalledRef.current = true;
+
     setShowCountdown(null);
     setCoinTag({ kind: "loading" });
 
@@ -227,7 +258,6 @@ export function TopicPage() {
             leveledUp: result.leveled_up,
             newLevel: result.new_level,
           });
-          // Refresh level card after earning
           setLevelRefreshKey((k) => k + 1);
           setTimeout(() => setCoinTag({ kind: "duplicate" }), 3000);
         } else {
@@ -334,41 +364,7 @@ export function TopicPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
       {/* ── Header ── */}
-      <header className="sticky top-0 z-40 bg-[#fdf9ee] border-b-[3px] border-[#231815]">
-        <div className="max-w-[1200px] mx-auto px-6 h-[65px] flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-2xl bg-[#43b9d6] flex items-center justify-center">
-              <span className="text-[#231815] font-bold text-lg" style={{ fontFamily: "Gluten, cursive" }}>W</span>
-            </div>
-            <span className="text-xl font-bold text-[#231815]">WizLetter</span>
-          </Link>
-          <div className="hidden md:flex items-center gap-3">
-            {user ? (
-              <>
-                <Link
-                  to="/home"
-                  className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
-                >
-                  홈
-                </Link>
-                <Link
-                  to="/mypage"
-                  className="inline-flex items-center justify-center px-5 h-9 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-sm font-medium text-[#231815] hover:opacity-80 transition-opacity"
-                >
-                  마이페이지
-                </Link>
-              </>
-            ) : (
-              <Link
-                to="/"
-                className="inline-flex items-center justify-center px-5 h-9 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-sm font-medium text-[#231815] hover:opacity-80 transition-opacity"
-              >
-                로그인
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* ── Content ── */}
       <main className="flex-1">
@@ -421,8 +417,11 @@ export function TopicPage() {
             {/* Category bracket + tags */}
             <div className="flex items-baseline gap-3 flex-wrap mt-1 mb-1">
               {categoryLabel && (
-                <span className="text-3xl md:text-4xl font-bold text-[#231815] leading-tight">
-                  [{categoryLabel}]
+                <span
+                  className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
+                  style={{ color: "#231815", backgroundColor: "#23181520" }}
+                >
+                  {categoryLabel}
                 </span>
               )}
               {brainCat && (
@@ -504,6 +503,34 @@ export function TopicPage() {
 
       {/* ── Footer ── */}
       <Footer />
+
+      {/* ── Login Modal ── */}
+      {loginOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={() => setLoginOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-sm bg-[#fdf9ee] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setLoginOpen(false)}
+              className="absolute top-4 right-4 text-[#231815]/60 hover:text-[#231815] transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+            <img src="/wl-logo.png" alt="WizLetter" className="w-[140px] md:w-[200px] object-contain" />
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-[#231815]">로그인</h2>
+              <p className="mt-1 text-sm text-[#231815]/60">매일 아침 5분, 세상의 흐름을 읽는 위즈레터</p>
+            </div>
+            <KakaoLoginButton redirectPath={`/topic/${id}`} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

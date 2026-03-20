@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { Header } from "@/components/header";
 import { useAuth } from "@/contexts/auth-context";
 import {
   getBankAccount,
@@ -208,18 +209,7 @@ export function WithdrawalPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--color-bg)", color: "var(--color-fg)" }}>
-      <header
-        className="sticky top-0 z-10 border-b bg-opacity-90 backdrop-blur-lg"
-        style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-bg)" }}
-      >
-        <div className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button onClick={() => navigate("/mypage")} className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors">
-            &larr; 마이 페이지
-          </button>
-          <h1 className="text-lg font-bold text-[#1e3a5f]">출금</h1>
-          <div className="w-16" />
-        </div>
-      </header>
+      <Header />
 
       <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 space-y-6">
         {/* 잔액 정보 */}
