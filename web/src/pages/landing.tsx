@@ -121,14 +121,14 @@ export function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fdf9ee] text-[#231815] max-w-[1400px] mx-auto">
+    <div className="min-h-screen bg-[#fdf9ee] text-[#231815]">
       {/* ── Header ── */}
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled ? "backdrop-blur-md" : ""
         }`}
       >
-        <div className="bg-[#fdf9ee] border-b-[3px] border-[#231815] max-w-[1400px] mx-auto">
+        <div className="bg-[#fdf9ee] border-b-[3px] border-[#231815]">
           <div className="max-w-[1200px] mx-auto px-6 h-[65px] flex items-center justify-between">
             <a href="#top" className="flex items-center">
               <img
@@ -257,6 +257,7 @@ export function LandingPage() {
         )}
       </nav>
 
+      <div className="max-w-[1400px] mx-auto">
       {/* ── Hero ── */}
       <section
         id="top"
@@ -488,6 +489,8 @@ export function LandingPage() {
           </FadeIn>
         </div>
       </section>
+
+      </div>
 
       <Footer />
 
