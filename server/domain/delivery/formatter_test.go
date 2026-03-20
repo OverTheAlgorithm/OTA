@@ -21,16 +21,16 @@ func TestFormatMessage_EmptyItems(t *testing.T) {
 
 	result := FormatMessage(items, subscriptions, nil, "", nil, nil)
 
-	if result.Subject != "오늘의 맥락" {
-		t.Errorf("expected subject '오늘의 맥락', got '%s'", result.Subject)
+	if result.Subject != "위즈레터" {
+		t.Errorf("expected subject '위즈레터', got '%s'", result.Subject)
 	}
 
-	if !strings.Contains(result.TextBody, "수집된 맥락이 없습니다") {
-		t.Errorf("expected text body to contain '수집된 맥락이 없습니다', got '%s'", result.TextBody)
+	if !strings.Contains(result.TextBody, "수집된 소식이 없습니다") {
+		t.Errorf("expected text body to contain '수집된 소식이 없습니다', got '%s'", result.TextBody)
 	}
 
-	if !strings.Contains(result.HTMLBody, "수집된 맥락이 없습니다") {
-		t.Errorf("expected HTML body to contain '수집된 맥락이 없습니다', got '%s'", result.HTMLBody)
+	if !strings.Contains(result.HTMLBody, "수집된 소식이 없습니다") {
+		t.Errorf("expected HTML body to contain '수집된 소식이 없습니다', got '%s'", result.HTMLBody)
 	}
 }
 
@@ -57,8 +57,8 @@ func TestFormatMessage_BrainCategoryGrouping(t *testing.T) {
 
 	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
-	if !strings.Contains(result.Subject, "오늘의 맥락 2가지") {
-		t.Errorf("expected subject to contain '오늘의 맥락 2가지', got '%s'", result.Subject)
+	if !strings.Contains(result.Subject, "오늘의 소식 2가지") {
+		t.Errorf("expected subject to contain '오늘의 소식 2가지', got '%s'", result.Subject)
 	}
 
 	// Brain category label should appear
@@ -74,8 +74,8 @@ func TestFormatMessage_BrainCategoryGrouping(t *testing.T) {
 		t.Errorf("expected HTML body to contain brain category label")
 	}
 
-	if !strings.Contains(result.HTMLBody, "#e84d3d") {
-		t.Error("expected HTML body to use brain category accent color")
+	if !strings.Contains(result.HTMLBody, "#008fb2") {
+		t.Error("expected HTML body to use brain category tab accent border color")
 	}
 }
 
@@ -298,12 +298,12 @@ func TestFormatMessage_OTASection(t *testing.T) {
 	if !strings.Contains(result.HTMLBody, "OTA 토픽") {
 		t.Error("OTA 아이템이 HTML에 포함되어야 합니다")
 	}
-	// buzz_score가 렌더링되어야 함
-	if !strings.Contains(result.HTMLBody, "92") {
-		t.Error("buzz_score 92가 HTML에 표시되어야 합니다")
+	// buzz_score는 텍스트 본문에만 표시 (HTML 카드 디자인에서는 제외)
+	if !strings.Contains(result.TextBody, "92") {
+		t.Error("buzz_score 92가 텍스트에 표시되어야 합니다")
 	}
-	if !strings.Contains(result.HTMLBody, "75") {
-		t.Error("buzz_score 75가 HTML에 표시되어야 합니다")
+	if !strings.Contains(result.TextBody, "75") {
+		t.Error("buzz_score 75가 텍스트에 표시되어야 합니다")
 	}
 }
 
@@ -374,13 +374,13 @@ func TestFormatMessage_PointsLabel(t *testing.T) {
 
 	result := FormatMessage(items, subscriptions, testBrainCategories, "https://example.com", nil, msgCtx)
 
-	// Preferred item: +5코인
-	if !strings.Contains(result.HTMLBody, "+5코인") {
-		t.Errorf("expected preferred item to show +5코인, HTML: %s", result.HTMLBody)
+	// Preferred item: +5포인트
+	if !strings.Contains(result.HTMLBody, "5포인트") {
+		t.Errorf("expected preferred item to show +5포인트, HTML: %s", result.HTMLBody)
 	}
-	// Non-preferred item: +10코인
-	if !strings.Contains(result.HTMLBody, "+10코인") {
-		t.Errorf("expected non-preferred item to show +10코인, HTML: %s", result.HTMLBody)
+	// Non-preferred item: +10포인트
+	if !strings.Contains(result.HTMLBody, "10포인트") {
+		t.Errorf("expected non-preferred item to show +10포인트, HTML: %s", result.HTMLBody)
 	}
 	// uid/rid tracking params in links
 	if !strings.Contains(result.HTMLBody, "uid=uid1") {
