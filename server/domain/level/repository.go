@@ -12,8 +12,9 @@ type Repository interface {
 	// EarnCoin attempts to award coins for viewing a context item within a collection run.
 	// Returns (false, 0, nil) if already earned (duplicate), (true, newTotal, nil) on success.
 	EarnCoin(ctx context.Context, userID string, runID uuid.UUID, contextItemID uuid.UUID, coins int) (earned bool, newTotal int, err error)
-	// SetCoins directly overwrites a user's coins and recalculates level. For testing only.
-	SetCoins(ctx context.Context, userID string, coins int) error
+	// SetCoins atomically overwrites a user's coins and records the delta as a coin_event.
+	// actorID identifies who triggered the change; empty string means system-triggered.
+	SetCoins(ctx context.Context, userID string, coins int, actorID string) error
 	// GetTodayEarnedCoins returns the total coins a user has earned today (KST).
 	GetTodayEarnedCoins(ctx context.Context, userID string) (int, error)
 	// HasEarned reports whether the user has already earned a coin for the given run+item combination.

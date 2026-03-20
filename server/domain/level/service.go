@@ -37,9 +37,10 @@ func (s *Service) GetLevel(ctx context.Context, userID string) (LevelInfo, error
 	return s.calcInfo(uc.Coins), nil
 }
 
-// SetCoins directly overwrites a user's coins and recalculates level. For testing only.
-func (s *Service) SetCoins(ctx context.Context, userID string, coins int) (LevelInfo, error) {
-	if err := s.repo.SetCoins(ctx, userID, coins); err != nil {
+// SetCoins atomically overwrites a user's coins, records the delta as a coin_event,
+// and returns the recalculated level info. actorID identifies the triggering admin/user.
+func (s *Service) SetCoins(ctx context.Context, userID string, coins int, actorID string) (LevelInfo, error) {
+	if err := s.repo.SetCoins(ctx, userID, coins, actorID); err != nil {
 		return LevelInfo{}, fmt.Errorf("set coins: %w", err)
 	}
 	return s.calcInfo(coins), nil
@@ -75,8 +76,8 @@ func (s *Service) IsAtDailyLimit(ctx context.Context, userID string) (bool, erro
 	return todayEarned >= limit, nil
 }
 
-// AdjustCoins sets a user's coins to a new value and logs the change as a coin event.
-// Returns the delta (newCoins - oldCoins) and the updated LevelInfo.
+// AdjustCoins sets a user's coins to a new value. The delta and audit event are
+// recorded atomically inside SetCoins. Returns the delta and updated LevelInfo.
 func (s *Service) AdjustCoins(ctx context.Context, userID string, newCoins int, memo, actorID string) (int, LevelInfo, error) {
 	uc, err := s.repo.GetUserCoins(ctx, userID)
 	if err != nil {
@@ -84,12 +85,8 @@ func (s *Service) AdjustCoins(ctx context.Context, userID string, newCoins int, 
 	}
 
 	delta := newCoins - uc.Coins
-	if err := s.repo.SetCoins(ctx, userID, newCoins); err != nil {
+	if err := s.repo.SetCoins(ctx, userID, newCoins, actorID); err != nil {
 		return 0, LevelInfo{}, fmt.Errorf("adjust coins set: %w", err)
-	}
-
-	if err := s.repo.InsertCoinEvent(ctx, userID, delta, "admin_adjustment", memo, actorID); err != nil {
-		return 0, LevelInfo{}, fmt.Errorf("adjust coins log: %w", err)
 	}
 
 	return delta, s.calcInfo(newCoins), nil

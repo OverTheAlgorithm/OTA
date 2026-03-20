@@ -301,7 +301,7 @@ func TestCoinEarning_LevelUp(t *testing.T) {
 
 	// 레벨 1→2 경계(1000코인)에 가깝게 사전 설정 (비선호 10코인 → 990+10=1000 → lv2)
 	// NewLevelConfig(5000,1000) 기준: 0=lv1, 1000=lv2, 2000=lv3, 3000=lv4, 4000=lv5
-	if err := levelRepo.SetCoins(ctx, userID, 990); err != nil {
+	if err := levelRepo.SetCoins(ctx, userID, 990, ""); err != nil {
 		t.Fatalf("SetCoins error: %v", err)
 	}
 

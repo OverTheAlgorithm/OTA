@@ -76,8 +76,28 @@ func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, co
 	return true, newTotal, nil
 }
 
-func (r *LevelRepository) SetCoins(ctx context.Context, userID string, coins int) error {
-	_, err := r.pool.Exec(ctx, `
+// SetCoins atomically overwrites a user's coin balance and records the delta
+// as a coin_event for audit purposes. The actorID identifies who triggered
+// the change (empty string = system). Both writes happen in one transaction.
+func (r *LevelRepository) SetCoins(ctx context.Context, userID string, coins int, actorID string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("set coins begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// 1. Read current balance so we can compute the delta for the audit log.
+	var current int
+	err = tx.QueryRow(ctx,
+		`SELECT COALESCE((SELECT points FROM user_points WHERE user_id = $1), 0)`,
+		userID,
+	).Scan(&current)
+	if err != nil {
+		return fmt.Errorf("set coins read current: %w", err)
+	}
+
+	// 2. Overwrite the balance.
+	_, err = tx.Exec(ctx, `
 		INSERT INTO user_points (user_id, points, updated_at)
 		VALUES ($1, $2, NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
@@ -85,7 +105,27 @@ func (r *LevelRepository) SetCoins(ctx context.Context, userID string, coins int
 			updated_at = NOW()
 	`, userID, coins)
 	if err != nil {
-		return fmt.Errorf("set coins: %w", err)
+		return fmt.Errorf("set coins upsert: %w", err)
+	}
+
+	// 3. Record the delta as an audit event (skip if no change).
+	delta := coins - current
+	if delta != 0 {
+		var actor interface{}
+		if actorID != "" {
+			actor = actorID
+		}
+		_, err = tx.Exec(ctx,
+			`INSERT INTO coin_events (user_id, amount, type, memo, actor_id) VALUES ($1, $2, $3, $4, $5)`,
+			userID, delta, "admin_set", fmt.Sprintf("set to %d (was %d)", coins, current), actor,
+		)
+		if err != nil {
+			return fmt.Errorf("set coins audit event: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("set coins commit: %w", err)
 	}
 	return nil
 }
@@ -164,50 +204,12 @@ func (r *LevelRepository) InsertCoinEvent(ctx context.Context, userID string, am
 }
 
 // GetCoinHistory returns a unified paginated timeline of all coin balance changes.
+// The query delegates to the coin_history view (migration 000024).
 func (r *LevelRepository) GetCoinHistory(ctx context.Context, userID string, limit, offset int) ([]level.CoinTransaction, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, amount, type, description, link_id, created_at FROM (
-			-- Topic view earnings
-			SELECT cl.id::text, cl.coins_earned AS amount, 'earn' AS type,
-				COALESCE(ci.topic, '토픽 열람') AS description,
-				cl.context_item_id::text AS link_id, cl.created_at
-			FROM coin_logs cl
-			LEFT JOIN context_items ci ON ci.id = cl.context_item_id
-			WHERE cl.user_id = $1
-
-			UNION ALL
-
-			-- General coin events (signup bonus, etc.)
-			SELECT ce.id::text, ce.amount, ce.type,
-				COALESCE(ce.memo, ce.type) AS description,
-				'' AS link_id, ce.created_at
-			FROM coin_events ce
-			WHERE ce.user_id = $1
-
-			UNION ALL
-
-			-- Withdrawal deductions (negative amount)
-			SELECT w.id::text, -w.amount AS amount, 'withdrawal' AS type,
-				'출금 신청' AS description,
-				'' AS link_id, w.created_at
-			FROM withdrawals w
-			INNER JOIN withdrawal_transitions wt ON wt.withdrawal_id = w.id AND wt.status = 'pending'
-			WHERE w.user_id = $1
-
-			UNION ALL
-
-			-- Withdrawal refunds (rejected/cancelled → coins restored)
-			SELECT wt.id::text, w.amount AS amount, 'refund' AS type,
-				CASE wt.status
-					WHEN 'rejected' THEN '출금 거절 (환불)'
-					WHEN 'cancelled' THEN '출금 취소 (환불)'
-				END AS description,
-				'' AS link_id,
-				wt.created_at
-			FROM withdrawal_transitions wt
-			INNER JOIN withdrawals w ON w.id = wt.withdrawal_id
-			WHERE w.user_id = $1 AND wt.status IN ('rejected', 'cancelled')
-		) AS combined
+		SELECT id, amount, type, description, link_id, created_at
+		FROM coin_history
+		WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`, userID, limit, offset)

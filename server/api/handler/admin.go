@@ -115,7 +115,8 @@ func (h *AdminHandler) SetLevelCoins(c *gin.Context) {
 		return
 	}
 
-	info, err := h.levelService.SetCoins(c.Request.Context(), userID, req.Coins)
+	actorID := c.GetString("userID")
+	info, err := h.levelService.SetCoins(c.Request.Context(), userID, req.Coins, actorID)
 	if err != nil {
 		log.Printf("set level coins error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})

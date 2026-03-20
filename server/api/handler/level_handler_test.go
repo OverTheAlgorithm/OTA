@@ -74,7 +74,7 @@ func (m *mockLevelRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, co
 	return true, m.coins + coins, nil
 }
 
-func (m *mockLevelRepo) SetCoins(_ context.Context, _ string, _ int) error {
+func (m *mockLevelRepo) SetCoins(_ context.Context, _ string, _ int, _ string) error {
 	return nil
 }
 
@@ -140,6 +140,10 @@ func (c *mockCache) Delete(k string) {
 func (c *mockCache) Has(k string) bool {
 	_, ok := c.store[k]
 	return ok
+}
+
+func (c *mockCache) Close() error {
+	return nil
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

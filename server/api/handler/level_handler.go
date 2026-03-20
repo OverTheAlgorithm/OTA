@@ -18,16 +18,17 @@ import (
 
 // EarnPending holds the state stored in the cache while waiting for dwell-time confirmation.
 type EarnPending struct {
-	InitiatedAt   time.Time
-	UID           string
-	ContextItemID uuid.UUID
-	RunID         uuid.UUID
+	InitiatedAt   time.Time `json:"initiated_at"`
+	UID           string    `json:"uid"`
+	ContextItemID uuid.UUID `json:"context_item_id"`
+	RunID         uuid.UUID `json:"run_id"`
 }
 
 // earnCacheKey returns the canonical cache key for a given user and context item.
 func earnCacheKey(uid string, contextItemID uuid.UUID) string {
 	return fmt.Sprintf("earn:%s:%s", uid, contextItemID)
 }
+
 
 // LevelHandler handles coin-earning and level queries.
 type LevelHandler struct {
@@ -194,15 +195,9 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 
 	// ── Cache dwell check ─────────────────────────────────────────────────────
 	key := earnCacheKey(userID, itemID)
-	raw, ok := h.earnCache.Get(key)
+	pending, ok := cache.GetTyped[EarnPending](h.earnCache, key)
 	if !ok {
 		log.Printf("earn: TOO_EARLY (no cache) user=%s item=%s ip=%s", userID, itemID, c.ClientIP())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "TOO_EARLY"})
-		return
-	}
-	pending, ok := raw.(EarnPending)
-	if !ok {
-		log.Printf("earn: TOO_EARLY (cache type mismatch) user=%s item=%s", userID, itemID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "TOO_EARLY"})
 		return
 	}

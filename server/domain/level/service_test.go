@@ -26,7 +26,7 @@ func (m *mockRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, _ int) 
 	return m.earnResult, m.earnTotal, m.earnErr
 }
 
-func (m *mockRepo) SetCoins(_ context.Context, _ string, _ int) error {
+func (m *mockRepo) SetCoins(_ context.Context, _ string, _ int, _ string) error {
 	return nil
 }
 
