@@ -10,7 +10,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	limiter "github.com/ulule/limiter/v3"
-	"github.com/ulule/limiter/v3/drivers/store/memory"
 	"ota/auth"
 	"ota/domain/user"
 )
@@ -103,12 +102,11 @@ func AdminMiddleware(userRepo user.Repository) gin.HandlerFunc {
 // RateLimitMiddleware applies a sliding-window per-key rate limit.
 // Authenticated users are keyed by user ID; anonymous requests by client IP.
 // On internal limiter errors the request is allowed (fail-open).
-func RateLimitMiddleware(ratePerMin int, jwtManager *auth.JWTManager) gin.HandlerFunc {
+func RateLimitMiddleware(ratePerMin int, jwtManager *auth.JWTManager, store limiter.Store) gin.HandlerFunc {
 	rate := limiter.Rate{
 		Period: time.Minute,
 		Limit:  int64(ratePerMin),
 	}
-	store := memory.NewStore()
 	instance := limiter.New(store, rate)
 
 	return func(c *gin.Context) {

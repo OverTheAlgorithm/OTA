@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ulule/limiter/v3/drivers/store/memory"
 
 	"ota/api"
 	"ota/api/handler"
@@ -31,7 +32,7 @@ func TestTerms_CRUD_Integration(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
-	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, []api.RouteModule{
+	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, memory.NewStore(), []api.RouteModule{
 		{GroupName: "admin/terms", Handler: adminHandler, Middlewares: []gin.HandlerFunc{}},
 		{GroupName: "terms", Handler: publicHandler, Middlewares: []gin.HandlerFunc{}},
 	})
@@ -258,10 +259,7 @@ func TestTerms_CompleteSignupFlow_Integration(t *testing.T) {
 	}
 
 	// Setup signup cache + auth handler
-	signupCache, err := cache.New(100)
-	if err != nil {
-		t.Fatal(err)
-	}
+	signupCache := cache.NewInProcess()
 
 	jwtManager := auth.NewJWTManager("test-secret-key-long-enough-here")
 	kakaoClient := kakao.NewClient("dummy", "dummy", "http://localhost/cb")
@@ -272,7 +270,7 @@ func TestTerms_CompleteSignupFlow_Integration(t *testing.T) {
 	)
 
 	gin.SetMode(gin.TestMode)
-	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, []api.RouteModule{
+	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, memory.NewStore(), []api.RouteModule{
 		{GroupName: "auth", Handler: authHandler, Middlewares: []gin.HandlerFunc{}},
 	})
 

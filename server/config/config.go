@@ -54,6 +54,11 @@ type Config struct {
 	CoinsPerLevel          int // COINS_PER_LEVEL: coins needed per level transition; default 1000
 	RateLimitPerMin        int // RATE_LIMIT_PER_MIN: max requests per minute per user/IP; default 100
 
+	RedisHost     string // REDIS_HOST: Redis server hostname; default "redis"
+	RedisPort     string // REDIS_PORT: Redis server port; default "6379"
+	RedisPassword string // REDIS_PASSWORD: Redis auth password; default ""
+	RedisDB       int    // REDIS_DB: Redis logical database index; default 0
+
 	ServerPort  string
 	FrontendURL string
 	AppEnv      string // "development" | "production"
@@ -112,6 +117,11 @@ func Load() (Config, error) {
 		CoinCap:                getEnvInt("COIN_CAP", 5000),
 		CoinsPerLevel:          getEnvInt("COINS_PER_LEVEL", 1000),
 		RateLimitPerMin:        getEnvInt("RATE_LIMIT_PER_MIN", 100),
+
+		RedisHost:     getEnv("REDIS_HOST", "redis"),
+		RedisPort:     getEnv("REDIS_PORT", "6379"),
+		RedisPassword: getEnv("REDIS_PASSWORD", ""),
+		RedisDB:       getEnvInt("REDIS_DB", 0),
 
 		ServerPort:  getEnv("SERVER_PORT", "8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),

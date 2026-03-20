@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ulule/limiter/v3/drivers/store/memory"
 
 	"ota/api"
 	"ota/api/handler"
@@ -37,7 +38,7 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 	// Setup router
 	gin.SetMode(gin.TestMode)
 	testJWT := auth.NewJWTManager("test-secret")
-	router := api.NewRouter("api", "v1", "http://localhost:5173", testJWT, 10000, []api.RouteModule{
+	router := api.NewRouter("api", "v1", "http://localhost:5173", testJWT, 10000, memory.NewStore(), []api.RouteModule{
 		{
 			GroupName:   "admin",
 			Handler:     adminHandler,
@@ -105,7 +106,7 @@ func TestAPI_AuthFlow(t *testing.T) {
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, nil, nil, 0, "http://localhost:5173", nil, nil)
 
 	gin.SetMode(gin.TestMode)
-	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, []api.RouteModule{
+	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, memory.NewStore(), []api.RouteModule{
 		{
 			GroupName:   "auth",
 			Handler:     authHandler,
@@ -159,7 +160,7 @@ func TestAPI_AuthFlow(t *testing.T) {
 func TestAPI_CORSMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	testJWT := auth.NewJWTManager("test-secret")
-	router := api.NewRouter("api", "v1", "http://localhost:5173", testJWT, 10000, []api.RouteModule{})
+	router := api.NewRouter("api", "v1", "http://localhost:5173", testJWT, 10000, memory.NewStore(), []api.RouteModule{})
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("OPTIONS", "/api/v1/test", nil)

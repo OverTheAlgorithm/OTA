@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ulule/limiter/v3/drivers/store/memory"
 	"ota/auth"
 )
 
@@ -15,7 +16,7 @@ func init() {
 
 func setupRateLimitRouter(ratePerMin int, jwtManager *auth.JWTManager) *gin.Engine {
 	r := gin.New()
-	r.Use(RateLimitMiddleware(ratePerMin, jwtManager))
+	r.Use(RateLimitMiddleware(ratePerMin, jwtManager, memory.NewStore()))
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
