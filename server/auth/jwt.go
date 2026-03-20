@@ -1,13 +1,17 @@
 package auth
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const tokenExpiry = 7 * 24 * time.Hour // 7 days
+const AccessTokenExpiry = 15 * time.Minute
+const RefreshTokenExpiry = 7 * 24 * time.Hour
 
 type JWTManager struct {
 	secret []byte
@@ -30,7 +34,7 @@ func (j *JWTManager) Generate(userID string, role string) (string, error) {
 		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(tokenExpiry)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(AccessTokenExpiry)),
 		},
 	}
 
@@ -60,4 +64,24 @@ func (j *JWTManager) Validate(tokenStr string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+// GenerateRefreshToken creates a cryptographically random opaque token
+// and returns both the raw token (to set in cookie) and its SHA-256 hash
+// (to store in the database).
+func GenerateRefreshToken() (raw string, hash string, err error) {
+	b := make([]byte, 32)
+	if _, err = rand.Read(b); err != nil {
+		return "", "", fmt.Errorf("generate refresh token: %w", err)
+	}
+	raw = hex.EncodeToString(b)
+	sum := sha256.Sum256([]byte(raw))
+	hash = hex.EncodeToString(sum[:])
+	return raw, hash, nil
+}
+
+// HashRefreshToken returns the SHA-256 hex hash of a raw refresh token.
+func HashRefreshToken(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
 }

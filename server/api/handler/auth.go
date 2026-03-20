@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -15,24 +16,50 @@ import (
 	"ota/domain/terms"
 	"ota/domain/user"
 	"ota/platform/kakao"
+	"ota/storage"
 )
 
 const cookieName = "ota_token"
+const refreshCookieName = "ota_refresh"
+
+// accessTokenMaxAge is the MaxAge for the access token cookie (15 min).
+const accessTokenMaxAge = 15 * 60
+
+// refreshTokenMaxAge is the MaxAge for the refresh token cookie (7 days).
+const refreshTokenMaxAge = 7 * 24 * 3600
 
 // signupCacheTTL is the duration a pending signup entry lives in cache.
 const signupCacheTTL = 3 * time.Minute
 
 // PendingSignup holds Kakao profile data while the user reviews terms.
 type PendingSignup struct {
-	KakaoID         int64
-	Email           string
-	Nickname        string
-	ProfileImageURL string
+	KakaoID         int64  `json:"kakao_id"`
+	Email           string `json:"email"`
+	Nickname        string `json:"nickname"`
+	ProfileImageURL string `json:"profile_image_url"`
+}
+
+// decodePendingSignup extracts a PendingSignup from a cache value.
+// Supports both direct struct (in-process OtterCache) and map[string]any
+// (Redis JSON-decoded). Uses a JSON round-trip for the latter case.
+func decodePendingSignup(raw any) (PendingSignup, bool) {
+	if p, ok := raw.(PendingSignup); ok {
+		return p, true
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return PendingSignup{}, false
+	}
+	var p PendingSignup
+	if err := json.Unmarshal(b, &p); err != nil {
+		return PendingSignup{}, false
+	}
+	return p, true
 }
 
 // SignupBonusGranter grants bonus coins to newly registered users.
 type SignupBonusGranter interface {
-	SetCoins(ctx context.Context, userID string, coins int) error
+	SetCoins(ctx context.Context, userID string, coins int, actorID string) error
 	InsertCoinEvent(ctx context.Context, userID string, amount int, eventType, memo, actorID string) error
 }
 
@@ -41,18 +68,27 @@ type WithdrawalChecker interface {
 	HasPendingWithdrawals(ctx context.Context, userID string) (bool, error)
 }
 
+// RefreshTokenStore persists and validates opaque refresh tokens.
+type RefreshTokenStore interface {
+	Insert(ctx context.Context, userID, tokenHash string, expiresAt time.Time) error
+	FindByHash(ctx context.Context, tokenHash string) (*storage.RefreshToken, bool, error)
+	DeleteByHash(ctx context.Context, tokenHash string) error
+	DeleteAllForUser(ctx context.Context, userID string) error
+}
+
 type AuthHandler struct {
-	kakao              *kakao.Client
-	jwt                *auth.JWTManager
-	states             *auth.StateStore
-	userRepo           user.Repository
-	welcomeDeliverer   delivery.WelcomeDeliverer
-	bonusGranter       SignupBonusGranter
-	signupBonus        int
-	frontendURL        string
-	signupCache        cache.Cache
-	termsService       *terms.Service
-	withdrawalChecker  WithdrawalChecker
+	kakao             *kakao.Client
+	jwt               *auth.JWTManager
+	states            *auth.StateStore
+	userRepo          user.Repository
+	welcomeDeliverer  delivery.WelcomeDeliverer
+	bonusGranter      SignupBonusGranter
+	signupBonus       int
+	frontendURL       string
+	signupCache       cache.Cache
+	termsService      *terms.Service
+	withdrawalChecker WithdrawalChecker
+	refreshTokenStore RefreshTokenStore
 }
 
 func NewAuthHandler(
@@ -84,6 +120,79 @@ func NewAuthHandler(
 func (h *AuthHandler) WithWithdrawalChecker(wc WithdrawalChecker) *AuthHandler {
 	h.withdrawalChecker = wc
 	return h
+}
+
+func (h *AuthHandler) WithRefreshTokenStore(store RefreshTokenStore) *AuthHandler {
+	h.refreshTokenStore = store
+	return h
+}
+
+// setAuthCookies issues both the short-lived access token cookie and the
+// long-lived refresh token cookie. The refresh cookie is scoped to
+// /api/v1/auth to limit its exposure.
+func (h *AuthHandler) setAuthCookies(w http.ResponseWriter, userID, role string) error {
+	accessToken, err := h.jwt.Generate(userID, role)
+	if err != nil {
+		return err
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    accessToken,
+		MaxAge:   accessTokenMaxAge,
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
+	})
+
+	if h.refreshTokenStore == nil {
+		return nil
+	}
+
+	rawRefresh, hashRefresh, err := auth.GenerateRefreshToken()
+	if err != nil {
+		return err
+	}
+
+	expiresAt := time.Now().Add(auth.RefreshTokenExpiry)
+	if err := h.refreshTokenStore.Insert(context.Background(), userID, hashRefresh, expiresAt); err != nil {
+		return err
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     refreshCookieName,
+		Value:    rawRefresh,
+		MaxAge:   refreshTokenMaxAge,
+		Path:     "/api/v1/auth",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
+	})
+
+	return nil
+}
+
+// clearAuthCookies expires both auth cookies.
+func clearAuthCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     refreshCookieName,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/api/v1/auth",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
+	})
 }
 
 func (h *AuthHandler) KakaoLogin(c *gin.Context) {
@@ -126,7 +235,6 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 		return
 	}
 
-	// Check if user already exists
 	_, found, err := h.userRepo.FindByKakaoID(c.Request.Context(), kakaoUser.ID)
 	if err != nil {
 		log.Printf("failed to check existing user: %v", err)
@@ -135,7 +243,6 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 	}
 
 	if found {
-		// Returning user — update profile and login directly
 		u, err := h.userRepo.UpsertByKakaoID(
 			c.Request.Context(),
 			kakaoUser.ID,
@@ -149,28 +256,16 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 			return
 		}
 
-		jwtToken, err := h.jwt.Generate(u.ID, u.Role)
-		if err != nil {
-			log.Printf("failed to generate JWT: %v", err)
+		if err := h.setAuthCookies(c.Writer, u.ID, u.Role); err != nil {
+			log.Printf("failed to set auth cookies: %v", err)
 			c.Redirect(http.StatusFound, h.frontendURL+"/login?error=jwt_error")
 			return
 		}
-
-		http.SetCookie(c.Writer, &http.Cookie{
-			Name:     cookieName,
-			Value:    jwtToken,
-			MaxAge:   7 * 24 * 3600,
-			Path:     "/",
-			Secure:   true,
-			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
-		})
 
 		c.Redirect(http.StatusFound, h.frontendURL+"/home")
 		return
 	}
 
-	// New user — cache Kakao data and redirect to terms consent
 	signupKey := uuid.New().String()
 	h.signupCache.Set(signupKey, PendingSignup{
 		KakaoID:         kakaoUser.ID,
@@ -179,7 +274,7 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 		ProfileImageURL: kakaoUser.Account.Profile.ProfileImageURL,
 	}, signupCacheTTL)
 
-	log.Printf("new user signup pending — kakao_id=%d, signup_key=%s", kakaoUser.ID, signupKey)
+	log.Printf("new user signup pending -- kakao_id=%d, signup_key=%s", kakaoUser.ID, signupKey)
 	c.Redirect(http.StatusFound, h.frontendURL+"/terms-consent?signup_key="+signupKey)
 }
 
@@ -188,41 +283,37 @@ type completeSignupRequest struct {
 	AgreedTermIDs []string `json:"agreed_term_ids"`
 }
 
-// CompleteSignup finishes the two-phase signup after terms consent.
 func (h *AuthHandler) CompleteSignup(c *gin.Context) {
 	var req completeSignupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
 
 	if req.SignupKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "signup_key는 필수입니다"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "signup_key required"})
 		return
 	}
 
-	// Retrieve and immediately bust the cache entry
 	cached, found := h.signupCache.Get(req.SignupKey)
 	h.signupCache.Delete(req.SignupKey)
 
 	if !found {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "세션이 만료되었습니다. 다시 로그인해주세요."})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "session expired"})
 		return
 	}
 
-	pending, ok := cached.(PendingSignup)
+	pending, ok := decodePendingSignup(cached)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "내부 오류가 발생했습니다"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 
-	// Validate terms consent
 	if err := h.termsService.ValidateConsents(c.Request.Context(), req.AgreedTermIDs); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Create user
 	u, err := h.userRepo.UpsertByKakaoID(
 		c.Request.Context(),
 		pending.KakaoID,
@@ -232,26 +323,23 @@ func (h *AuthHandler) CompleteSignup(c *gin.Context) {
 	)
 	if err != nil {
 		log.Printf("failed to create user during signup: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "회원가입에 실패했습니다"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "signup failed"})
 		return
 	}
 
-	// Save term consents
 	if err := h.termsService.SaveConsents(c.Request.Context(), u.ID, req.AgreedTermIDs); err != nil {
 		log.Printf("failed to save consents for user %s: %v", u.ID, err)
 	}
 
-	// Grant signup bonus
 	if h.signupBonus > 0 && h.bonusGranter != nil {
-		if err := h.bonusGranter.SetCoins(c.Request.Context(), u.ID, h.signupBonus); err != nil {
+		if err := h.bonusGranter.SetCoins(c.Request.Context(), u.ID, h.signupBonus, ""); err != nil {
 			log.Printf("signup bonus grant failed for user %s: %v", u.ID, err)
 		} else {
-			_ = h.bonusGranter.InsertCoinEvent(c.Request.Context(), u.ID, h.signupBonus, "signup_bonus", "회원가입 보너스", "")
+			_ = h.bonusGranter.InsertCoinEvent(c.Request.Context(), u.ID, h.signupBonus, "signup_bonus", "signup bonus", "")
 			log.Printf("granted %d signup bonus coins to new user %s", h.signupBonus, u.ID)
 		}
 	}
 
-	// Send welcome delivery
 	if u.Email != "" && h.welcomeDeliverer != nil {
 		go func() {
 			if err := h.welcomeDeliverer.DeliverToNewUser(context.Background(), u.ID, u.Email); err != nil {
@@ -262,25 +350,13 @@ func (h *AuthHandler) CompleteSignup(c *gin.Context) {
 		}()
 	}
 
-	// Generate JWT and set cookie
-	jwtToken, err := h.jwt.Generate(u.ID, u.Role)
-	if err != nil {
-		log.Printf("failed to generate JWT: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "로그인 처리에 실패했습니다"})
+	if err := h.setAuthCookies(c.Writer, u.ID, u.Role); err != nil {
+		log.Printf("failed to set auth cookies: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "login failed"})
 		return
 	}
 
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     cookieName,
-		Value:    jwtToken,
-		MaxAge:   7 * 24 * 3600,
-		Path:     "/",
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-	})
-
-	log.Printf("new user signup completed — user_id=%s, kakao_id=%d, consents=%d", u.ID, pending.KakaoID, len(req.AgreedTermIDs))
+	log.Printf("new user signup completed -- user_id=%s, kakao_id=%d, consents=%d", u.ID, pending.KakaoID, len(req.AgreedTermIDs))
 	c.JSON(http.StatusOK, gin.H{"data": u})
 }
 
@@ -301,16 +377,66 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": u})
 }
 
+// Refresh validates the refresh token cookie, rotates it, and issues a new pair.
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	if h.refreshTokenStore == nil {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "refresh not configured"})
+		return
+	}
+
+	rawToken, err := c.Cookie(refreshCookieName)
+	if err != nil || rawToken == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing refresh token"})
+		return
+	}
+
+	tokenHash := auth.HashRefreshToken(rawToken)
+	record, found, err := h.refreshTokenStore.FindByHash(c.Request.Context(), tokenHash)
+	if err != nil {
+		log.Printf("refresh token lookup error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	if !found {
+		clearAuthCookies(c.Writer)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
+		return
+	}
+
+	if err := h.refreshTokenStore.DeleteByHash(c.Request.Context(), tokenHash); err != nil {
+		log.Printf("failed to delete old refresh token: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	u, err := h.userRepo.FindByID(c.Request.Context(), record.UserID)
+	if err != nil {
+		log.Printf("refresh: user %s not found: %v", record.UserID, err)
+		clearAuthCookies(c.Writer)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+		return
+	}
+
+	if err := h.setAuthCookies(c.Writer, u.ID, u.Role); err != nil {
+		log.Printf("failed to set auth cookies during refresh: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "token refreshed"})
+}
+
 func (h *AuthHandler) Logout(c *gin.Context) {
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     cookieName,
-		Value:    "",
-		MaxAge:   -1,
-		Path:     "/",
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-	})
+	if h.refreshTokenStore != nil {
+		if rawToken, err := c.Cookie(refreshCookieName); err == nil && rawToken != "" {
+			tokenHash := auth.HashRefreshToken(rawToken)
+			if err := h.refreshTokenStore.DeleteByHash(c.Request.Context(), tokenHash); err != nil {
+				log.Printf("failed to revoke refresh token on logout: %v", err)
+			}
+		}
+	}
+
+	clearAuthCookies(c.Writer)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
 
@@ -323,39 +449,34 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 
 	uid := userID.(string)
 
-	// Block deletion if there are pending withdrawals
 	if h.withdrawalChecker != nil {
 		hasPending, err := h.withdrawalChecker.HasPendingWithdrawals(c.Request.Context(), uid)
 		if err != nil {
 			log.Printf("failed to check pending withdrawals for user %s: %v", uid, err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "계정 삭제 중 오류가 발생했습니다"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "error during account deletion"})
 			return
 		}
 		if hasPending {
-			c.JSON(http.StatusConflict, gin.H{"error": "처리 대기 중인 출금 신청이 있습니다. 출금 완료 또는 취소 후 탈퇴해주세요."})
+			c.JSON(http.StatusConflict, gin.H{"error": "pending withdrawal exists"})
 			return
+		}
+	}
+
+	if h.refreshTokenStore != nil {
+		if err := h.refreshTokenStore.DeleteAllForUser(c.Request.Context(), uid); err != nil {
+			log.Printf("failed to revoke refresh tokens for user %s: %v", uid, err)
 		}
 	}
 
 	if err := h.userRepo.DeleteByID(c.Request.Context(), uid); err != nil {
 		log.Printf("failed to delete user %s: %v", uid, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "계정 삭제에 실패했습니다"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "account deletion failed"})
 		return
 	}
 
-	// Clear auth cookie
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     cookieName,
-		Value:    "",
-		MaxAge:   -1,
-		Path:     "/",
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-	})
-
-	log.Printf("user account deleted — user_id=%s", uid)
-	c.JSON(http.StatusOK, gin.H{"message": "계정이 삭제되었습니다"})
+	clearAuthCookies(c.Writer)
+	log.Printf("user account deleted -- user_id=%s", uid)
+	c.JSON(http.StatusOK, gin.H{"message": "account deleted"})
 }
 
 func (h *AuthHandler) RegisterRoutes(group *gin.RouterGroup) {
@@ -363,6 +484,7 @@ func (h *AuthHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/kakao/callback", h.KakaoCallback)
 	group.POST("/complete-signup", h.CompleteSignup)
 	group.POST("/logout", h.Logout)
+	group.POST("/refresh", h.Refresh)
 
 	protected := group.Group("")
 	protected.Use(h.authMiddleware())
