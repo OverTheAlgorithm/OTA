@@ -52,7 +52,7 @@ type Config struct {
 	SignupBonusCoins       int // SIGNUP_BONUS_COINS: coins granted to new users on registration; default 0
 	CoinCap                int // COIN_CAP: maximum coins a user can hold; default 5000
 	CoinsPerLevel          int // COINS_PER_LEVEL: coins needed per level transition; default 1000
-	RateLimitPerMin        int // RATE_LIMIT_PER_MIN: max requests per minute per user/IP; default 100
+	RateLimitPerMin        int // RATE_LIMIT_PER_MIN: max requests per minute per user/IP; default 300
 
 	RedisHost     string // REDIS_HOST: Redis server hostname; default "redis"
 	RedisPort     string // REDIS_PORT: Redis server port; default "6379"
@@ -116,7 +116,7 @@ func Load() (Config, error) {
 		SignupBonusCoins:       getEnvInt("SIGNUP_BONUS_COINS", 0),
 		CoinCap:                getEnvInt("COIN_CAP", 5000),
 		CoinsPerLevel:          getEnvInt("COINS_PER_LEVEL", 1000),
-		RateLimitPerMin:        getEnvInt("RATE_LIMIT_PER_MIN", 100),
+		RateLimitPerMin:        getEnvInt("RATE_LIMIT_PER_MIN", 300),
 
 		RedisHost:     getEnv("REDIS_HOST", "redis"),
 		RedisPort:     getEnv("REDIS_PORT", "6379"),

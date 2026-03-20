@@ -112,16 +112,24 @@ func RateLimitMiddleware(ratePerMin int, jwtManager *auth.JWTManager, store limi
 	return func(c *gin.Context) {
 		key := resolveRateLimitKey(c, jwtManager)
 
-		context, err := instance.Get(c.Request.Context(), key)
+		ctx, err := instance.Get(c.Request.Context(), key)
 		if err != nil {
-			log.Printf("[rate-limit] limiter error for key %s: %v (fail-open)", key, err)
+			log.Printf("[rate-limit] limiter error for key=%s: %v (fail-open)", key, err)
 			c.Next()
 			return
 		}
 
-		if context.Reached {
+		if ctx.Reached {
+			log.Printf("[rate-limit] BLOCKED key=%s method=%s path=%s limit=%d remaining=%d reset=%v",
+				key, c.Request.Method, c.Request.URL.Path, ctx.Limit, ctx.Remaining, ctx.Reset)
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many requests"})
 			return
+		}
+
+		// Log warning when approaching the limit (< 20% remaining)
+		if ctx.Remaining < ctx.Limit/5 {
+			log.Printf("[rate-limit] WARNING key=%s approaching limit: %d/%d remaining, path=%s",
+				key, ctx.Remaining, ctx.Limit, c.Request.URL.Path)
 		}
 
 		c.Next()

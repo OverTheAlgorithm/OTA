@@ -419,12 +419,15 @@ func (h *LevelHandler) RegisterRoutes(group *gin.RouterGroup) {
 
 // ── Turnstile Helper ──────────────────────────────────────────────────────────
 
+// isTurnstileTestKey returns true when the configured secret is a known test/dev key.
+func (h *LevelHandler) isTurnstileTestKey() bool {
+	return h.turnstileSecretKey == "dummy-secret-key" ||
+		strings.HasPrefix(h.turnstileSecretKey, "1x000000000000000000000000000000")
+}
+
 // verifyTurnstileToken calls the Cloudflare SiteVerify API to validate the token.
 func (h *LevelHandler) verifyTurnstileToken(token string, remoteIP string) error {
-	// If the secret is the dummy dev key and the token is a specific testing string,
-	// or if we are purely offline testing (e.g. tests passing "dummy-secret-key"),
-	// we allow it. (Cloudflare provides "1x0000000000000000000000000000000AA" for testing pass).
-	if h.turnstileSecretKey == "dummy-secret-key" {
+	if h.isTurnstileTestKey() {
 		return nil
 	}
 

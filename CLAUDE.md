@@ -138,7 +138,7 @@ contexts/         # auth-context (AuthProvider with JWT cookie)
 ### Rate Limiting
 - ulule/limiter/v3 sliding-window, in-memory store
 - Key: authenticated users by user ID (`user:<id>`), anonymous by IP (`ip:<addr>`)
-- Default: 100 req/min. Env: RATE_LIMIT_PER_MIN. Fail-open on limiter errors.
+- Default: 300 req/min. Env: RATE_LIMIT_PER_MIN. Fail-open on limiter errors.
 
 ### Data Collection Pipeline
 - Stage 0: Google Trends + Google News (RSS by category from news_sources table)
@@ -168,11 +168,11 @@ contexts/         # auth-context (AuthProvider with JWT cookie)
 - Mock naming: use unique suffixes per file to avoid conflicts (e.g., `mockTermsRepoForHandler`)
 
 ## Env Vars (key ones)
-- `RATE_LIMIT_PER_MIN` (default: 100) -- per-user/IP rate limit
+- `RATE_LIMIT_PER_MIN` (default: 300) -- per-user/IP rate limit
 - `SIGNUP_BONUS_COINS` (default: 0), `DAILY_COIN_LIMIT` (default: 10)
-- `COIN_CAP` (default: 5000), `COINS_PER_LEVEL` (default: 1000)
+- `COIN_CAP` (default: 5000), `COINS_PER_LEVEL` (default: 3000)
 - `EXTRA_COIN_LIMIT_PER_LEVEL` (default: 0) -- additional daily coins per level
-- `MIN_WITHDRAWAL_AMOUNT` (default: 1000)
+- `MIN_WITHDRAWAL_AMOUNT` (default: 3000)
 - `EARN_MIN_DURATION_SEC` (default: 10) -- dwell time before earn confirmed
 - `AI_PROVIDER` (gemini|openai), `GEMINI_API_KEY`, `GEMINI_MODEL` (default: gemini-3.1-pro-preview)
 - `GEMINI_MODEL_FALLBACK` (default: gemini-3-flash-preview) -- used on primary 5xx
