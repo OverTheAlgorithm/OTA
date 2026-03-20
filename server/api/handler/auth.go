@@ -59,7 +59,7 @@ func decodePendingSignup(raw any) (PendingSignup, bool) {
 
 // SignupBonusGranter grants bonus coins to newly registered users.
 type SignupBonusGranter interface {
-	SetCoins(ctx context.Context, userID string, coins int, actorID string) error
+	AddPoints(ctx context.Context, userID string, amount int) error
 	InsertCoinEvent(ctx context.Context, userID string, amount int, eventType, memo, actorID string) error
 }
 
@@ -332,10 +332,10 @@ func (h *AuthHandler) CompleteSignup(c *gin.Context) {
 	}
 
 	if h.signupBonus > 0 && h.bonusGranter != nil {
-		if err := h.bonusGranter.SetCoins(c.Request.Context(), u.ID, h.signupBonus, ""); err != nil {
+		if err := h.bonusGranter.AddPoints(c.Request.Context(), u.ID, h.signupBonus); err != nil {
 			log.Printf("signup bonus grant failed for user %s: %v", u.ID, err)
 		} else {
-			_ = h.bonusGranter.InsertCoinEvent(c.Request.Context(), u.ID, h.signupBonus, "signup_bonus", "signup bonus", "")
+			_ = h.bonusGranter.InsertCoinEvent(c.Request.Context(), u.ID, h.signupBonus, "signup_bonus", "가입 보너스", "")
 			log.Printf("granted %d signup bonus coins to new user %s", h.signupBonus, u.ID)
 		}
 	}

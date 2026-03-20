@@ -186,6 +186,21 @@ func (r *LevelRepository) RestoreCoins(ctx context.Context, userID string, amoun
 	return nil
 }
 
+// AddPoints adds coins to a user's balance, creating the row if it doesn't exist.
+func (r *LevelRepository) AddPoints(ctx context.Context, userID string, amount int) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO user_points (user_id, points, updated_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (user_id) DO UPDATE SET
+			points     = user_points.points + $2,
+			updated_at = NOW()
+	`, userID, amount)
+	if err != nil {
+		return fmt.Errorf("add points: %w", err)
+	}
+	return nil
+}
+
 // InsertCoinEvent logs a non-topic coin event.
 // actorID is the admin/user who triggered it; empty string stores NULL.
 func (r *LevelRepository) InsertCoinEvent(ctx context.Context, userID string, amount int, eventType, memo, actorID string) error {
