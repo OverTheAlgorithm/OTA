@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
-import { LevelCard } from "@/components/level-card";
+import { UserLevelCard } from "@/components/user-level-card";
 import { Footer } from "@/components/footer";
 import {
   fetchAllTopics,
   fetchFilterOptions,
   batchEarnStatus,
-  getUserLevel,
   type TopicPreview,
   type FilterOptions,
   type FilterType,
-  type LevelInfo,
   type EarnStatusItem,
 } from "@/lib/api";
 
@@ -106,7 +104,6 @@ export function AllNewsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [level, setLevel] = useState<LevelInfo | null>(null);
   const [earnMap, setEarnMap] = useState<Record<string, EarnStatusItem>>({});
   const offsetRef = useRef(0);
 
@@ -114,13 +111,6 @@ export function AllNewsPage() {
   useEffect(() => {
     fetchFilterOptions().then(setFilterOptions).catch(() => {});
   }, []);
-
-  // Load level for logged-in users
-  useEffect(() => {
-    if (user) {
-      getUserLevel().then(setLevel).catch(() => {});
-    }
-  }, [user]);
 
   // Load topics when filter changes
   const loadTopics = useCallback(
@@ -229,11 +219,9 @@ export function AllNewsPage() {
 
       <main className="max-w-[1200px] mx-auto px-4 py-6">
         {/* Level card for logged-in users */}
-        {user && level && (
-          <div className="mb-6">
-            <LevelCard level={level} />
-          </div>
-        )}
+        <div className="mb-6">
+          <UserLevelCard />
+        </div>
 
         {/* Category tabs */}
         <div className="mb-6 -mx-4 px-4 overflow-x-auto scrollbar-hide">

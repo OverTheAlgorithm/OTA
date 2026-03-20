@@ -5,9 +5,9 @@ import { Footer } from "@/components/footer";
 import { InterestSection } from "@/components/interest-section";
 import { ChannelPreferencesSection } from "@/components/channel-preferences-section";
 import { HistorySection } from "@/components/history-section";
-import { getSubscriptions, getUserLevel, type LevelInfo } from "@/lib/api";
+import { getSubscriptions } from "@/lib/api";
 import { SendBriefingButton } from "@/components/send-briefing-button";
-import { LevelCard } from "@/components/level-card";
+import { UserLevelCard } from "@/components/user-level-card";
 
 const SCROLL_KEY = "home_scroll_y";
 
@@ -17,7 +17,6 @@ export function HomePage() {
   const restoredRef = useRef(false);
 
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
-  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/", { replace: true });
@@ -26,7 +25,6 @@ export function HomePage() {
   useEffect(() => {
     if (!user) return;
     getSubscriptions().then(setSubscriptions).catch(() => {});
-    getUserLevel().then(setLevelInfo).catch(() => {});
   }, [user]);
 
   // Save scroll position on unmount
@@ -127,9 +125,9 @@ export function HomePage() {
       </header>
 
       <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 space-y-6">
-        {levelInfo ? (
+        {user ? (
           <div className="space-y-3">
-            <LevelCard level={levelInfo} />
+            <UserLevelCard />
             <Link
               to="/mypage"
               className="block w-full text-center py-3 rounded-xl font-semibold text-sm transition-colors border border-[#4a9fe5]/30 bg-[#4a9fe5]/10 text-[#4a9fe5] hover:bg-[#4a9fe5]/20"

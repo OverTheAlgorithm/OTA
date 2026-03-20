@@ -56,7 +56,7 @@ function FadeIn({
 
 const steps = [
   { icon: "/wl-step-1.svg", label: "위즈레터 무료로 가입하기" },
-  { icon: "/wl-step-2.svg", label: "매일 아침 뉴스 보고\n포인트 쌓기" },
+  { icon: "/wl-step-2.svg", label: "매일 아침 소식 보고\n포인트 쌓기" },
   { icon: "/wl-step-3.svg", label: "포인트를 모아서\n레벨업 하기" },
 ];
 
@@ -145,7 +145,7 @@ export function LandingPage() {
                 href="#news"
                 className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
               >
-                뉴스보기
+                소식보기
               </a>
               <a
                 href="#howto"
@@ -200,7 +200,7 @@ export function LandingPage() {
               className="text-base font-medium text-[#231815]"
               onClick={() => setMenuOpen(false)}
             >
-              뉴스보기
+              소식보기
             </a>
             <a
               href="#howto"
@@ -239,7 +239,7 @@ export function LandingPage() {
 
             <FadeIn delay={100}>
               <p className="mt-6 text-lg md:text-xl lg:text-[22px] font-semibold leading-relaxed tracking-wide text-[#231815]/80 max-w-[600px]">
-                복잡한 뉴스를 간결하게 요약해 드립니다.
+                복잡한 소식을 간결하게 요약해 드립니다.
                 <br />
                 출근길, 아침 식사 시간에 세상이 돌아가는 이야기를 빠르게
                 파악하세요.
@@ -292,7 +292,7 @@ export function LandingPage() {
               <p className="mt-6 text-xl md:text-2xl font-semibold leading-relaxed tracking-wide text-[#231815]/80">
                 위즈레터를 읽으면 세상의 흐름을 파악할 수 있어요!
                 <br />
-                바쁜 아침에도 최신 이슈를 놓치지 말아요!
+                바쁜 아침에도 최신 소식을 놓치지 말아요!
               </p>
             </FadeIn>
           </div>
@@ -312,7 +312,7 @@ export function LandingPage() {
             </FadeIn>
             <FadeIn delay={100}>
               <p className="mt-6 text-xl md:text-2xl font-semibold leading-relaxed tracking-wide text-[#231815]/80">
-                뉴스를 읽을 때마다 포인트가 적립됩니다.
+                소식을 읽을 때마다 포인트가 적립됩니다.
                 <br />
                 포인트가 모이면 레벨이 올라가요!
               </p>
@@ -335,7 +335,7 @@ export function LandingPage() {
           <div className="max-w-[1200px] mx-auto px-6 pt-16 pb-8">
             <FadeIn>
               <h2 className="text-4xl md:text-5xl lg:text-[64px] font-semibold text-center tracking-widest">
-                최신 뉴스 바로 확인하기
+                최신 소식 바로 확인하기
               </h2>
             </FadeIn>
           </div>
@@ -388,7 +388,7 @@ export function LandingPage() {
               onClick={() => navigate("/allnews")}
               className="px-14 py-5 rounded-full text-xl md:text-2xl font-bold bg-[#43b9d6] text-[#231815] border-[2.5px] border-[#231815] hover:brightness-110 transition-all"
             >
-              더 많은 뉴스 보기
+              더 많은 소식 보기
             </button>
           </FadeIn>
         </div>
