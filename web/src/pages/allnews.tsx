@@ -46,7 +46,7 @@ function CoinTag({ status }: { status: EarnStatusItem }) {
   if (status.status === "PENDING" && status.coins > 0) {
     return (
       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ecfdf5] text-[#10b981]">
-        +{status.coins}코인
+        +{status.coins}포인트
       </span>
     );
   }

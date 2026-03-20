@@ -139,7 +139,7 @@ function SettingsTab() {
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
       "정말로 계정을 삭제하시겠습니까?\n\n" +
-      "삭제된 계정은 복구할 수 없으며, 보유 중인 코인과 모든 데이터가 영구적으로 삭제됩니다."
+      "삭제된 계정은 복구할 수 없으며, 보유 중인 포인트과 모든 데이터가 영구적으로 삭제됩니다."
     );
     if (!confirmed) return;
 

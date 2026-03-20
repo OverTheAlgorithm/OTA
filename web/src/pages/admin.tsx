@@ -331,15 +331,15 @@ export function AdminPage() {
         </div>
 
         <section className="rounded-2xl border border-[#ff5442]/20 bg-[#ff5442]/5 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-[#ff5442]">코인 수정</h2>
+          <h2 className="text-lg font-semibold text-[#ff5442]">포인트 수정</h2>
           <p className="text-sm text-[#6b8db5]">
-            유저의 코인 보유량을 직접 수정합니다. 장애 보상, 오류 수정 등 최후의 수단으로만 사용하세요.
+            유저의 포인트 보유량을 직접 수정합니다. 장애 보상, 오류 수정 등 최후의 수단으로만 사용하세요.
           </p>
           <Link
             to="/admin/coins"
             className="inline-block px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors bg-[#ff5442] text-white hover:bg-[#e04030]"
           >
-          코인 수정
+          포인트 수정
           </Link>
         </section>
 

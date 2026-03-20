@@ -181,7 +181,7 @@ export function WithdrawalPage() {
   };
 
   const handleCancel = async (id: string) => {
-    if (!confirm("출금 신청을 취소하시겠습니까? 코인이 복구됩니다.")) return;
+    if (!confirm("출금 신청을 취소하시겠습니까? 포인트이 복구됩니다.")) return;
     setCancellingId(id);
     try {
       await cancelWithdrawal(id);
@@ -216,7 +216,7 @@ export function WithdrawalPage() {
         <div className="rounded-2xl bg-gradient-to-br from-[#f0f7ff] to-[#e8f4fd] border border-[#d4e6f5] px-6 py-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-[#6b8db5]">보유 코인</p>
+              <p className="text-xs text-[#6b8db5]">보유 포인트</p>
               <p className="text-2xl font-bold text-[#1e3a5f]">
                 {(levelInfo?.total_coins ?? 0).toLocaleString()}
               </p>

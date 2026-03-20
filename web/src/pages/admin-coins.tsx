@@ -69,16 +69,16 @@ export function AdminCoinsPage() {
 
     const coins = parseInt(newCoins, 10);
     if (isNaN(coins) || coins < 0) {
-      setAdjustError("코인은 0 이상의 정수여야 합니다");
+      setAdjustError("포인트은 0 이상의 정수여야 합니다");
       return;
     }
 
     const confirmed = window.confirm(
-      "사용자의 코인 보유량을 직접적으로 수정하는 것은 매우 신중한 결정이 필요합니다.\n\n" +
+      "사용자의 포인트 보유량을 직접적으로 수정하는 것은 매우 신중한 결정이 필요합니다.\n\n" +
       "해당 관리자는 이로 인해 금전적 분쟁이 발생할 수 있음을 인지하는 것에 동의하는 것으로 간주되며, " +
       "모든 수정은 관리자의 고유 번호와 함께 기록됩니다.\n\n" +
       `대상: ${result.user.nickname || result.user.email || result.user.id}\n` +
-      `현재 코인: ${result.level.total_coins.toLocaleString()}\n` +
+      `현재 포인트: ${result.level.total_coins.toLocaleString()}\n` +
       `변경 후: ${coins.toLocaleString()}\n` +
       `차이: ${(coins - result.level.total_coins) >= 0 ? "+" : ""}${(coins - result.level.total_coins).toLocaleString()}\n` +
       `사유: ${trimmedMemo}\n\n` +
@@ -98,12 +98,12 @@ export function AdminCoinsPage() {
       setNewCoins(String(adjustResult.new_coins));
       setMemo("");
       alert(
-        `코인이 수정되었습니다.\n\n` +
+        `포인트이 수정되었습니다.\n\n` +
         `변동: ${adjustResult.delta >= 0 ? "+" : ""}${adjustResult.delta.toLocaleString()}\n` +
         `현재 보유량: ${adjustResult.new_coins.toLocaleString()}`
       );
     } catch (e) {
-      setAdjustError(e instanceof Error ? e.message : "코인 수정 실패");
+      setAdjustError(e instanceof Error ? e.message : "포인트 수정 실패");
     } finally {
       setAdjusting(false);
     }
@@ -127,7 +127,7 @@ export function AdminCoinsPage() {
           <button onClick={() => navigate("/admin")} className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors">
             &larr; 관리자 페이지
           </button>
-          <h1 className="text-lg font-bold text-[#1e3a5f]">코인 수정</h1>
+          <h1 className="text-lg font-bold text-[#1e3a5f]">포인트 수정</h1>
           <div className="w-24" />
         </div>
       </header>
@@ -204,7 +204,7 @@ export function AdminCoinsPage() {
               <div className="border-t border-[#d4e6f5] pt-4 mt-4">
                 <div className="flex items-center gap-4">
                   <div>
-                    <p className="text-xs text-[#6b8db5]">현재 코인</p>
+                    <p className="text-xs text-[#6b8db5]">현재 포인트</p>
                     <p className="text-2xl font-bold text-[#1e3a5f]">
                       {result.level.total_coins.toLocaleString()}
                     </p>
@@ -220,21 +220,21 @@ export function AdminCoinsPage() {
             </section>
 
             <section className="rounded-2xl border border-[#ff5442]/30 bg-[#ff5442]/5 p-6 space-y-4">
-              <h2 className="text-lg font-semibold text-[#ff5442]">코인 보유량 수정</h2>
+              <h2 className="text-lg font-semibold text-[#ff5442]">포인트 보유량 수정</h2>
               <p className="text-xs text-[#6b8db5]">
                 이 작업은 최후의 수단입니다. 모든 수정은 관리자 ID와 함께 영구적으로 기록됩니다.
               </p>
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs text-[#6b8db5] mb-1 block">변경할 코인 값</label>
+                  <label className="text-xs text-[#6b8db5] mb-1 block">변경할 포인트 값</label>
                   <input
                     type="number"
                     value={newCoins}
                     onChange={(e) => setNewCoins(e.target.value)}
                     min={0}
                     className="w-full bg-white border border-[#d4e6f5] rounded-lg px-3 py-2 text-sm text-[#1e3a5f]"
-                    placeholder="새로운 코인 보유량"
+                    placeholder="새로운 포인트 보유량"
                   />
                   {newCoins !== "" && !isNaN(parseInt(newCoins)) && (
                     <p className="text-xs mt-1">
@@ -264,7 +264,7 @@ export function AdminCoinsPage() {
                   disabled={adjusting || !memo.trim() || newCoins === ""}
                   className="w-full py-3 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50 bg-[#ff5442] text-white hover:bg-[#e04030]"
                 >
-                  {adjusting ? "수정 중..." : "코인 수정 실행"}
+                  {adjusting ? "수정 중..." : "포인트 수정 실행"}
                 </button>
               </div>
             </section>

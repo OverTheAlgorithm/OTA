@@ -524,9 +524,9 @@ export function TopicPage() {
               </svg>
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-bold text-[#231815]">코인 획득 중이에요</h2>
+              <h2 className="text-xl font-bold text-[#231815]">포인트 획득 중이에요</h2>
               <p className="mt-2 text-sm text-[#231815]/60 leading-relaxed">
-                지금 나가면 코인을 받을 수 없어요.<br />조금만 더 기다려주세요!
+                지금 나가면 포인트을 받을 수 없어요.<br />조금만 더 기다려주세요!
               </p>
             </div>
             <div className="flex gap-3 w-full">

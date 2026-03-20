@@ -739,7 +739,7 @@ export async function getCoinHistory(
     `${API_BASE}/api/v1/mypage/coin-history?limit=${limit}&offset=${offset}`,
     { credentials: "include" }
   );
-  if (!res.ok) throw new Error("코인 내역을 불러올 수 없습니다");
+  if (!res.ok) throw new Error("포인트 내역을 불러올 수 없습니다");
   const body = await res.json();
   return { data: body.data ?? [], has_more: body.has_more ?? false };
 }
@@ -816,7 +816,7 @@ export async function deleteAccount(): Promise<void> {
   }
 }
 
-// ── 관리자 코인 조정 ─────────────────────────────────
+// ── 관리자 포인트 조정 ─────────────────────────────────
 export interface AdminUserSearchResult {
   user: User;
   level: LevelInfo;
@@ -858,7 +858,7 @@ export async function adminAdjustCoins(
   });
   if (!res.ok) {
     const err: ApiError = await res.json();
-    throw new Error(err.error || "코인 수정에 실패했습니다");
+    throw new Error(err.error || "포인트 수정에 실패했습니다");
   }
   const body: ApiResponse<AdjustCoinsResult> = await res.json();
   return body.data;
