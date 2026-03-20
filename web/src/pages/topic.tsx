@@ -448,7 +448,7 @@ export function TopicPage() {
                 <img
                   src={topic.image_url}
                   alt=""
-                  className="rounded-xl max-h-[400px] object-cover"
+                  className="rounded-xl max-h-[400px] object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
                 />
               </div>
             )}

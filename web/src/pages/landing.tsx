@@ -386,7 +386,7 @@ export function LandingPage() {
                       <img
                         src={news.image_url}
                         alt={news.topic}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
                       />
                     </div>
                   )}

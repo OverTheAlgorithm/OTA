@@ -128,7 +128,7 @@ function NewsItem({
             <img
               src={topic.image_url}
               alt=""
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
             />
           </div>
         )}

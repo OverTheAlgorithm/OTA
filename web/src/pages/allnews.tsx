@@ -94,7 +94,7 @@ function NewsCard({
           <img
             src={topic.image_url}
             alt={topic.topic}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform] group-hover:scale-105 transition-transform duration-300"
           />
         </div>
       )}
