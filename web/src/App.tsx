@@ -29,7 +29,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginRedirect />} />
 
-          <Route path="/home" element={<HomePage />} />
+          <Route path="/latest" element={<HomePage />} />
           <Route path="/allnews" element={<AllNewsPage />} />
           <Route path="/email-verification" element={<EmailVerificationPage />} />
           <Route path="/topic/:id" element={<TopicPage />} />

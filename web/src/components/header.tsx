@@ -20,6 +20,23 @@ export function Header() {
             className="w-[140px] md:w-[200px] object-contain"
           />
         </Link>
+        {/* Center nav */}
+        <nav className="hidden md:flex items-center gap-8">
+          <Link
+            to="/latest"
+            className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+          >
+            최신 소식 보기
+          </Link>
+          <Link
+            to="/allnews"
+            className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+          >
+            모든 소식 보기
+          </Link>
+        </nav>
+
+        {/* Right actions */}
         <div className="flex items-center gap-3">
           {user ? (
             <>
