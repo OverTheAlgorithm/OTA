@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useNavigate, useBlocker } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Turnstile } from "@marsidev/react-turnstile";
 import {
   fetchTopicDetail,
@@ -238,7 +238,7 @@ export function TopicPage() {
 
   // Block navigation while coin earning is in progress
   const isEarning = showCountdown !== null || coinTag?.kind === "loading";
-  const blocker = useBlocker(isEarning);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   useEffect(() => {
     if (!isEarning) return;
@@ -385,7 +385,7 @@ export function TopicPage() {
 
           {/* Back Button */}
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => isEarning ? setShowLeaveModal(true) : navigate(-1)}
             className="flex items-center gap-2 mb-6 group"
           >
             <svg
@@ -514,7 +514,7 @@ export function TopicPage() {
       <Footer />
 
       {/* ── Leave Confirmation Modal ── */}
-      {blocker.state === "blocked" && (
+      {showLeaveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-sm bg-[#fdf9ee] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-5">
             <div className="w-14 h-14 rounded-full bg-[#43b9d6]/15 flex items-center justify-center">
@@ -526,18 +526,18 @@ export function TopicPage() {
             <div className="text-center">
               <h2 className="text-xl font-bold text-[#231815]">포인트 획득 중이에요</h2>
               <p className="mt-2 text-sm text-[#231815]/60 leading-relaxed">
-                지금 나가면 포인트을 받을 수 없어요.<br />조금만 더 기다려주세요!
+                지금 나가면 포인트를 받을 수 없어요.<br />조금만 더 기다려주세요!
               </p>
             </div>
             <div className="flex gap-3 w-full">
               <button
-                onClick={() => blocker.proceed?.()}
+                onClick={() => { setShowLeaveModal(false); navigate(-1); }}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-[#231815] border-[2px] border-[#231815] bg-white hover:bg-[#231815]/5 transition-colors"
               >
                 나가기
               </button>
               <button
-                onClick={() => blocker.reset?.()}
+                onClick={() => setShowLeaveModal(false)}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-[#231815] border-[2px] border-[#231815] bg-[#43b9d6] hover:brightness-110 transition-all"
               >
                 머무르기
