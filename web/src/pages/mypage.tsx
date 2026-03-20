@@ -1,84 +1,129 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
-import { LevelCard } from "@/components/level-card";
+import { UserLevelCard } from "@/components/user-level-card";
+import { InterestSection } from "@/components/interest-section";
+import { ChannelPreferencesSection } from "@/components/channel-preferences-section";
+import { Footer } from "@/components/footer";
 import {
   getCoinHistory,
-  getUserLevel,
+  getSubscriptions,
   deleteAccount,
   type CoinTransaction,
-  type LevelInfo,
 } from "@/lib/api";
 
-const TYPE_LABEL: Record<string, string> = {
-  topic_earn: "주제 열람",
-  signup_bonus: "회원가입 보너스",
-  promotion: "프로모션",
-  admin_adjustment: "관리자 조정",
-  withdrawal: "출금 신청",
-  withdrawal_refund: "출금 환불",
-};
-
-const TYPE_COLOR: Record<string, string> = {
-  topic_earn: "text-green-600",
-  signup_bonus: "text-green-600",
-  promotion: "text-green-600",
-  admin_adjustment: "text-[#4a9fe5]",
-  withdrawal: "text-[#ff5442]",
-  withdrawal_refund: "text-[#e5a54a]",
-};
+type Tab = "points" | "settings";
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${y}.${mo}.${day} ${h}:${mi}`;
 }
 
-export function MypagePage() {
-  const { user, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
+// ── Point History Tab ────────────────────────────────────────────────────────
 
-  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
+function PointHistoryTab() {
   const [transactions, setTransactions] = useState<CoinTransaction[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [lv, hist] = await Promise.all([
-        getUserLevel(),
-        getCoinHistory(20, 0),
-      ]);
-      setLevelInfo(lv);
-      setTransactions(hist.data);
-      setHasMore(hist.has_more);
-    } catch {
-      // silently fail on initial load
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    getCoinHistory(20, 0)
+      .then(({ data, has_more }) => {
+        setTransactions(data);
+        setHasMore(has_more);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (!authLoading && !user) navigate("/", { replace: true });
-  }, [user, authLoading, navigate]);
-
-  useEffect(() => {
-    if (user) loadData();
-  }, [user, loadData]);
-
   const loadMore = async () => {
-    const { data, has_more } = await getCoinHistory(20, transactions.length);
-    setTransactions((prev) => [...prev, ...data]);
-    setHasMore(has_more);
+    try {
+      const { data, has_more } = await getCoinHistory(20, transactions.length);
+      setTransactions((prev) => [...prev, ...data]);
+      setHasMore(has_more);
+    } catch {
+      // silently fail — list stays as-is
+    }
   };
 
+  if (loading) {
+    return <p className="text-sm text-[#231815]/50 py-8 text-center">불러오는 중...</p>;
+  }
+
+  if (transactions.length === 0) {
+    return <p className="text-sm text-[#231815]/50 py-8 text-center">포인트 내역이 없습니다.</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {transactions.map((tx) => {
+        const content = (
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-bold text-[#231815] leading-snug truncate">
+                {tx.description || tx.type}
+              </h3>
+              <p className="text-sm text-[#231815]/60 mt-1">
+                {formatDate(tx.created_at)}
+              </p>
+            </div>
+            {tx.amount > 0 && (
+              <span className="inline-flex items-center justify-center px-3 h-7 rounded-full bg-[#43b9d6] border border-[#231815] text-sm font-bold text-[#231815] whitespace-nowrap flex-shrink-0">
+                +{tx.amount}포인트
+              </span>
+            )}
+            {tx.amount < 0 && (
+              <span className="inline-flex items-center justify-center px-3 h-7 rounded-full bg-[#e8e8e8] border border-[#231815] text-sm font-bold text-[#231815] whitespace-nowrap flex-shrink-0">
+                {tx.amount}포인트
+              </span>
+            )}
+          </div>
+        );
+
+        return tx.link_id ? (
+          <Link
+            key={tx.id}
+            to={`/topic/${tx.link_id}`}
+            className="block border-l-[3px] border-[#43b9d6] pl-5 py-2 hover:bg-[#43b9d6]/5 transition-colors rounded-r-lg"
+          >
+            {content}
+          </Link>
+        ) : (
+          <div
+            key={tx.id}
+            className="border-l-[3px] border-[#43b9d6] pl-5 py-2"
+          >
+            {content}
+          </div>
+        );
+      })}
+
+      {hasMore && (
+        <button
+          onClick={loadMore}
+          className="w-full py-3 text-sm font-medium text-[#008fb2] hover:text-[#006d8a] transition-colors"
+        >
+          더 보기
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Settings Tab ─────────────────────────────────────────────────────────────
+
+function SettingsTab() {
+  const [subscriptions, setSubscriptions] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    getSubscriptions().then(setSubscriptions).catch(() => {});
+  }, []);
 
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
@@ -97,98 +142,143 @@ export function MypagePage() {
     }
   };
 
-  if (authLoading || !user || loading) {
+  return (
+    <div className="space-y-8">
+      <InterestSection selected={subscriptions} onChange={setSubscriptions} />
+      <ChannelPreferencesSection />
+
+      <div className="pt-4">
+        <button
+          onClick={handleDeleteAccount}
+          disabled={deleting}
+          className="text-sm text-[#231815]/60 hover:text-[#231815] underline transition-colors disabled:opacity-50"
+        >
+          {deleting ? "처리 중..." : "회원 탈퇴"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
+export function MypagePage() {
+  const { user, loading: authLoading, logout } = useAuth();
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>("points");
+
+  useEffect(() => {
+    if (!authLoading && !user) navigate("/", { replace: true });
+  }, [user, authLoading, navigate]);
+
+  const handleLogout = useCallback(async () => {
+    await logout();
+    navigate("/", { replace: true });
+  }, [logout, navigate]);
+
+  if (authLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--color-bg)" }}>
-        <p className="text-[#6b8db5]">로딩 중...</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
+        <p className="text-[#231815]/60">로딩 중...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--color-bg)", color: "var(--color-fg)" }}>
-      <header
-        className="sticky top-0 z-10 border-b bg-opacity-90 backdrop-blur-lg"
-        style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-bg)" }}
-      >
-        <div className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button onClick={() => navigate("/home")} className="text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors">
-            &larr; 홈으로
-          </button>
-          <h1 className="text-lg font-bold text-[#1e3a5f]">마이페이지</h1>
-          <div className="w-16" />
+    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-40 bg-[#fdf9ee] border-b-[3px] border-[#231815]">
+        <div className="max-w-[1200px] mx-auto px-6 h-[65px] flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-2xl bg-[#43b9d6] flex items-center justify-center">
+              <span className="text-[#231815] font-bold text-lg" style={{ fontFamily: "Gluten, cursive" }}>W</span>
+            </div>
+            <span className="text-xl font-bold text-[#231815]">WizLetter</span>
+          </Link>
+          <div className="hidden md:flex items-center gap-3">
+            <button
+              onClick={handleLogout}
+              className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+            >
+              로그아웃
+            </button>
+            <Link
+              to="/mypage"
+              className="inline-flex items-center justify-center px-5 h-9 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-sm font-medium text-[#231815] hover:opacity-80 transition-opacity"
+            >
+              마이페이지
+            </Link>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 space-y-6">
-        {levelInfo && <LevelCard level={levelInfo} />}
+      {/* ── Content ── */}
+      <main className="flex-1">
+        <div className="max-w-[900px] mx-auto px-6 py-8">
+          {/* Level Card */}
+          <div className="mb-8">
+            <UserLevelCard />
+          </div>
 
-        {/* withdrawal link */}
-        <Link
-          to="/withdrawal"
-          className="block w-full text-center py-3 rounded-xl font-semibold text-sm transition-colors border border-[#4a9fe5]/30 bg-[#4a9fe5]/10 text-[#4a9fe5] hover:bg-[#4a9fe5]/20"
-        >
-          출금하기
-        </Link>
-
-        {/* coin history */}
-        <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-[#1e3a5f]">코인 획득 내역</h2>
-          {transactions.length === 0 ? (
-            <p className="text-sm text-[#6b8db5]">코인 내역이 없습니다.</p>
-          ) : (
-            <div className="space-y-2">
-              {transactions.map((tx) => {
-                const inner = (
-                  <>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-[#1e3a5f] truncate">
-                        {tx.description || TYPE_LABEL[tx.type] || tx.type}
-                      </p>
-                      <p className="text-xs text-[#6b8db5]">{formatDate(tx.created_at)}</p>
-                    </div>
-                    <span className={`text-sm font-bold whitespace-nowrap ml-3 ${tx.amount > 0 ? (TYPE_COLOR[tx.type] || "text-green-600") : "text-[#ff5442]"}`}>
-                      {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()}
-                    </span>
-                  </>
-                );
-                return tx.link_id ? (
-                  <Link
-                    key={tx.id}
-                    to={`/topic/${tx.link_id}`}
-                    className="flex items-center justify-between rounded-xl border border-[#d4e6f5] bg-white px-4 py-3 hover:bg-[#f0f7ff] transition-colors"
-                  >
-                    {inner}
-                  </Link>
-                ) : (
-                  <div key={tx.id} className="flex items-center justify-between rounded-xl border border-[#d4e6f5] bg-white px-4 py-3">
-                    {inner}
-                  </div>
-                );
-              })}
-              {hasMore && (
-                <button
-                  onClick={loadMore}
-                  className="w-full py-2 text-sm text-[#6b8db5] hover:text-[#1e3a5f] transition-colors"
-                >
-                  더 보기
-                </button>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* 회원 탈퇴 */}
-        <div className="pt-4">
-          <button
-            onClick={handleDeleteAccount}
-            disabled={deleting}
-            className="text-sm text-[#ff5442]/70 hover:text-[#ff5442] transition-colors disabled:opacity-50"
+          {/* Back to Home */}
+          <Link
+            to="/home"
+            className="flex items-center gap-2 mb-6 group"
           >
-            {deleting ? "처리 중..." : "회원 탈퇴"}
-          </button>
+            <svg
+              className="w-8 h-8 text-[#231815] group-hover:opacity-70 transition-opacity"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M19 12H5" />
+              <path d="M12 19l-7-7 7-7" />
+            </svg>
+            <span className="text-2xl font-bold text-[#231815] group-hover:opacity-70 transition-opacity">
+              홈으로
+            </span>
+          </Link>
+
+          {/* Tab Navigation */}
+          <div className="flex border-b border-[#dbdade] mb-8">
+            <button
+              onClick={() => setTab("points")}
+              className={`px-6 py-3 text-lg font-medium transition-colors relative ${
+                tab === "points"
+                  ? "text-[#008fb2]"
+                  : "text-[#231815] hover:text-[#008fb2]/70"
+              }`}
+            >
+              포인트 내역
+              {tab === "points" && (
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#008fb2]" />
+              )}
+            </button>
+            <button
+              onClick={() => setTab("settings")}
+              className={`px-6 py-3 text-lg font-medium transition-colors relative ${
+                tab === "settings"
+                  ? "text-[#008fb2]"
+                  : "text-[#231815] hover:text-[#008fb2]/70"
+              }`}
+            >
+              회원정보 수정
+              {tab === "settings" && (
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#008fb2]" />
+              )}
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          {tab === "points" ? <PointHistoryTab /> : <SettingsTab />}
         </div>
       </main>
+
+      {/* ── Footer ── */}
+      <Footer />
     </div>
   );
 }

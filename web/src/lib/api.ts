@@ -1,5 +1,47 @@
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
+// -- Token refresh ------------------------------------------------------------
+
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+  isRefreshing = true;
+  refreshPromise = fetch(`${API_BASE}/api/v1/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+  })
+    .then((res) => res.ok)
+    .catch(() => false)
+    .finally(() => {
+      isRefreshing = false;
+      refreshPromise = null;
+    });
+  return refreshPromise;
+}
+
+// apiFetch wraps fetch with automatic 401 -> refresh -> retry logic.
+// If refresh also fails, returns the original 401 response so callers
+// decide how to handle the unauthenticated state.
+export async function apiFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const res = await fetch(input, { credentials: "include", ...init });
+  if (res.status !== 401) return res;
+
+  const refreshed = await tryRefreshToken();
+  if (!refreshed) return res;
+
+  return fetch(input, { credentials: "include", ...init });
+}
+
+// -----------------------------------------------------------------------------
+
+
 export interface User {
   id: string;
   kakao_id: number;
@@ -21,9 +63,7 @@ interface ApiError {
 }
 
 export async function fetchMe(): Promise<User> {
-  const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
-    credentials: "include",
-  });
+  const res = await apiFetch(`${API_BASE}/api/v1/auth/me`);
 
   if (!res.ok) {
     const err: ApiError = await res.json();
@@ -35,7 +75,7 @@ export async function fetchMe(): Promise<User> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${API_BASE}/api/v1/auth/logout`, {
+  await apiFetch(`${API_BASE}/api/v1/auth/logout`, {
     method: "POST",
     credentials: "include",
   });
@@ -43,14 +83,14 @@ export async function logout(): Promise<void> {
 
 // ── 관심사(구독) ──────────────────────────────────────
 export async function getSubscriptions(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/api/v1/subscriptions`, { credentials: "include" });
+  const res = await apiFetch(`${API_BASE}/api/v1/subscriptions`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch subscriptions");
   const body: ApiResponse<string[]> = await res.json();
   return body.data;
 }
 
 export async function addSubscription(category: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/subscriptions`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/subscriptions`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -60,7 +100,7 @@ export async function addSubscription(category: string): Promise<void> {
 }
 
 export async function deleteSubscription(category: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/subscriptions?category=${encodeURIComponent(category)}`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/subscriptions?category=${encodeURIComponent(category)}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -98,7 +138,7 @@ export interface HistoryPage {
 }
 
 export async function getContextHistory(limit: number, offset: number): Promise<HistoryPage> {
-  const res = await fetch(`${API_BASE}/api/v1/context/history?limit=${limit}&offset=${offset}`, { credentials: "include" });
+  const res = await apiFetch(`${API_BASE}/api/v1/context/history?limit=${limit}&offset=${offset}`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch context history");
   const body = await res.json();
   return { data: body.data ?? [], has_more: body.has_more ?? false };
@@ -111,7 +151,7 @@ export interface ChannelPreference {
 }
 
 export async function getDeliveryChannels(): Promise<ChannelPreference[]> {
-  const res = await fetch(`${API_BASE}/api/v1/user/delivery-channels`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/user/delivery-channels`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to fetch delivery channels");
@@ -122,7 +162,7 @@ export async function getDeliveryChannels(): Promise<ChannelPreference[]> {
 export async function updateDeliveryChannels(
   channels: ChannelPreference[]
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/user/delivery-channels`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/user/delivery-channels`, {
     method: "PUT",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -141,7 +181,7 @@ export interface ChannelDeliveryStatus {
 }
 
 export async function getDeliveryStatus(): Promise<ChannelDeliveryStatus[]> {
-  const res = await fetch(`${API_BASE}/api/v1/user/delivery-status`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/user/delivery-status`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to fetch delivery status");
@@ -158,7 +198,7 @@ export interface SendBriefingResult {
 }
 
 export async function sendBriefingNow(): Promise<SendBriefingResult> {
-  const res = await fetch(`${API_BASE}/api/v1/delivery/send`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/delivery/send`, {
     method: "POST",
     credentials: "include",
   });
@@ -176,6 +216,7 @@ export async function sendBriefingNow(): Promise<SendBriefingResult> {
 export interface TopicDetail {
   id: string;
   topic: string;
+  category: string;
   detail: string;
   details: DetailItem[];
   buzz_score: number;
@@ -206,7 +247,7 @@ export async function earnCoin(
   contextItemId: string,
   turnstileToken: string
 ): Promise<TopicEarnResult> {
-  const res = await fetch(`${API_BASE}/api/v1/level/earn`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/level/earn`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -231,7 +272,7 @@ export interface InitEarnResult {
 export async function initEarn(
   contextItemId: string
 ): Promise<InitEarnResult> {
-  const res = await fetch(`${API_BASE}/api/v1/level/init-earn`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/level/init-earn`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -317,7 +358,7 @@ export interface EarnStatusItem {
 
 export async function batchEarnStatus(ids: string[]): Promise<EarnStatusItem[]> {
   if (ids.length === 0) return [];
-  const res = await fetch(`${API_BASE}/api/v1/level/batch-earn-status`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/level/batch-earn-status`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -330,7 +371,7 @@ export async function batchEarnStatus(ids: string[]): Promise<EarnStatusItem[]> 
 
 // ── 이메일 인증 ───────────────────────────────────────
 export async function sendVerificationCode(email: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/email-verification/send-code`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/email-verification/send-code`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -344,7 +385,7 @@ export async function sendVerificationCode(email: string): Promise<void> {
 }
 
 export async function verifyEmailCode(code: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/email-verification/verify-code`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/email-verification/verify-code`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -377,7 +418,7 @@ export async function getBrainCategories(): Promise<BrainCategory[]> {
 }
 
 export async function createBrainCategory(bc: Omit<BrainCategory, "created_at" | "updated_at">): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/brain-categories`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/brain-categories`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -390,7 +431,7 @@ export async function createBrainCategory(bc: Omit<BrainCategory, "created_at" |
 }
 
 export async function updateBrainCategory(key: string, bc: Partial<BrainCategory>): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/brain-categories/${encodeURIComponent(key)}`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/brain-categories/${encodeURIComponent(key)}`, {
     method: "PUT",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -403,7 +444,7 @@ export async function updateBrainCategory(key: string, bc: Partial<BrainCategory
 }
 
 export async function deleteBrainCategory(key: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/brain-categories/${encodeURIComponent(key)}`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/brain-categories/${encodeURIComponent(key)}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -415,7 +456,7 @@ export async function deleteBrainCategory(key: string): Promise<void> {
 
 // ── 어드민 ─────────────────────────────────────────────
 export async function triggerCollection(): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/collect`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/collect`, {
     method: "POST",
     credentials: "include",
   });
@@ -435,7 +476,7 @@ export interface TestEmailResult {
 }
 
 export async function sendTestEmail(): Promise<TestEmailResult> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/delivery/send-test`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/delivery/send-test`, {
     method: "POST",
     credentials: "include",
   });
@@ -460,7 +501,7 @@ export interface LevelInfo {
 }
 
 export async function getUserLevel(): Promise<LevelInfo> {
-  const res = await fetch(`${API_BASE}/api/v1/level`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/level`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to fetch level");
@@ -517,21 +558,21 @@ export interface WithdrawalInfo {
 }
 
 export async function getWithdrawalInfo(): Promise<WithdrawalInfo> {
-  const res = await fetch(`${API_BASE}/api/v1/withdrawal/info`, { credentials: "include" });
+  const res = await apiFetch(`${API_BASE}/api/v1/withdrawal/info`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch withdrawal info");
   const body: ApiResponse<WithdrawalInfo> = await res.json();
   return body.data;
 }
 
 export async function getBankAccount(): Promise<BankAccount | null> {
-  const res = await fetch(`${API_BASE}/api/v1/withdrawal/bank-account`, { credentials: "include" });
+  const res = await apiFetch(`${API_BASE}/api/v1/withdrawal/bank-account`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch bank account");
   const body: ApiResponse<BankAccount | null> = await res.json();
   return body.data;
 }
 
 export async function saveBankAccount(data: Omit<BankAccount, "user_id">): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/withdrawal/bank-account`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/withdrawal/bank-account`, {
     method: "PUT",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -544,7 +585,7 @@ export async function saveBankAccount(data: Omit<BankAccount, "user_id">): Promi
 }
 
 export async function requestWithdrawal(amount: number): Promise<WithdrawalDetail> {
-  const res = await fetch(`${API_BASE}/api/v1/withdrawal/request`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/withdrawal/request`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -562,7 +603,7 @@ export async function getWithdrawalHistory(
   limit: number,
   offset: number
 ): Promise<{ data: WithdrawalDetail[]; has_more: boolean }> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE}/api/v1/withdrawal/history?limit=${limit}&offset=${offset}`,
     { credentials: "include" }
   );
@@ -572,7 +613,7 @@ export async function getWithdrawalHistory(
 }
 
 export async function cancelWithdrawal(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/withdrawal/${id}/cancel`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/withdrawal/${id}/cancel`, {
     method: "POST",
     credentials: "include",
   });
@@ -605,7 +646,7 @@ export async function completeSignup(
   signupKey: string,
   agreedTermIds: string[]
 ): Promise<User> {
-  const res = await fetch(`${API_BASE}/api/v1/auth/complete-signup`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/auth/complete-signup`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -621,7 +662,7 @@ export async function completeSignup(
 
 // ── 이용 약관 관리자 ──────────────────────────────────
 export async function getAdminTerms(): Promise<Term[]> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/terms`, { credentials: "include" });
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/terms`, { credentials: "include" });
   if (!res.ok) throw new Error("약관 목록을 불러올 수 없습니다");
   const body: ApiResponse<Term[]> = await res.json();
   return body.data;
@@ -630,7 +671,7 @@ export async function getAdminTerms(): Promise<Term[]> {
 export async function createTerm(
   term: Omit<Term, "id" | "created_at">
 ): Promise<Term> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/terms`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/terms`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -645,7 +686,7 @@ export async function createTerm(
 }
 
 export async function updateTermActive(termId: string, active: boolean): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/terms/${termId}/active`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/terms/${termId}/active`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -661,7 +702,7 @@ export async function updateTerm(
   termId: string,
   payload: { url: string; description: string; required: boolean }
 ): Promise<Term> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/terms/${termId}`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/terms/${termId}`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -689,7 +730,7 @@ export async function getCoinHistory(
   limit: number,
   offset: number
 ): Promise<{ data: CoinTransaction[]; has_more: boolean }> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE}/api/v1/mypage/coin-history?limit=${limit}&offset=${offset}`,
     { credentials: "include" }
   );
@@ -706,21 +747,21 @@ export async function getAdminWithdrawals(
 ): Promise<{ data: WithdrawalListItem[]; total: number }> {
   let url = `${API_BASE}/api/v1/admin/withdrawals?limit=${limit}&offset=${offset}`;
   if (status) url += `&status=${encodeURIComponent(status)}`;
-  const res = await fetch(url, { credentials: "include" });
+  const res = await apiFetch(url, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch admin withdrawals");
   const body = await res.json();
   return { data: body.data ?? [], total: body.total ?? 0 };
 }
 
 export async function getAdminWithdrawalDetail(id: string): Promise<WithdrawalDetail> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/withdrawals/${id}`, { credentials: "include" });
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/withdrawals/${id}`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch withdrawal detail");
   const body: ApiResponse<WithdrawalDetail> = await res.json();
   return body.data;
 }
 
 export async function approveWithdrawal(id: string, note: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/withdrawals/${id}/approve`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/withdrawals/${id}/approve`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -733,7 +774,7 @@ export async function approveWithdrawal(id: string, note: string): Promise<void>
 }
 
 export async function rejectWithdrawal(id: string, note: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/withdrawals/${id}/reject`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/withdrawals/${id}/reject`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -746,7 +787,7 @@ export async function rejectWithdrawal(id: string, note: string): Promise<void> 
 }
 
 export async function updateTransitionNote(transitionId: string, note: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/withdrawals/transitions/${transitionId}/note`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/withdrawals/transitions/${transitionId}/note`, {
     method: "PUT",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -760,7 +801,7 @@ export async function updateTransitionNote(transitionId: string, note: string): 
 
 // ── 회원 탈퇴 ───────────────────────────────────────
 export async function deleteAccount(): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/auth/delete-account`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/auth/delete-account`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -780,7 +821,7 @@ export async function adminSearchUser(
   type: "id" | "email",
   query: string
 ): Promise<AdminUserSearchResult> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE}/api/v1/admin/coins/search?type=${type}&q=${encodeURIComponent(query)}`,
     { credentials: "include" }
   );
@@ -804,7 +845,7 @@ export async function adminAdjustCoins(
   newCoins: number,
   memo: string
 ): Promise<AdjustCoinsResult> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/coins/adjust`, {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/coins/adjust`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
