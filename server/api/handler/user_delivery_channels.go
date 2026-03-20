@@ -11,6 +11,14 @@ import (
 	userDomain "ota/domain/user"
 )
 
+var validChannels = map[string]bool{
+	"email":    true,
+	"kakao":    true,
+	"telegram": true,
+	"sms":      true,
+	"push":     true,
+}
+
 // UserDeliveryChannelsHandler handles user delivery channel preferences and status
 type UserDeliveryChannelsHandler struct {
 	repo            delivery.Repository
@@ -42,13 +50,9 @@ func (h *UserDeliveryChannelsHandler) RegisterRoutes(group *gin.RouterGroup) {
 // GetDeliveryStatus returns the user's latest delivery status per channel
 // GET /api/v1/user/delivery-status
 func (h *UserDeliveryChannelsHandler) GetDeliveryStatus(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
+	userID := c.GetString("userID")
 
-	logs, err := h.deliveryService.GetUserDeliveryStatus(c.Request.Context(), userID.(string))
+	logs, err := h.deliveryService.GetUserDeliveryStatus(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get delivery status"})
 		return
@@ -82,13 +86,9 @@ type UpdateChannelPreferencesRequest struct {
 // GetChannelPreferences returns the user's current channel preferences
 // GET /api/v1/user/delivery-channels
 func (h *UserDeliveryChannelsHandler) GetChannelPreferences(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
+	userID := c.GetString("userID")
 
-	channels, err := h.repo.GetUserDeliveryChannels(c.Request.Context(), userID.(string))
+	channels, err := h.repo.GetUserDeliveryChannels(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get channel preferences"})
 		return
@@ -116,25 +116,12 @@ func (h *UserDeliveryChannelsHandler) GetChannelPreferences(c *gin.Context) {
 // UpdateChannelPreferences updates the user's channel preferences
 // PUT /api/v1/user/delivery-channels
 func (h *UserDeliveryChannelsHandler) UpdateChannelPreferences(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
+	userID := c.GetString("userID")
 
 	var req UpdateChannelPreferencesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request format"})
 		return
-	}
-
-	// Validate channels
-	validChannels := map[string]bool{
-		"email":    true,
-		"kakao":    true,
-		"telegram": true,
-		"sms":      true,
-		"push":     true,
 	}
 
 	for _, ch := range req.Channels {
@@ -150,7 +137,7 @@ func (h *UserDeliveryChannelsHandler) UpdateChannelPreferences(c *gin.Context) {
 	// Require email verification before enabling email channel.
 	for _, ch := range req.Channels {
 		if ch.Channel == "email" && ch.Enabled {
-			u, err := h.userRepo.FindByID(c.Request.Context(), userID.(string))
+			u, err := h.userRepo.FindByID(c.Request.Context(), userID)
 			if err != nil || !u.EmailVerified {
 				c.JSON(http.StatusBadRequest, gin.H{
 					"error": "이메일 인증이 필요합니다. 이메일을 먼저 인증해주세요.",
@@ -167,7 +154,7 @@ func (h *UserDeliveryChannelsHandler) UpdateChannelPreferences(c *gin.Context) {
 	for _, ch := range req.Channels {
 		channelPref := delivery.UserDeliveryChannel{
 			ID:        uuid.New().String(),
-			UserID:    userID.(string),
+			UserID:    userID,
 			Channel:   delivery.DeliveryChannel(ch.Channel),
 			Enabled:   ch.Enabled,
 			CreatedAt: time.Now().UTC(),
@@ -181,7 +168,7 @@ func (h *UserDeliveryChannelsHandler) UpdateChannelPreferences(c *gin.Context) {
 	}
 
 	// Return updated preferences
-	updatedChannels, err := h.repo.GetUserDeliveryChannels(ctx, userID.(string))
+	updatedChannels, err := h.repo.GetUserDeliveryChannels(ctx, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get updated preferences"})
 		return

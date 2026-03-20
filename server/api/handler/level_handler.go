@@ -209,12 +209,9 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	}
 
 	// ── Turnstile validation (Layer 3) ────────────────────────────────────────
-	tokenPreview := req.TurnstileToken
-	if len(tokenPreview) > 16 {
-		tokenPreview = tokenPreview[:16] + "..."
-	}
+	log.Printf("init-earn user=%s token_len=%d", userID, len(req.TurnstileToken))
 	if err := h.verifyTurnstileToken(req.TurnstileToken, c.ClientIP()); err != nil {
-		log.Printf("earn: TURNSTILE_FAIL user=%s item=%s ip=%s token_prefix=%s — %v", userID, itemID, c.ClientIP(), tokenPreview, err)
+		log.Printf("earn: TURNSTILE_FAIL user=%s item=%s ip=%s token_len=%d — %v", userID, itemID, c.ClientIP(), len(req.TurnstileToken), err)
 		c.JSON(http.StatusForbidden, gin.H{"error": "bot verification failed"})
 		return
 	}
@@ -302,7 +299,7 @@ func (h *LevelHandler) BatchEarnStatus(c *gin.Context) {
 		return
 	}
 	if len(req.ContextItemIDs) == 0 {
-		c.JSON(http.StatusOK, gin.H{"data": []any{}})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one item required"})
 		return
 	}
 	if len(req.ContextItemIDs) > 50 {

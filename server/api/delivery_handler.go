@@ -52,13 +52,13 @@ func (h *DeliveryHandler) TriggerDelivery(c *gin.Context) {
 // SendToCurrentUser delivers the latest briefing to the authenticated user on-demand
 // POST /api/v1/delivery/send
 func (h *DeliveryHandler) SendToCurrentUser(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	result, err := h.service.DeliverToUser(c.Request.Context(), userID.(string))
+	result, err := h.service.DeliverToUser(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

@@ -110,7 +110,7 @@ export async function getSubscriptions(): Promise<string[]> {
   const res = await apiFetch(`${API_BASE}/api/v1/subscriptions`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch subscriptions");
   const body: ApiResponse<string[]> = await res.json();
-  return body.data;
+  return Array.isArray(body.data) ? body.data : [];
 }
 
 export async function addSubscription(category: string): Promise<void> {
@@ -324,14 +324,14 @@ export async function fetchRecentTopics(): Promise<TopicPreview[]> {
   const res = await fetch(`${API_BASE}/api/v1/context/recent`);
   if (!res.ok) return [];
   const body: ApiResponse<TopicPreview[]> = await res.json();
-  return body.data ?? [];
+  return Array.isArray(body.data) ? body.data : [];
 }
 
 export async function fetchLatestRunTopics(): Promise<TopicPreview[]> {
   const res = await fetch(`${API_BASE}/api/v1/context/latest`);
   if (!res.ok) return [];
   const body: ApiResponse<TopicPreview[]> = await res.json();
-  return body.data ?? [];
+  return Array.isArray(body.data) ? body.data : [];
 }
 
 // ── 전체 뉴스 (allnews 페이지) ──────────────────────────
@@ -378,7 +378,10 @@ export async function fetchFilterOptions(): Promise<FilterOptions> {
   const res = await fetch(`${API_BASE}/api/v1/context/categories`);
   if (!res.ok) return { categories: [], brain_categories: [] };
   const body: ApiResponse<FilterOptions> = await res.json();
-  return body.data;
+  return {
+    categories: Array.isArray(body.data?.categories) ? body.data.categories : [],
+    brain_categories: Array.isArray(body.data?.brain_categories) ? body.data.brain_categories : [],
+  };
 }
 
 export interface EarnStatusItem {
@@ -397,7 +400,7 @@ export async function batchEarnStatus(ids: string[]): Promise<EarnStatusItem[]> 
   });
   if (!res.ok) return [];
   const body: ApiResponse<EarnStatusItem[]> = await res.json();
-  return body.data ?? [];
+  return Array.isArray(body.data) ? body.data : [];
 }
 
 // ── 이메일 인증 ───────────────────────────────────────

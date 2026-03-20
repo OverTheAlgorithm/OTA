@@ -361,13 +361,13 @@ func (h *AuthHandler) CompleteSignup(c *gin.Context) {
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	u, err := h.userRepo.FindByID(c.Request.Context(), userID.(string))
+	u, err := h.userRepo.FindByID(c.Request.Context(), userID)
 	if err != nil {
 		log.Printf("failed to find user: %v", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
@@ -441,13 +441,11 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 }
 
 func (h *AuthHandler) DeleteAccount(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
+	uid := c.GetString("userID")
+	if uid == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-
-	uid := userID.(string)
 
 	if h.withdrawalChecker != nil {
 		hasPending, err := h.withdrawalChecker.HasPendingWithdrawals(c.Request.Context(), uid)

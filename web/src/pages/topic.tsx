@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import { detectAdBlock } from "@/lib/adblock";
+import { formatDate } from "@/lib/utils";
 import { UserLevelCard } from "@/components/user-level-card";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { Header } from "@/components/header";
@@ -27,14 +28,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   science: "과학",
   health: "건강",
 };
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}.${m}.${day}`;
-}
 
 // ── Coin tag states (priority order) ─────────────────────────────────────────
 

@@ -2,17 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { HistoryEntry, HistoryItem, BrainCategory } from "@/lib/api";
 import { getContextHistory, getBrainCategories } from "@/lib/api";
+import { formatDate } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 
 interface Props {
   subscriptions: string[];
   onFirstLoad?: () => void;
-}
-
-function formatDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-");
-  return `${y}.${m}.${d}`;
 }
 
 function BuzzBadge({ score }: { score: number }) {

@@ -10,6 +10,7 @@ import {
   type WithdrawalListItem,
   type WithdrawalDetail,
 } from "@/lib/api";
+import { formatDateTime } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "대기",
@@ -32,16 +33,6 @@ const FILTERS = [
   { value: "rejected", label: "거절" },
   { value: "cancelled", label: "취소" },
 ];
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function NoteModal({
   title,
@@ -152,7 +143,7 @@ function DetailPanel({
         <div><span className="text-[#6b8db5]">은행:</span> {detail.bank_name}</div>
         <div><span className="text-[#6b8db5]">계좌:</span> {detail.account_number}</div>
         <div><span className="text-[#6b8db5]">예금주:</span> {detail.account_holder}</div>
-        <div><span className="text-[#6b8db5]">신청일:</span> {formatDate(detail.created_at)}</div>
+        <div><span className="text-[#6b8db5]">신청일:</span> {formatDateTime(detail.created_at)}</div>
       </div>
 
       {error && <p className="text-sm text-[#ff5442]">{error}</p>}
@@ -188,7 +179,7 @@ function DetailPanel({
                 </span>
                 {t.actor_name && <span className="text-xs text-[#6b8db5]">{t.actor_name}</span>}
               </div>
-              <span className="text-xs text-[#6b8db5]">{formatDate(t.created_at)}</span>
+              <span className="text-xs text-[#6b8db5]">{formatDateTime(t.created_at)}</span>
             </div>
             {editingTransitionId === t.id ? (
               <div className="flex gap-2 mt-1">
@@ -228,7 +219,7 @@ function DetailPanel({
               )
             )}
             {t.updated_at !== t.created_at && (
-              <p className="text-xs text-[#6b8db5]">수정: {formatDate(t.updated_at)}</p>
+              <p className="text-xs text-[#6b8db5]">수정: {formatDateTime(t.updated_at)}</p>
             )}
           </div>
         ))}
@@ -380,7 +371,7 @@ export function AdminWithdrawalsPage() {
               <tbody className="bg-white divide-y divide-[#d4e6f5]">
                 {items.map((item) => (
                   <tr key={item.id} className="hover:bg-[#f0f7ff]/50">
-                    <td className="px-4 py-3 text-[#1e3a5f] whitespace-nowrap">{formatDate(item.created_at)}</td>
+                    <td className="px-4 py-3 text-[#1e3a5f] whitespace-nowrap">{formatDateTime(item.created_at)}</td>
                     <td className="px-4 py-3">
                       <p className="text-[#1e3a5f]">{item.user_nickname || "-"}</p>
                       <p className="text-xs text-[#6b8db5]">{item.user_email || "-"}</p>

@@ -1,20 +1,14 @@
 package handler
 
 import (
-	"context"
 	"log"
 	"net/http"
-	"strconv"
 
 	"ota/domain/collector"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
-
-type SubscriptionGetter interface {
-	GetSubscriptions(ctx context.Context, userID string) ([]string, error)
-}
 
 type ContextHistoryHandler struct {
 	repo        collector.HistoryRepository
@@ -37,18 +31,7 @@ func (h *ContextHistoryHandler) WithCategoryRepo(catRepo collector.CategoryRepos
 func (h *ContextHistoryHandler) GetHistory(c *gin.Context) {
 	userID := c.GetString("userID")
 
-	limit := 10
-	if v := c.Query("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 50 {
-			limit = n
-		}
-	}
-	offset := 0
-	if v := c.Query("offset"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			offset = n
-		}
-	}
+	limit, offset := parsePageParams(c, 10, 50)
 
 	entries, hasMore, err := h.repo.GetHistoryForUser(c.Request.Context(), userID, limit, offset)
 	if err != nil {
@@ -124,18 +107,7 @@ func (h *ContextHistoryHandler) GetAllTopics(c *gin.Context) {
 		return
 	}
 
-	limit := 12
-	if v := c.Query("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 50 {
-			limit = n
-		}
-	}
-	offset := 0
-	if v := c.Query("offset"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			offset = n
-		}
-	}
+	limit, offset := parsePageParams(c, 12, 50)
 
 	topics, hasMore, err := h.repo.GetAllTopics(c.Request.Context(), filterType, filterValue, limit, offset)
 	if err != nil {

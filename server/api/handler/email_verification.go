@@ -38,8 +38,8 @@ type sendCodeRequest struct {
 
 // POST /api/v1/email-verification/send-code
 func (h *EmailVerificationHandler) SendCode(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -50,7 +50,7 @@ func (h *EmailVerificationHandler) SendCode(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.SendCode(c.Request.Context(), userID.(string), req.Email)
+	result, err := h.service.SendCode(c.Request.Context(), userID, req.Email)
 	if err != nil {
 		// Distinguish user-facing errors
 		switch {
@@ -105,8 +105,8 @@ type verifyCodeRequest struct {
 
 // POST /api/v1/email-verification/verify-code
 func (h *EmailVerificationHandler) VerifyCode(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
+	userID := c.GetString("userID")
+	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -123,7 +123,7 @@ func (h *EmailVerificationHandler) VerifyCode(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.VerifyCode(c.Request.Context(), userID.(string), req.Code); err != nil {
+	if err := h.service.VerifyCode(c.Request.Context(), userID, req.Code); err != nil {
 		log.Printf("verify code failed for user %s: %v", userID, err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "인증 코드가 올바르지 않거나 만료되었습니다.",

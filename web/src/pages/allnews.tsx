@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { UserLevelCard } from "@/components/user-level-card";
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
+import { CoinTag } from "@/components/coin-tag";
 import {
   fetchAllTopics,
   fetchFilterOptions,
@@ -15,6 +16,7 @@ import {
   type FilterType,
   type EarnStatusItem,
 } from "@/lib/api";
+import { formatDate } from "@/lib/utils";
 
 const PAGE_SIZE = 12;
 
@@ -28,49 +30,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   health: "건강/의학",
 };
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}.${m}.${day}`;
-}
-
 interface ActiveFilter {
   type: FilterType;
   value: string;
-}
-
-function CoinTag({ status }: { status: EarnStatusItem }) {
-  if (status.status === "DUPLICATE") {
-    return (
-      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#231815]/10 text-[#231815]/50">
-        획득!
-      </span>
-    );
-  }
-  if (status.status === "EXPIRED") {
-    return (
-      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#231815]/10 text-[#231815]/50">
-        획득 기간 경과
-      </span>
-    );
-  }
-  if (status.status === "DAILY_LIMIT") {
-    return (
-      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#231815]/10 text-[#231815]/50">
-        일일 한도
-      </span>
-    );
-  }
-  if (status.status === "PENDING" && status.coins > 0) {
-    return (
-      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#43b9d6]/15 text-[#43b9d6]">
-        +{status.coins}포인트
-      </span>
-    );
-  }
-  return null;
 }
 
 function NewsCard({

@@ -15,6 +15,7 @@ import {
   type WithdrawalInfo,
   type LevelInfo,
 } from "@/lib/api";
+import { formatDateTime } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "대기",
@@ -29,16 +30,6 @@ const STATUS_COLOR: Record<string, string> = {
   rejected: "text-[#ff5442] bg-[#ff5442]/10 border-[#ff5442]/30",
   cancelled: "text-[#6b8db5] bg-[#6b8db5]/10 border-[#6b8db5]/30",
 };
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function BankAccountForm({
   initial,
@@ -320,7 +311,7 @@ export function WithdrawalPage() {
                     )}
                   </div>
                   <p className="text-xs text-[#6b8db5]">
-                    {w.bank_name} {w.account_number} · {formatDate(w.created_at)}
+                    {w.bank_name} {w.account_number} · {formatDateTime(w.created_at)}
                   </p>
                   {/* 거절 사유 표시 */}
                   {w.transitions

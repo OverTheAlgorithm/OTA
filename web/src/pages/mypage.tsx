@@ -12,18 +12,9 @@ import {
   deleteAccount,
   type CoinTransaction,
 } from "@/lib/api";
+import { formatDateTime } from "@/lib/utils";
 
 type Tab = "points" | "settings";
-
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const h = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${y}.${mo}.${day} ${h}:${mi}`;
-}
 
 const COIN_TYPE_LABELS: Record<string, string> = {
   signup_bonus: "가입 보너스",
@@ -80,7 +71,7 @@ function PointHistoryTab() {
                 {getCoinLabel(tx)}
               </h3>
               <p className="text-sm text-[#231815]/60 mt-1">
-                {formatDate(tx.created_at)}
+                {formatDateTime(tx.created_at)}
               </p>
             </div>
             {tx.amount > 0 && (

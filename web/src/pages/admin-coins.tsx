@@ -6,16 +6,7 @@ import {
   adminAdjustCoins,
   type AdminUserSearchResult,
 } from "@/lib/api";
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { formatDateTime } from "@/lib/utils";
 
 export function AdminCoinsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -193,7 +184,7 @@ export function AdminCoinsPage() {
                 </div>
                 <div>
                   <span className="text-[#6b8db5]">가입일: </span>
-                  <span className="text-[#1e3a5f]">{formatDate(result.user.created_at)}</span>
+                  <span className="text-[#1e3a5f]">{formatDateTime(result.user.created_at)}</span>
                 </div>
                 <div>
                   <span className="text-[#6b8db5]">카카오 ID: </span>

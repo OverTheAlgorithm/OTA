@@ -3,7 +3,6 @@ package handler
 import (
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"ota/domain/withdrawal"
@@ -89,18 +88,7 @@ func (h *WithdrawalHandler) RequestWithdrawal(c *gin.Context) {
 
 func (h *WithdrawalHandler) GetHistory(c *gin.Context) {
 	userID := c.GetString("userID")
-	limit := 20
-	if v := c.Query("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 50 {
-			limit = n
-		}
-	}
-	offset := 0
-	if v := c.Query("offset"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			offset = n
-		}
-	}
+	limit, offset := parsePageParams(c, 20, 50)
 
 	items, hasMore, err := h.service.GetUserHistory(c.Request.Context(), userID, limit, offset)
 	if err != nil {

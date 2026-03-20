@@ -60,6 +60,8 @@ func (h *AdminCoinHandler) SearchUser(c *gin.Context) {
 	levelInfo, err := h.levelService.GetLevel(c.Request.Context(), u.ID)
 	if err != nil {
 		log.Printf("admin get user level error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "레벨 정보를 불러올 수 없습니다"})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{

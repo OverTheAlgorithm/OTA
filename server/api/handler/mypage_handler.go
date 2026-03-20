@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -27,19 +26,16 @@ func (h *MypageHandler) RegisterRoutes(group *gin.RouterGroup) {
 func (h *MypageHandler) GetCoinHistory(c *gin.Context) {
 	userID := c.GetString("userID")
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if limit <= 0 || limit > 100 {
-		limit = 20
-	}
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset := parsePageParams(c, 20, 100)
 
-	txns, err := h.levelService.GetCoinHistory(c.Request.Context(), userID, limit, offset)
+	txns, err := h.levelService.GetCoinHistory(c.Request.Context(), userID, limit+1, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "코인 내역을 불러올 수 없습니다"})
 		return
+	}
+	hasMore := len(txns) > limit
+	if hasMore {
+		txns = txns[:limit]
 	}
 	if txns == nil {
 		txns = []level.CoinTransaction{}
@@ -47,6 +43,6 @@ func (h *MypageHandler) GetCoinHistory(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":     txns,
-		"has_more": len(txns) == limit,
+		"has_more": hasMore,
 	})
 }
