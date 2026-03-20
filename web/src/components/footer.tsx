@@ -21,7 +21,7 @@ export function Footer({ compact = false }: FooterProps) {
       {terms.map((t) => (
         <a
           key={t.id}
-          href={t.url}
+          href={t.url.match(/^https?:\/\//) ? t.url : `https://${t.url}`}
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-[#231815] transition-colors"

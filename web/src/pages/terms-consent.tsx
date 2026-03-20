@@ -148,7 +148,7 @@ export function TermsConsentPage() {
                   </p>
                 )}
                 <a
-                  href={term.url}
+                  href={term.url.match(/^https?:\/\//) ? term.url : `https://${term.url}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
