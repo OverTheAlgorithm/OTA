@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useBlocker } from "react-router-dom";
 import { Turnstile } from "@marsidev/react-turnstile";
 import {
   fetchTopicDetail,
@@ -235,6 +235,19 @@ export function TopicPage() {
   const [loading, setLoading] = useState(true);
   const [loginOpen, setLoginOpen] = useState(false);
   const [showCountdown, setShowCountdown] = useState<{ seconds: number; topicId: string } | null>(null);
+
+  // Block navigation while coin earning is in progress
+  const isEarning = showCountdown !== null || coinTag?.kind === "loading";
+  const blocker = useBlocker(isEarning);
+
+  useEffect(() => {
+    if (!isEarning) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isEarning]);
 
   const earnCalledRef = useRef(false);
   const handleCountdownComplete = useCallback((topicId: string, turnstileToken: string) => {
@@ -499,6 +512,40 @@ export function TopicPage() {
 
       {/* ── Footer ── */}
       <Footer />
+
+      {/* ── Leave Confirmation Modal ── */}
+      {blocker.state === "blocked" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm bg-[#fdf9ee] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-5">
+            <div className="w-14 h-14 rounded-full bg-[#43b9d6]/15 flex items-center justify-center">
+              <svg className="w-7 h-7 text-[#43b9d6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-[#231815]">코인 획득 중이에요</h2>
+              <p className="mt-2 text-sm text-[#231815]/60 leading-relaxed">
+                지금 나가면 코인을 받을 수 없어요.<br />조금만 더 기다려주세요!
+              </p>
+            </div>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => blocker.proceed?.()}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold text-[#231815] border-[2px] border-[#231815] bg-white hover:bg-[#231815]/5 transition-colors"
+              >
+                나가기
+              </button>
+              <button
+                onClick={() => blocker.reset?.()}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold text-[#231815] border-[2px] border-[#231815] bg-[#43b9d6] hover:brightness-110 transition-all"
+              >
+                머무르기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Login Modal ── */}
       {loginOpen && (
