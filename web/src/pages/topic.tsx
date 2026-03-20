@@ -240,13 +240,44 @@ export function TopicPage() {
   const isEarning = showCountdown !== null || coinTag?.kind === "loading";
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
+  const pendingNavRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!isEarning) return;
+
+    // 1) Browser close/refresh/address bar → native dialog
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
     };
+
+    // 2) Browser back/forward buttons → show modal
+    window.history.pushState({ earning: true }, "");
+    const handlePopState = () => {
+      pendingNavRef.current = "__back__";
+      setShowLeaveModal(true);
+    };
+
+    // 3) Internal link clicks (Header, Footer, etc.) → intercept in capture phase
+    const handleLinkClick = (e: MouseEvent) => {
+      const anchor = (e.target as Element).closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href");
+      // Skip external links (http, mailto, tel) and anchor-only links
+      if (!href || /^(https?:|mailto:|tel:|#)/.test(href)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      pendingNavRef.current = href;
+      setShowLeaveModal(true);
+    };
+
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("popstate", handlePopState);
+    document.addEventListener("click", handleLinkClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopState);
+      document.removeEventListener("click", handleLinkClick, true);
+    };
   }, [isEarning]);
 
   const earnCalledRef = useRef(false);
@@ -531,13 +562,27 @@ export function TopicPage() {
             </div>
             <div className="flex gap-3 w-full">
               <button
-                onClick={() => { setShowLeaveModal(false); navigate(-1); }}
+                onClick={() => {
+                  const dest = pendingNavRef.current;
+                  pendingNavRef.current = null;
+                  setShowLeaveModal(false);
+                  if (dest === "__back__") {
+                    navigate(-1);
+                  } else if (dest) {
+                    navigate(dest);
+                  }
+                }}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-[#231815] border-[2px] border-[#231815] bg-white hover:bg-[#231815]/5 transition-colors"
               >
                 나가기
               </button>
               <button
-                onClick={() => setShowLeaveModal(false)}
+                onClick={() => {
+                  pendingNavRef.current = null;
+                  setShowLeaveModal(false);
+                  // Re-push dummy entry so next browser-back is caught again
+                  window.history.pushState({ earning: true }, "");
+                }}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-[#231815] border-[2px] border-[#231815] bg-[#43b9d6] hover:brightness-110 transition-all"
               >
                 머무르기
