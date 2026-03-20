@@ -31,6 +31,11 @@ export async function apiFetch(
   init?: RequestInit
 ): Promise<Response> {
   const res = await fetch(input, { credentials: "include", ...init });
+
+  if (res.status === 429) {
+    throw new Error("요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.");
+  }
+
   if (res.status !== 401) return res;
 
   const refreshed = await tryRefreshToken();
