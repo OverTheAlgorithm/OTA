@@ -80,7 +80,8 @@ func (a *CollectorServiceAdapter) GetLastDeliveredRun(ctx context.Context) (*col
 func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uuid.UUID) ([]collector.ContextItem, error) {
 	query := `
 		SELECT id, collection_run_id, category, COALESCE(brain_category, ''), rank, topic, summary,
-		       COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]')
+		       COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'),
+		       COALESCE(priority, 'none'), image_path
 		FROM context_items
 		WHERE collection_run_id = $1
 		ORDER BY rank
@@ -108,6 +109,8 @@ func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uui
 			&detailsJSON,
 			&item.BuzzScore,
 			&item.Sources,
+			&item.Priority,
+			&item.ImagePath,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan context item: %w", err)

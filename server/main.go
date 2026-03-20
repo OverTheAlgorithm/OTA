@@ -4,11 +4,17 @@ import (
 	"context"
 	"io"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	limiter "github.com/ulule/limiter/v3"
+	"github.com/ulule/limiter/v3/drivers/store/memory"
 
 	"ota/api"
 	"ota/api/handler"
@@ -51,13 +57,14 @@ func (a *levelServiceAdapter) GetLevel(ctx context.Context, userID string) (deli
 	}, nil
 }
 
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	// ── Log rotation (stdout + file) ─────────────────────────────────────────
+	// -- Log rotation (stdout + file) -----------------------------------------
 	fileLogger := &lumberjack.Logger{
 		Filename:   "logs/ota.log",
 		MaxSize:    100, // MB
@@ -103,9 +110,34 @@ func main() {
 	}
 	collectorRepo := storage.NewCollectorRepository(pool)
 
-	earnCache, err := cache.New(10_000)
-	if err != nil {
-		log.Fatalf("failed to create cache: %v", err)
+	// -- Redis / in-process cache ------------------------------------------------
+	redisCfg := cache.RedisConfig{
+		Host:     cfg.RedisHost,
+		Port:     cfg.RedisPort,
+		Password: cfg.RedisPassword,
+		DB:       cfg.RedisDB,
+	}
+
+	// Rate limit store (Redis or in-memory fallback)
+	var rateLimitStore limiter.Store
+	if rls, err := cache.NewRedisLimiterStore(redisCfg, "ratelimit:"); err != nil {
+		log.Printf("redis unavailable for rate limit store, using in-memory: %v", err)
+		rateLimitStore = memory.NewStore()
+	} else {
+		rateLimitStore = rls
+		log.Println("rate limit store connected to redis")
+	}
+	if closer, ok := rateLimitStore.(io.Closer); ok {
+		defer closer.Close()
+	}
+
+	var earnCache cache.Cache
+	if rc, err := cache.NewRedisCache(redisCfg, "earn:"); err != nil {
+		log.Printf("redis unavailable for earn cache, using in-process: %v", err)
+		earnCache = cache.NewInProcess()
+	} else {
+		earnCache = rc
+		log.Println("earn cache connected to redis")
 	}
 	defer earnCache.Close()
 
@@ -189,22 +221,31 @@ func main() {
 	)
 	withdrawalService := withdrawal.NewService(withdrawalRepo, coinManager, cfg.MinWithdrawalAmount)
 
-	// Scheduler
+	// Scheduler + data retention cleanup
+	cleanupRepo := storage.NewCleanupRepository(pool)
 	sched := scheduler.New(collectorService, deliveryService)
+	sched.WithCleanup(cleanupRepo)
 	if err := sched.Start(); err != nil {
 		log.Fatalf("failed to start scheduler: %v", err)
 	}
 	defer sched.Stop()
-	log.Println("scheduler started (collection 4-6 AM, delivery 7:00-7:15 AM, retry 7:30-8:30 AM KST)")
+	log.Println("scheduler started (collection 4-6 AM, delivery 7:00-7:15 AM, retry 7:30-8:30 AM, cleanup 3 AM KST)")
 
 	// Terms of service
 	termsRepo := storage.NewTermsRepository(pool)
 	termsService := terms.NewService(termsRepo)
-	signupCache, err := cache.New(1_000)
-	if err != nil {
-		log.Fatalf("failed to create signup cache: %v", err)
+	var signupCache cache.Cache
+	if rc, err := cache.NewRedisCache(redisCfg, "signup:"); err != nil {
+		log.Printf("redis unavailable for signup cache, using in-process: %v", err)
+		signupCache = cache.NewInProcess()
+	} else {
+		signupCache = rc
+		log.Println("signup cache connected to redis")
 	}
 	defer signupCache.Close()
+
+	// Refresh token repository
+	refreshTokenRepo := storage.NewRefreshTokenRepository(pool)
 
 	// Handlers
 	userRepo := storage.NewUserRepository(pool)
@@ -213,7 +254,8 @@ func main() {
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
 	stateStore := auth.NewStateStore()
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, levelRepo, cfg.SignupBonusCoins, cfg.FrontendURL, signupCache, termsService).
-		WithWithdrawalChecker(withdrawalRepo)
+		WithWithdrawalChecker(withdrawalRepo).
+		WithRefreshTokenStore(refreshTokenRepo)
 	termsHandler := handler.NewTermsHandler(termsService)
 	termsAdminHandler := handler.NewTermsAdminHandler(termsService)
 	brainCategoryHandler := handler.NewBrainCategoryHandler(brainCategoryRepo)
@@ -256,8 +298,10 @@ func main() {
 		WithMockItemCreator(levelRepo).
 		WithDeliveryService(deliveryService)
 
+	healthHandler := handler.NewHealthHandler(pool)
+
 	// Router
-	r := api.NewRouter("api", "v1", cfg.FrontendURL, jwtManager, cfg.RateLimitPerMin, []api.RouteModule{
+	r := api.NewRouter("api", "v1", cfg.FrontendURL, jwtManager, cfg.RateLimitPerMin, rateLimitStore, []api.RouteModule{
 		{
 			GroupName:   "auth",
 			Handler:     authHandler,
@@ -335,11 +379,36 @@ func main() {
 		},
 	})
 
+	// Health check routes at root level (no auth, no rate limit)
+	r.GET("/health", healthHandler.Live)
+	r.GET("/health/ready", healthHandler.Ready)
+
 	// Serve generated images from local disk
 	r.Static("/api/v1/images", imageBaseDir)
 
-	log.Printf("server starting on :%s", cfg.ServerPort)
-	if err := r.Run(":" + cfg.ServerPort); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+	// -- Graceful shutdown ----------------------------------------------------
+	srv := &http.Server{
+		Addr:    ":" + cfg.ServerPort,
+		Handler: r,
 	}
+
+	go func() {
+		log.Printf("server starting on :%s", cfg.ServerPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server listen error: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("shutdown signal received, draining requests...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("server forced to shutdown: %v", err)
+	}
+
+	log.Println("server exited cleanly")
 }
