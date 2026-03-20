@@ -4,7 +4,12 @@ const DEFAULT_IMAGES: string[] = Object.values(
   import.meta.glob<string>("@/assets/default_img_*.*", { eager: true, import: "default" }),
 );
 
-/** Deterministically pick a default placeholder image based on topic ID. */
+/** Deterministic picsum.photos placeholder based on topic ID. */
+export function getPicsumImage(id: string): string {
+  return `https://picsum.photos/seed/${id}/400/250`;
+}
+
+/** Deterministic static fallback image based on topic ID. */
 export function getDefaultImage(id: string): string {
   if (DEFAULT_IMAGES.length === 0) return "";
   let hash = 0;

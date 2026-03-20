@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { KakaoLoginButton, LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/contexts/auth-context";
-import { fetchRecentTopics, getDefaultImage, type TopicPreview } from "@/lib/api";
+import { fetchRecentTopics, getDefaultImage, getPicsumImage, type TopicPreview } from "@/lib/api";
 
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -383,10 +383,13 @@ export function LandingPage() {
                 <div className="border-b-[3px] border-[#231815] flex flex-col md:flex-row">
                   <div className="md:w-[42%] aspect-[16/9] md:aspect-auto overflow-hidden bg-[#f0ece0] flex items-center justify-center">
                     <img
-                      src={news.image_url || getDefaultImage(news.id)}
+                      src={news.image_url || getPicsumImage(news.id)}
                       alt={news.topic}
                       className="w-full h-full object-contain [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
-                      onError={(e) => { e.currentTarget.src = getDefaultImage(news.id); }}
+                      onError={(e) => {
+                        const fallback = getDefaultImage(news.id);
+                        if (e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
+                      }}
                     />
                   </div>
                   <div

@@ -9,6 +9,7 @@ import {
   fetchFilterOptions,
   batchEarnStatus,
   getDefaultImage,
+  getPicsumImage,
   type TopicPreview,
   type FilterOptions,
   type FilterType,
@@ -92,10 +93,13 @@ function NewsCard({
     <Link to={`/topic/${topic.id}`} className="group block">
       <div className="aspect-[16/10] overflow-hidden rounded-xl bg-[#f0ece0] mb-3">
         <img
-          src={topic.image_url || getDefaultImage(topic.id)}
+          src={topic.image_url || getPicsumImage(topic.id)}
           alt={topic.topic}
           className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform] group-hover:scale-105 transition-transform duration-300"
-          onError={(e) => { e.currentTarget.src = getDefaultImage(topic.id); }}
+          onError={(e) => {
+            const fallback = getDefaultImage(topic.id);
+            if (e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
+          }}
         />
       </div>
 
