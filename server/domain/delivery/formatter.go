@@ -242,35 +242,27 @@ func renderNewsCard(item collector.ContextItem, frontendURL string, preferred bo
                 <p style="margin:0;font-size:13px;color:#231815;line-height:1.5;">%s</p>`,
 		href, item.Topic, summary))
 
-	// Build card with optional thumbnail
-	hasImage := item.ImagePath != nil && *item.ImagePath != ""
+	// Determine image URL: server image or picsum fallback
+	imageURL := fmt.Sprintf("https://picsum.photos/seed/%s/400/250", item.ID.String())
+	if item.ImagePath != nil && *item.ImagePath != "" {
+		imageURL = fmt.Sprintf("%s/api/v1/images/%s", frontendURL, *item.ImagePath)
+	}
 
-	if hasImage {
-		imageURL := fmt.Sprintf("%s/api/v1/images/%s", frontendURL, *item.ImagePath)
-		return fmt.Sprintf(`
+	return fmt.Sprintf(`
       <tr><td style="padding:10px 0;">
-        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #231815;border-radius:8px;">
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #231815;border-radius:8px;overflow:hidden;">
           <tr>
-            <td width="180" style="vertical-align:top;">
-              <a href="%s" style="text-decoration:none;">
-                <img src="%s" alt="" width="180" height="110" style="display:block;object-fit:cover;border-radius:7px 0 0 7px;" />
+            <td width="180" style="width:180px;vertical-align:top;border-radius:7px 0 0 7px;overflow:hidden;">
+              <a href="%s" style="text-decoration:none;display:block;">
+                <div style="width:180px;min-height:100%%;background-image:url('%s');background-size:cover;background-position:center;border-radius:7px 0 0 7px;">
+                  <img src="%s" alt="" width="180" style="display:block;width:180px;opacity:0;" />
+                </div>
               </a>
             </td>
             <td style="padding:12px 16px;vertical-align:top;">%s</td>
           </tr>
         </table>
-      </td></tr>`, href, imageURL, content.String())
-	}
-
-	// No image — full-width content
-	return fmt.Sprintf(`
-      <tr><td style="padding:10px 0;">
-        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #231815;border-radius:8px;">
-          <tr>
-            <td style="padding:12px 16px;vertical-align:top;">%s</td>
-          </tr>
-        </table>
-      </td></tr>`, content.String())
+      </td></tr>`, href, imageURL, imageURL, content.String())
 }
 
 // renderCoinPill renders the "+N포인트" or "획득!" pill button.
@@ -295,8 +287,8 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
 		infoText = `
       <tr><td style="padding:16px 0 8px;text-align:center;">
         <p style="margin:0;font-size:14px;font-weight:500;color:#231815;line-height:1.6;">
-          위즈 포인트는 오늘의 소식에서만 모을 수 있어요!<br>
-          최신 소식을 확인하고 위즈 포인트를 모아보세요
+          포인트는 오늘의 소식에서만 모을 수 있어요!<br>
+          최신 소식을 확인하고 포인트를 모아보세요
         </p>
       </td></tr>`
 	}
@@ -318,7 +310,7 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
 
       <!-- Logo -->
       <tr><td style="padding-bottom:16px;">
-        <img src="%s" alt="WizLetter" height="30" style="display:block;">
+        <img src="%s" alt="WizLetter" width="140" style="display:block;">
       </td></tr>
 
       <!-- Date Title -->
@@ -364,7 +356,8 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
 
 // renderHeaderLevelRow returns a full <tr> for the level card.
 // Returns an empty string if levelInfo is nil.
-func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
+// Design matches the frontend LevelCard component: circle with "P", gradient progress bar.
+func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
 	if info == nil {
 		return ""
 	}
@@ -373,7 +366,6 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 	if lv < 1 || lv > 5 {
 		lv = 1
 	}
-	imgURL := fmt.Sprintf("%s/rainbow_lv%d.png", frontendURL, lv)
 
 	// Progress bar fill percentage
 	fillPct := 0
@@ -392,44 +384,51 @@ func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 	return fmt.Sprintf(`
       <tr><td style="padding-bottom:16px;">
         <table width="100%%%%" cellpadding="0" cellspacing="0" border="0"
-               style="background-color:#ffffff;border:1px solid #231815;border-radius:11px;">
-          <tr><td style="padding:14px 16px;">
+               style="background-color:#ffffff;border:2px solid #231815;border-radius:22px;">
+          <tr><td style="padding:20px 24px;">
             <table width="100%%%%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td width="54" style="vertical-align:top;">
-                  <img src="%s" alt="Lv.%d" width="54" style="display:block;border-radius:6px;">
+                <td width="90" style="vertical-align:middle;">
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr><td width="90" height="90" align="center" valign="middle"
+                            style="width:90px;height:90px;border-radius:50%%%%;border:3px solid #231815;background-color:rgba(67,185,214,0.15);font-size:36px;font-weight:700;color:#231815;">P</td></tr>
+                  </table>
                 </td>
-                <td style="padding-left:12px;vertical-align:top;">
-                  <p style="margin:0 0 2px;font-size:16px;font-weight:700;color:#231815;">Lv.%d</p>
-                  <p style="margin:0 0 8px;">
-                    <span style="font-size:22px;font-weight:700;color:#231815;">%s</span>
-                    <span style="font-size:12px;color:#231815;"> 포인트</span>
+                <td style="padding-left:20px;vertical-align:middle;">
+                  <p style="margin:0;font-size:20px;font-weight:700;color:#231815;line-height:1.2;">Lv.%d</p>
+                  <p style="margin:2px 0 0;">
+                    <span style="font-size:32px;font-weight:700;color:#231815;">%s</span>
+                    <span style="font-size:14px;font-weight:700;color:#231815;"> 포인트</span>
                   </p>
                   <!-- Progress Bar -->
-                  <table width="100%%%%" cellpadding="0" cellspacing="0" border="0"
-                         style="background-color:#e8f4fd;border-radius:7px;">
+                  <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="margin-top:8px;">
                     <tr>
-                      <td width="%d%%%%" style="background-color:#43b9d6;height:7px;border-radius:7px;font-size:1px;line-height:7px;">&nbsp;</td>
-                      <td style="height:7px;font-size:1px;line-height:7px;">&nbsp;</td>
+                      <td style="vertical-align:middle;">
+                        <table width="100%%%%" cellpadding="0" cellspacing="0" border="0"
+                               style="background-color:#e8f4fd;border-radius:7px;border:1px solid rgba(35,24,21,0.3);">
+                          <tr>
+                            <td width="%d%%%%" style="background:linear-gradient(to right,rgba(67,185,214,0.5),#43b9d6);height:14px;border-radius:7px;font-size:1px;line-height:14px;">&nbsp;</td>
+                            <td style="height:14px;font-size:1px;line-height:14px;">&nbsp;</td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="padding-left:12px;white-space:nowrap;vertical-align:middle;">
+                        <span style="font-size:14px;font-weight:700;color:#231815;">%s / %s</span>
+                      </td>
                     </tr>
                   </table>
-                  <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="margin-top:4px;">
-                    <tr>
-                      <td style="font-size:11px;color:#231815;">%s 포인트를 더 모으면 레벨업!</td>
-                      <td align="right" style="font-size:11px;color:#231815;">%s / %s</td>
-                    </tr>
-                  </table>
+                  <p style="margin:6px 0 0;font-size:14px;font-weight:700;color:#231815;">%s 포인트를 더 모으면 레벨업!</p>
                 </td>
               </tr>
             </table>
           </td></tr>
         </table>
       </td></tr>`,
-		imgURL, lv, lv,
+		lv,
 		formatNumber(info.TotalCoins),
 		fillPct,
-		formatNumber(remaining),
 		formatNumber(info.TotalCoins), formatNumber(info.CoinCap),
+		formatNumber(remaining),
 	)
 }
 
