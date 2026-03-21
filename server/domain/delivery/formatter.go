@@ -250,19 +250,17 @@ func renderNewsCard(item collector.ContextItem, frontendURL string, preferred bo
 
 	return fmt.Sprintf(`
       <tr><td style="padding:10px 0;">
-        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #231815;border-radius:8px;overflow:hidden;">
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #231815;border-radius:8px;">
           <tr>
-            <td width="180" style="width:180px;vertical-align:top;border-radius:7px 0 0 7px;overflow:hidden;">
-              <a href="%s" style="text-decoration:none;display:block;">
-                <div style="width:180px;min-height:100%%;background-image:url('%s');background-size:cover;background-position:center;border-radius:7px 0 0 7px;">
-                  <img src="%s" alt="" width="180" style="display:block;width:180px;opacity:0;" />
-                </div>
+            <td width="180" valign="top" style="width:180px;padding:0;">
+              <a href="%s" style="text-decoration:none;">
+                <img src="%s" alt="" width="180" style="display:block;width:180px;height:auto;border-radius:7px 0 0 7px;" />
               </a>
             </td>
-            <td style="padding:12px 16px;vertical-align:top;">%s</td>
+            <td valign="top" style="padding:12px 16px;">%s</td>
           </tr>
         </table>
-      </td></tr>`, href, imageURL, imageURL, content.String())
+      </td></tr>`, href, imageURL, content.String())
 }
 
 // renderCoinPill renders the "+N포인트" or "획득!" pill button.
@@ -310,7 +308,7 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
 
       <!-- Logo -->
       <tr><td style="padding-bottom:16px;">
-        <img src="%s" alt="WizLetter" width="140" style="display:block;">
+        <img src="%s" alt="WizLetter" width="200" style="display:block;">
       </td></tr>
 
       <!-- Date Title -->
@@ -388,11 +386,16 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
           <tr><td style="padding:20px 24px;">
             <table width="100%%%%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td width="90" style="vertical-align:middle;">
-                  <table cellpadding="0" cellspacing="0" border="0">
-                    <tr><td width="90" height="90" align="center" valign="middle"
-                            style="width:90px;height:90px;border-radius:50%%%%;border:3px solid #231815;background-color:rgba(67,185,214,0.15);font-size:36px;font-weight:700;color:#231815;">P</td></tr>
-                  </table>
+                <td width="96" valign="middle" style="vertical-align:middle;">
+                  <!--[if mso]>
+                  <v:oval style="width:90px;height:90px;" stroke="true" fill="true" strokecolor="#231815" strokeweight="3px">
+                    <v:fill color="#d4eff5"/>
+                    <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:false;"><center style="font-size:36px;font-weight:700;color:#231815;">P</center></v:textbox>
+                  </v:oval>
+                  <![endif]-->
+                  <!--[if !mso]><!-->
+                  <div style="width:90px;height:90px;border-radius:45px;border:3px solid #231815;background-color:#d4eff5;text-align:center;line-height:84px;font-size:36px;font-weight:700;color:#231815;">P</div>
+                  <!--<![endif]-->
                 </td>
                 <td style="padding-left:20px;vertical-align:middle;">
                   <p style="margin:0;font-size:20px;font-weight:700;color:#231815;line-height:1.2;">Lv.%d</p>
@@ -405,9 +408,9 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
                     <tr>
                       <td style="vertical-align:middle;">
                         <table width="100%%%%" cellpadding="0" cellspacing="0" border="0"
-                               style="background-color:#e8f4fd;border-radius:7px;border:1px solid rgba(35,24,21,0.3);">
+                               style="background-color:#e8f4fd;border-radius:7px;border:1px solid #c0c0c0;">
                           <tr>
-                            <td width="%d%%%%" style="background:linear-gradient(to right,rgba(67,185,214,0.5),#43b9d6);height:14px;border-radius:7px;font-size:1px;line-height:14px;">&nbsp;</td>
+                            <td width="%d%%%%" style="background-color:#43b9d6;height:14px;border-radius:7px;font-size:1px;line-height:14px;">&nbsp;</td>
                             <td style="height:14px;font-size:1px;line-height:14px;">&nbsp;</td>
                           </tr>
                         </table>
