@@ -274,7 +274,7 @@ func renderCoinPill(coins int, href string) string {
 }
 
 func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) string {
-	logoURL := frontendURL + "/wl-logo.png"
+	logoURL := frontendURL + "/wl-logo.png?v=2"
 	today := time.Now().Format("2006.01.02")
 	dateTitle := today + "의 위즈레터"
 	levelCardRow := renderHeaderLevelRow(levelInfo, frontendURL)
