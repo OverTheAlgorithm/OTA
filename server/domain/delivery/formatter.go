@@ -252,15 +252,14 @@ func renderNewsCard(item collector.ContextItem, frontendURL string, preferred bo
       <tr><td style="padding:10px 0;">
         <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #231815;border-radius:8px;">
           <tr>
-            <td width="180" valign="top" style="width:180px;padding:0;">
-              <a href="%s" style="text-decoration:none;">
-                <img src="%s" alt="" width="180" style="display:block;width:180px;height:auto;border-radius:7px 0 0 7px;" />
-              </a>
+            <td width="180"
+                style="width:180px;background-image:url('%s');background-size:cover;background-position:center;border-radius:7px 0 0 7px;padding:0;margin:0;font-size:0;line-height:0;">
+              <a href="%s" style="text-decoration:none;display:block;width:180px;min-height:1px;">&nbsp;</a>
             </td>
             <td valign="top" style="padding:12px 16px;">%s</td>
           </tr>
         </table>
-      </td></tr>`, href, imageURL, content.String())
+      </td></tr>`, imageURL, href, content.String())
 }
 
 // renderCoinPill renders the "+N포인트" or "획득!" pill button.
@@ -307,7 +306,7 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
     <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
 
       <!-- Logo -->
-      <tr><td style="padding-bottom:16px;">
+      <tr><td style="padding-bottom:4px;">
         <img src="%s" alt="WizLetter" width="200" style="display:block;">
       </td></tr>
 
@@ -403,24 +402,20 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
                     <span style="font-size:32px;font-weight:700;color:#231815;">%s</span>
                     <span style="font-size:14px;font-weight:700;color:#231815;"> 포인트</span>
                   </p>
-                  <!-- Progress Bar -->
-                  <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="margin-top:8px;">
+                  <!-- Progress Bar (full width) -->
+                  <table width="100%%%%" cellpadding="0" cellspacing="0" border="0"
+                         style="margin-top:8px;background-color:#e8f4fd;border-radius:7px;border:1px solid #c0c0c0;">
                     <tr>
-                      <td style="vertical-align:middle;">
-                        <table width="100%%%%" cellpadding="0" cellspacing="0" border="0"
-                               style="background-color:#e8f4fd;border-radius:7px;border:1px solid #c0c0c0;">
-                          <tr>
-                            <td width="%d%%%%" style="background-color:#43b9d6;height:14px;border-radius:7px;font-size:1px;line-height:14px;">&nbsp;</td>
-                            <td style="height:14px;font-size:1px;line-height:14px;">&nbsp;</td>
-                          </tr>
-                        </table>
-                      </td>
-                      <td style="padding-left:12px;white-space:nowrap;vertical-align:middle;">
-                        <span style="font-size:14px;font-weight:700;color:#231815;">%s / %s</span>
-                      </td>
+                      <td width="%d%%%%" style="background-color:#43b9d6;height:14px;border-radius:7px;font-size:1px;line-height:14px;">&nbsp;</td>
+                      <td style="height:14px;font-size:1px;line-height:14px;">&nbsp;</td>
                     </tr>
                   </table>
-                  <p style="margin:6px 0 0;font-size:14px;font-weight:700;color:#231815;">%s 포인트를 더 모으면 레벨업!</p>
+                  <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px;">
+                    <tr>
+                      <td style="font-size:14px;font-weight:700;color:#231815;">%s 포인트를 더 모으면 레벨업!</td>
+                      <td align="right" style="font-size:14px;font-weight:700;color:#231815;white-space:nowrap;">%s / %s</td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
             </table>
