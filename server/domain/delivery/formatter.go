@@ -305,13 +305,15 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
   <tr><td align="center" style="padding:32px 16px 48px;">
     <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
 
-      <!-- Logo -->
-      <tr><td style="padding-bottom:0;">
-        <img src="%s" alt="WizLetter" width="320" style="display:block;">
+      <!-- Logo (image has large built-in whitespace; crop with overflow) -->
+      <tr><td style="padding:0;overflow:hidden;height:60px;">
+        <div style="overflow:hidden;max-height:60px;margin-top:-28px;margin-left:-22px;">
+          <img src="%s" alt="WizLetter" width="260" style="display:block;">
+        </div>
       </td></tr>
 
       <!-- Date Title -->
-      <tr><td style="padding-bottom:20px;">
+      <tr><td style="padding-bottom:20px;padding-top:8px;">
         <p style="margin:0;font-size:20px;font-weight:600;color:#231815;letter-spacing:2.5px;">%s</p>
       </td></tr>
 
