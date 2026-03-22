@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -314,11 +315,20 @@ func (h *AuthHandler) CompleteSignup(c *gin.Context) {
 
 	pending, ok := decodePendingSignup(cached)
 	if !ok {
+		slog.Error("[CompleteSignup] failed to decode pending signup from cache",
+			"signup_key", req.SignupKey,
+			"cached_type", fmt.Sprintf("%T", cached),
+		)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 
 	if err := h.termsService.ValidateConsents(c.Request.Context(), req.AgreedTermIDs); err != nil {
+		slog.Warn("[CompleteSignup] terms validation failed",
+			"kakao_id", pending.KakaoID,
+			"agreed_term_ids", req.AgreedTermIDs,
+			"error", err,
+		)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -331,41 +341,56 @@ func (h *AuthHandler) CompleteSignup(c *gin.Context) {
 		pending.ProfileImageURL,
 	)
 	if err != nil {
-		slog.Error("failed to create user during signup", "error", err)
+		slog.Error("[CompleteSignup] failed to create user",
+			"kakao_id", pending.KakaoID,
+			"email", pending.Email,
+			"nickname", pending.Nickname,
+			"error", err,
+		)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "signup failed"})
 		return
 	}
 
 	if err := h.termsService.SaveConsents(c.Request.Context(), u.ID, req.AgreedTermIDs); err != nil {
-		slog.Error("failed to save consents", "user_id", u.ID, "error", err)
+		slog.Error("[CompleteSignup] failed to save consents — aborting signup",
+			"user_id", u.ID,
+			"agreed_term_ids", req.AgreedTermIDs,
+			"error", err,
+		)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "signup failed"})
+		return
 	}
 
 	if h.signupBonus > 0 && h.bonusGranter != nil {
 		if err := h.bonusGranter.AddPoints(c.Request.Context(), u.ID, h.signupBonus); err != nil {
-			slog.Warn("signup bonus grant failed", "user_id", u.ID, "error", err)
+			slog.Warn("[CompleteSignup] signup bonus grant failed", "user_id", u.ID, "error", err)
 		} else {
 			_ = h.bonusGranter.InsertCoinEvent(c.Request.Context(), u.ID, h.signupBonus, "signup_bonus", "가입 보너스", "")
-			slog.Info("signup bonus granted", "coins", h.signupBonus, "user_id", u.ID)
+			slog.Info("[CompleteSignup] signup bonus granted", "coins", h.signupBonus, "user_id", u.ID)
 		}
 	}
 
 	if u.Email != "" && h.welcomeDeliverer != nil {
 		go func() {
 			if err := h.welcomeDeliverer.DeliverToNewUser(context.Background(), u.ID, u.Email); err != nil {
-				slog.Warn("welcome delivery failed", "user_id", u.ID, "error", err)
+				slog.Warn("[CompleteSignup] welcome delivery failed", "user_id", u.ID, "error", err)
 			} else {
-				slog.Info("welcome delivery sent", "user_id", u.ID)
+				slog.Info("[CompleteSignup] welcome delivery sent", "user_id", u.ID)
 			}
 		}()
 	}
 
 	if err := h.setAuthCookies(c.Writer, u.ID, u.Role); err != nil {
-		slog.Error("failed to set auth cookies", "error", err)
+		slog.Error("[CompleteSignup] failed to set auth cookies",
+			"user_id", u.ID,
+			"role", u.Role,
+			"error", err,
+		)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "login failed"})
 		return
 	}
 
-	slog.Info("new user signup completed", "user_id", u.ID, "kakao_id", pending.KakaoID, "consents", len(req.AgreedTermIDs))
+	slog.Info("[CompleteSignup] new user signup completed", "user_id", u.ID, "kakao_id", pending.KakaoID, "consents", len(req.AgreedTermIDs))
 	c.JSON(http.StatusOK, gin.H{"data": u})
 }
 
