@@ -382,38 +382,51 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
       <tr><td style="padding-bottom:16px;">
         <table width="100%%%%" cellpadding="0" cellspacing="0" border="0"
                style="background-color:#ffffff;border:2px solid #231815;border-radius:22px;">
-          <tr><td style="padding:20px 24px;">
+          <tr><td style="padding:20px 16px;">
             <table width="100%%%%" cellpadding="0" cellspacing="0" border="0">
+              <!-- P Circle (centered on top) -->
               <tr>
-                <td width="96" valign="middle" style="vertical-align:middle;">
+                <td align="center" style="padding-bottom:12px;">
                   <!--[if mso]>
-                  <v:oval style="width:90px;height:90px;" stroke="true" fill="true" strokecolor="#231815" strokeweight="3px">
+                  <v:oval style="width:72px;height:72px;" stroke="true" fill="true" strokecolor="#231815" strokeweight="3px">
                     <v:fill color="#d4eff5"/>
-                    <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:false;"><center style="font-size:36px;font-weight:700;color:#231815;">P</center></v:textbox>
+                    <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:false;"><center style="font-size:30px;font-weight:700;color:#231815;">P</center></v:textbox>
                   </v:oval>
                   <![endif]-->
                   <!--[if !mso]><!-->
-                  <div style="width:90px;height:90px;border-radius:45px;border:3px solid #231815;background-color:#d4eff5;text-align:center;line-height:84px;font-size:36px;font-weight:700;color:#231815;">P</div>
+                  <div style="width:72px;height:72px;border-radius:36px;border:3px solid #231815;background-color:#d4eff5;text-align:center;line-height:72px;font-size:30px;font-weight:700;color:#231815;">P</div>
                   <!--<![endif]-->
                 </td>
-                <td style="padding-left:20px;vertical-align:middle;">
-                  <p style="margin:0;font-size:20px;font-weight:700;color:#231815;line-height:1.2;">Lv.%d</p>
-                  <p style="margin:2px 0 0;">
-                    <span style="font-size:32px;font-weight:700;color:#231815;">%s</span>
+              </tr>
+              <!-- Level & Points (centered) -->
+              <tr>
+                <td align="center">
+                  <p style="margin:0;font-size:18px;font-weight:700;color:#231815;line-height:1.2;">Lv.%d</p>
+                  <p style="margin:4px 0 0;">
+                    <span style="font-size:28px;font-weight:700;color:#231815;">%s</span>
                     <span style="font-size:14px;font-weight:700;color:#231815;"> 포인트</span>
                   </p>
-                  <!-- Progress Bar (full width) -->
+                </td>
+              </tr>
+              <!-- Progress Bar (full width) -->
+              <tr>
+                <td style="padding-top:12px;">
                   <table width="100%%%%" cellpadding="0" cellspacing="0" border="0"
-                         style="margin-top:8px;background-color:#e8f4fd;border-radius:7px;border:1px solid #c0c0c0;">
+                         style="background-color:#e8f4fd;border-radius:7px;border:1px solid #c0c0c0;">
                     <tr>
                       <td width="%d%%%%" style="background-color:#43b9d6;height:14px;border-radius:7px;font-size:1px;line-height:14px;">&nbsp;</td>
                       <td style="height:14px;font-size:1px;line-height:14px;">&nbsp;</td>
                     </tr>
                   </table>
-                  <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px;">
+                </td>
+              </tr>
+              <!-- Level-up text & ratio -->
+              <tr>
+                <td style="padding-top:8px;">
+                  <table width="100%%%%" cellpadding="0" cellspacing="0" border="0">
                     <tr>
-                      <td style="font-size:14px;font-weight:700;color:#231815;">%s 포인트를 더 모으면 레벨업!</td>
-                      <td align="right" style="font-size:14px;font-weight:700;color:#231815;white-space:nowrap;">%s / %s</td>
+                      <td style="font-size:13px;font-weight:700;color:#231815;white-space:nowrap;">%s 포인트를 더 모으면 레벨업!</td>
+                      <td align="right" style="font-size:13px;font-weight:700;color:#231815;white-space:nowrap;">%s / %s</td>
                     </tr>
                   </table>
                 </td>
@@ -425,8 +438,8 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
 		lv,
 		formatNumber(info.TotalCoins),
 		fillPct,
-		formatNumber(info.TotalCoins), formatNumber(info.CoinCap),
 		formatNumber(remaining),
+		formatNumber(info.TotalCoins), formatNumber(info.CoinCap),
 	)
 }
 
