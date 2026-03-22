@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"ota/domain/level"
 
@@ -62,6 +63,14 @@ func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, co
 	if effectiveCap <= 0 {
 		effectiveCap = int(^uint(0) >> 1) // max int
 	}
+	slog.Info("[EarnCoin] upsert params",
+		"user_id", userID,
+		"coins", coins,
+		"coin_cap", coinCap,
+		"effective_cap", effectiveCap,
+		"coins_type", fmt.Sprintf("%T", coins),
+		"effective_cap_type", fmt.Sprintf("%T", effectiveCap),
+	)
 	var newTotal int
 	err = tx.QueryRow(ctx, `
 		INSERT INTO user_points (user_id, points, updated_at)
@@ -72,6 +81,12 @@ func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, co
 		RETURNING points
 	`, userID, coins, effectiveCap).Scan(&newTotal)
 	if err != nil {
+		slog.Error("[EarnCoin] upsert user_points failed",
+			"user_id", userID,
+			"coins", coins,
+			"effective_cap", effectiveCap,
+			"error", err,
+		)
 		return false, 0, fmt.Errorf("upsert user coins: %w", err)
 	}
 
