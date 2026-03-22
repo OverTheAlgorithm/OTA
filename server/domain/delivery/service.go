@@ -267,6 +267,38 @@ func (s *Service) DeliverToUser(ctx context.Context, userID string) (*DeliveryRe
 	return s.DeliverToTargets(ctx, run.ID.String(), items, targets), nil
 }
 
+// PreviewEmail returns the rendered HTML of the latest briefing without sending it.
+// Used by admin to preview email layout in a browser.
+func (s *Service) PreviewEmail(ctx context.Context, userID string) (string, error) {
+	run, err := s.collectorSvc.GetLatestRun(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get latest run: %w", err)
+	}
+	if run.Status != collector.RunStatusSuccess {
+		return "", fmt.Errorf("latest run is not completed (status: %s)", run.Status)
+	}
+
+	items, err := s.collectorSvc.GetContextItems(ctx, run.ID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get context items: %w", err)
+	}
+	if len(items) == 0 {
+		return "", fmt.Errorf("no context items available")
+	}
+
+	brainCats := s.loadBrainCategories(ctx)
+	levelInfo := s.loadUserLevel(ctx, userID)
+
+	var subscriptions []string
+	user, err := s.repo.GetEligibleUserByID(ctx, userID)
+	if err == nil && user != nil {
+		subscriptions = user.Subscriptions
+	}
+
+	message := FormatMessage(items, subscriptions, brainCats, s.frontendURL, levelInfo, nil)
+	return message.HTMLBody, nil
+}
+
 // ForceDeliverToUser sends the latest briefing to a single user, bypassing idempotency.
 // Used for admin testing — always sends regardless of prior delivery logs.
 func (s *Service) ForceDeliverToUser(ctx context.Context, userID string) (*DeliveryResult, error) {

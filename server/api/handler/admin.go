@@ -171,9 +171,28 @@ func (h *AdminHandler) SendTestEmail(c *gin.Context) {
 	})
 }
 
+// PreviewEmail handles GET /api/v1/admin/delivery/preview
+// Returns the rendered email HTML directly so admins can preview it in a browser.
+func (h *AdminHandler) PreviewEmail(c *gin.Context) {
+	if h.deliveryService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "delivery service not available"})
+		return
+	}
+
+	userID := c.GetString("userID")
+	html, err := h.deliveryService.PreviewEmail(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
 func (h *AdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/collect", h.TriggerCollection)
 	group.POST("/delivery/send-test", h.SendTestEmail)
+	group.GET("/delivery/preview", h.PreviewEmail)
 	group.POST("/level/set-coins", h.SetLevelCoins)
 	group.POST("/level/create-mock-item", h.CreateMockOTAItem)
 
