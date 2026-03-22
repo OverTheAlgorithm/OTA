@@ -46,9 +46,18 @@ func decodePendingSignup(raw any) (PendingSignup, bool) {
 	if p, ok := raw.(PendingSignup); ok {
 		return p, true
 	}
-	b, err := json.Marshal(raw)
-	if err != nil {
-		return PendingSignup{}, false
+	var b []byte
+	switch data := raw.(type) {
+	case []byte:
+		b = data
+	case string:
+		b = []byte(data)
+	default:
+		var err error
+		b, err = json.Marshal(raw)
+		if err != nil {
+			return PendingSignup{}, false
+		}
 	}
 	var p PendingSignup
 	if err := json.Unmarshal(b, &p); err != nil {
