@@ -74,9 +74,9 @@ func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, co
 	var newTotal int
 	err = tx.QueryRow(ctx, `
 		INSERT INTO user_points (user_id, points, updated_at)
-		VALUES ($1, LEAST($2, $3), NOW())
+		VALUES ($1, LEAST($2::int, $3::int), NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
-			points = LEAST(user_points.points + $2, $3),
+			points = LEAST(user_points.points + $2::int, $3::int),
 			updated_at = NOW()
 		RETURNING points
 	`, userID, coins, effectiveCap).Scan(&newTotal)

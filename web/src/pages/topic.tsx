@@ -37,6 +37,7 @@ type CoinTagState =
   | { kind: "adblock" }
   | { kind: "duplicate" }
   | { kind: "daily_limit" }
+  | { kind: "server_error" }
   | { kind: "countdown"; remaining: number; isPaused: boolean }
   | { kind: "success"; coins: number; leveledUp: boolean; newLevel: number }
   | { kind: "loading" }
@@ -188,6 +189,11 @@ function CoinTag({ state }: { state: CoinTagState }) {
       color = "#231815";
       bgColor = "#e8e8e8";
       break;
+    case "server_error":
+      label = "잠시 후에 다시 시도해주세요";
+      color = "#d94040";
+      bgColor = "rgba(217, 64, 64, 0.12)";
+      break;
     case "countdown":
       label = state.isPaused
         ? "일시정지"
@@ -305,7 +311,7 @@ export function TopicPage() {
         }
       })
       .catch(() => {
-        setCoinTag({ kind: "duplicate" });
+        setCoinTag({ kind: "server_error" });
       });
   }, []);
 
