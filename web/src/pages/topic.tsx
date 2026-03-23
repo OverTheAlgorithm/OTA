@@ -574,11 +574,13 @@ export function TopicPage() {
                   setShowCountdown(null);
                   setCoinTag(null);
                   setShowLeaveModal(false);
-                  if (dest === "__back__") {
-                    goBack();
-                  } else if (dest) {
-                    navigate(dest);
-                  }
+                  setTimeout(() => {
+                    if (dest === "__back__") {
+                      goBack();
+                    } else if (dest) {
+                      navigate(dest);
+                    }
+                  }, 0);
                 }}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-[#231815] border-[2px] border-[#231815] bg-white hover:bg-[#231815]/5 transition-colors"
               >
