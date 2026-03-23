@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Turnstile } from "@marsidev/react-turnstile";
 import {
   fetchTopicDetail,
@@ -229,6 +229,8 @@ export function TopicPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const goBack = () => location.key === "default" ? navigate("/latest") : navigate(-1);
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
   const [coinTag, setCoinTag] = useState<CoinTagState>(null);
@@ -419,7 +421,7 @@ export function TopicPage() {
 
           {/* Back Button */}
           <button
-            onClick={() => isEarning ? setShowLeaveModal(true) : navigate(-1)}
+            onClick={() => isEarning ? setShowLeaveModal(true) : goBack()}
             className="flex items-center gap-2 mb-6 group"
           >
             <svg
@@ -571,7 +573,7 @@ export function TopicPage() {
                   pendingNavRef.current = null;
                   setShowLeaveModal(false);
                   if (dest === "__back__") {
-                    navigate(-1);
+                    goBack();
                   } else if (dest) {
                     navigate(dest);
                   }

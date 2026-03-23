@@ -1,9 +1,17 @@
 {
   "enabledPlugins": {
     "everything-claude-code@everything-claude-code": true
-  
+
   },
-  "env":{  
+  "env":{
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS":"1"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "command": "bash -c 'CMD=$(cat | jq -r \".tool_input.command // empty\"); if echo \"$CMD\" | grep -q \"git push\"; then if git diff origin/main..HEAD --name-only -- web/ 2>/dev/null | grep -q .; then cd /c/Users/BJS/Desktop/projects/OTA/web && npm run build 1>&2 || { echo \"Frontend build failed. Fix errors before pushing.\" 1>&2; exit 2; }; fi; fi'"
+      }
+    ]
   }
 }
