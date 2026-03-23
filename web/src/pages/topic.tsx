@@ -421,7 +421,14 @@ export function TopicPage() {
 
           {/* Back Button */}
           <button
-            onClick={() => isEarning ? setShowLeaveModal(true) : goBack()}
+            onClick={() => {
+              if (isEarning) {
+                pendingNavRef.current = "__back__";
+                setShowLeaveModal(true);
+              } else {
+                goBack();
+              }
+            }}
             className="flex items-center gap-2 mb-6 group"
           >
             <svg
