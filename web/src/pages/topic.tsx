@@ -571,6 +571,8 @@ export function TopicPage() {
                 onClick={() => {
                   const dest = pendingNavRef.current;
                   pendingNavRef.current = null;
+                  setShowCountdown(null);
+                  setCoinTag(null);
                   setShowLeaveModal(false);
                   if (dest === "__back__") {
                     goBack();
