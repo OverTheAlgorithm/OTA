@@ -257,6 +257,8 @@ export function TopicPage() {
     // 2) Browser back/forward buttons → show modal
     window.history.pushState({ earning: true }, "");
     const handlePopState = () => {
+      // Skip if another trigger (button click, link click) already set the destination
+      if (pendingNavRef.current !== null) return;
       pendingNavRef.current = "__back__";
       setShowLeaveModal(true);
     };
@@ -270,6 +272,7 @@ export function TopicPage() {
       if (!href || /^(https?:|mailto:|tel:|#)/.test(href)) return;
       e.preventDefault();
       e.stopPropagation();
+      window.history.back(); // pop dummy entry first
       pendingNavRef.current = href;
       setShowLeaveModal(true);
     };
@@ -423,6 +426,7 @@ export function TopicPage() {
           <button
             onClick={() => {
               if (isEarning) {
+                window.history.back(); // pop dummy entry first
                 pendingNavRef.current = "__back__";
                 setShowLeaveModal(true);
               } else {
