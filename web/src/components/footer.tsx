@@ -30,10 +30,10 @@ export function Footer({ compact = false }: FooterProps) {
         </a>
       ))}
       <a
-        href="mailto:contact@wizletter.kr"
+        href="mailto:mindhacker.admin@gmail.com"
         className="hover:text-[#231815] transition-colors"
       >
-        contact@wizletter.kr
+        mindhacker.admin@gmail.com
       </a>
     </div>
   );
@@ -58,7 +58,7 @@ export function Footer({ compact = false }: FooterProps) {
         <img src="/wl-logo.png" alt="WizLetter" className="w-[220px] opacity-60" />
         <div className="text-xs text-[#231815]/60 text-center space-y-1">
           <p>사업자 등록번호: 798-08-03338 | 주소: 서울특별시 영등포구 여의대방로43다길 19, 1층 101호(신길동)</p>
-          <p>문의: contact@wizletter.kr</p>
+          <p>문의: mindhacker.admin@gmail.com</p>
         </div>
         {links}
         <p className="text-sm text-[#231815]/50">

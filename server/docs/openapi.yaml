@@ -16,7 +16,7 @@ info:
     - Local: `http://localhost:8080`
   version: "1.0.0"
   contact:
-    email: contact@wizletter.kr
+    email: mindhacker.admin@gmail.com
 
 servers:
   - url: https://server.mindhacker.club/api/v1
