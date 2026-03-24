@@ -56,7 +56,7 @@ This order guarantees consistency: the title never promises content that details
 Output ONLY pure JSON. No markdown code fences, no explanations.
 
 {
-  "topic": "[인물/사건] 최종 제목",
+  "topic": "구체적이고 간결한 제목",
   "summary": "1-3문장 요약",
   "detail": "3-5문장 상세",
   "details": [{"title": "핵심 포인트 제목", "content": "2-3문장 상세 설명"}]
