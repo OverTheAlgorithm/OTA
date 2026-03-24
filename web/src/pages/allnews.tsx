@@ -109,6 +109,11 @@ export function AllNewsPage() {
   const [earnMap, setEarnMap] = useState<Record<string, EarnStatusItem>>({});
   const offsetRef = useRef(0);
 
+  // Scroll to top on mount
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // Load filter options once
   useEffect(() => {
     fetchFilterOptions().then(setFilterOptions).catch(() => {});

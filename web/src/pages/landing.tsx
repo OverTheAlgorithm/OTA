@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { KakaoLoginButton, LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
+import { LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
+import { LoginModal } from "@/components/login-modal";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/contexts/auth-context";
 import { fetchRecentTopics, getDefaultImage, getPicsumImage, type TopicPreview } from "@/lib/api";
@@ -157,6 +158,12 @@ export function LandingPage() {
               >
                 이용 방법
               </a>
+              <a
+                href="/allnews"
+                className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+              >
+                모든 소식 보기
+              </a>
             </div>
 
             <div className="hidden md:flex items-center gap-3">
@@ -229,6 +236,13 @@ export function LandingPage() {
               onClick={() => setMenuOpen(false)}
             >
               이용 방법
+            </a>
+            <a
+              href="/allnews"
+              className="text-base font-medium text-[#231815]"
+              onClick={() => setMenuOpen(false)}
+            >
+              모든 소식 보기
             </a>
             {user ? (
               <>
@@ -305,7 +319,7 @@ export function LandingPage() {
       {/* ── 뉴스레터 특징 (비둘기) ── */}
       <section
         id="intro"
-        className="border-t-[3px] border-[#231815] overflow-hidden"
+        className="border-t-[3px] border-[#231815] overflow-hidden scroll-mt-[68px]"
       >
         <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-28 flex flex-col-reverse md:flex-row items-center gap-8 md:gap-16">
           <FadeIn className="flex-shrink-0">
@@ -366,7 +380,7 @@ export function LandingPage() {
       </section>
 
       {/* ── 최신 뉴스 ── */}
-      <section id="news" className="overflow-hidden">
+      <section id="news" className="overflow-hidden scroll-mt-[68px]">
         {recentTopics.length > 0 && (
           <div className="max-w-[1200px] mx-auto px-6 pt-16 pb-8">
             <FadeIn>
@@ -435,7 +449,7 @@ export function LandingPage() {
       {/* ── 이용 방법 ── */}
       <section
         id="howto"
-        className="border-t-[3px] border-b-[3px] border-[#231815] bg-[#fdf9ee] overflow-hidden"
+        className="border-t-[3px] border-b-[3px] border-[#231815] bg-[#fdf9ee] overflow-hidden scroll-mt-[68px]"
       >
         <div className="max-w-[1200px] mx-auto px-6 py-16 md:py-20">
           <FadeIn>
@@ -444,23 +458,23 @@ export function LandingPage() {
             </h2>
           </FadeIn>
 
-          <div className="relative flex flex-col md:flex-row items-start justify-between gap-12 md:gap-0">
+          <div className="relative flex flex-col md:flex-row items-center md:items-start justify-between gap-10 md:gap-0">
             {/* step line (desktop only) */}
-            <div className="hidden md:block absolute top-[72px] left-0 right-0 h-[2px] bg-[#bdbdbd]" />
+            <div className="hidden md:block absolute top-[48px] left-0 right-0 h-[2px] bg-[#bdbdbd]" />
 
             {steps.map((step, i) => (
               <FadeIn
                 key={i}
                 delay={i * 150}
-                className="flex-1 flex flex-col items-center gap-6 relative"
+                className="flex-1 flex flex-col items-center gap-3 md:gap-6 relative"
               >
                 <img
                   src={step.icon}
                   alt={`Step ${i + 1}`}
                   className="w-20 h-20 md:w-24 md:h-24"
                 />
-                <div className="w-5 h-5 rounded-lg bg-[#e36901] relative z-10" />
-                <p className="text-xl md:text-2xl lg:text-[28px] font-semibold text-center leading-snug whitespace-pre-line pt-2">
+                <div className="hidden md:block w-5 h-5 rounded-lg bg-[#e36901] relative z-10" />
+                <p className="text-xl md:text-2xl lg:text-[28px] font-semibold text-center leading-snug whitespace-pre-line">
                   {step.label}
                 </p>
               </FadeIn>
@@ -470,7 +484,7 @@ export function LandingPage() {
       </section>
 
       {/* ── 마무리 CTA ── */}
-      <section className="border-b-[3px] border-[#231815] overflow-hidden">
+      <section className="overflow-hidden">
         <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-28">
           <FadeIn>
             <h2 className="text-3xl md:text-5xl lg:text-[70px] font-semibold leading-snug lg:leading-[108px] tracking-wider">
@@ -494,53 +508,7 @@ export function LandingPage() {
 
       <Footer />
 
-      {/* ── Login Modal ── */}
-      {loginOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
-          onClick={handleCloseLogin}
-        >
-          <div
-            className="relative w-full max-w-sm bg-[#fdf9ee] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={handleCloseLogin}
-              className="absolute top-4 right-4 text-[#231815]/50 hover:text-[#231815] transition-colors"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-
-            <img src="/wl-logo.png" alt="WizLetter" className="w-[140px] md:w-[200px] object-contain" />
-
-            <div className="text-center">
-              <h2 className="text-xl font-bold text-[#231815]">
-                무료로 구독하기
-              </h2>
-              <p className="mt-1 text-sm text-[#231815]/60">
-                매일 아침 5분, 세상의 흐름을 읽는 위즈레터
-              </p>
-            </div>
-
-            {loginError && (
-              <p className="text-sm text-[#ff5442] text-center">
-                로그인에 실패했습니다. 다시 시도해주세요.
-              </p>
-            )}
-
-            <KakaoLoginButton />
-          </div>
-        </div>
-      )}
+      <LoginModal open={loginOpen} onClose={handleCloseLogin} error={!!loginError} />
     </div>
   );
 }
