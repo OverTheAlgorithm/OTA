@@ -23,7 +23,11 @@ export function TermsConsentPage() {
     }
     getActiveTerms()
       .then((list) => {
-        setTerms(list);
+        const sorted = [...list].sort((a, b) => {
+          if (a.required !== b.required) return a.required ? -1 : 1;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+        setTerms(sorted);
         setLoading(false);
       })
       .catch(() => {
@@ -79,7 +83,7 @@ export function TermsConsentPage() {
       style={{ backgroundColor: "var(--color-bg)" }}
     >
       <div className="w-full max-w-md bg-white rounded-[20px] border-[2.5px] border-[#231815] px-8 py-10 space-y-8">
-        <h1 className="text-3xl font-semibold text-[#231815] tracking-tight">
+        <h1 className="text-3xl font-semibold text-[#231815] tracking-tight text-center">
           위즈레터 시작하기
         </h1>
 
