@@ -199,7 +199,6 @@ function EditTermForm({
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!form.url) { onError("URL은 필수입니다"); return; }
     setSubmitting(true);
     try {
       const updated = await updateTerm(term.id, form);
@@ -218,7 +217,7 @@ function EditTermForm({
       <input
         value={form.url}
         onChange={(e) => setForm({ ...form, url: e.target.value })}
-        placeholder="약관 전문 URL"
+        placeholder="약관 전문 URL (선택)"
         className="w-full bg-white border border-[#d4e6f5] rounded-lg px-3 py-2 text-sm text-[#1e3a5f]"
       />
       <textarea
@@ -263,8 +262,8 @@ function CreateTermForm({ onCreated }: { onCreated: () => void }) {
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!form.title || !form.url || !form.version) {
-      setError("제목, URL, 버전은 필수입니다");
+    if (!form.title || !form.version) {
+      setError("제목, 버전은 필수입니다");
       return;
     }
     setError(null);
@@ -302,7 +301,7 @@ function CreateTermForm({ onCreated }: { onCreated: () => void }) {
       <input
         value={form.url}
         onChange={(e) => setForm({ ...form, url: e.target.value })}
-        placeholder="약관 전문 URL (예: https://notion.so/...)"
+        placeholder="약관 전문 URL (선택, 예: https://notion.so/...)"
         className="w-full bg-[#f0f7ff] border border-[#d4e6f5] rounded-lg px-3 py-2 text-sm text-[#1e3a5f]"
       />
       <input

@@ -20,9 +20,6 @@ func (s *Service) CreateTerm(ctx context.Context, t Term) (Term, error) {
 	if t.Title == "" {
 		return Term{}, fmt.Errorf("title is required")
 	}
-	if t.URL == "" {
-		return Term{}, fmt.Errorf("url is required")
-	}
 	if t.Version == "" {
 		return Term{}, fmt.Errorf("version is required")
 	}
@@ -73,9 +70,6 @@ func (s *Service) UpdateTermActive(ctx context.Context, termID string, active bo
 func (s *Service) UpdateTerm(ctx context.Context, termID, url, description string, required bool) (Term, error) {
 	if termID == "" {
 		return Term{}, fmt.Errorf("term ID is required")
-	}
-	if url == "" {
-		return Term{}, fmt.Errorf("url is required")
 	}
 	return s.repo.Update(ctx, termID, url, description, required)
 }

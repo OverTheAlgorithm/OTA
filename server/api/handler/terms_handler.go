@@ -116,10 +116,6 @@ func (h *TermsAdminHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
 		return
 	}
-	if req.URL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "URL은 필수입니다"})
-		return
-	}
 	if req.Required == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "필수 여부는 필수입니다"})
 		return
@@ -153,10 +149,6 @@ func (h *TermsAdminHandler) Create(c *gin.Context) {
 
 	if req.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "제목은 필수입니다"})
-		return
-	}
-	if req.URL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "URL은 필수입니다"})
 		return
 	}
 	if req.Version == "" {

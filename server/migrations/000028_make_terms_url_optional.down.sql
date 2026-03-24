@@ -1,0 +1,2 @@
+UPDATE terms SET url = '' WHERE url IS NULL;
+ALTER TABLE terms ALTER COLUMN url SET NOT NULL;
