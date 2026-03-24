@@ -93,7 +93,7 @@ export function TermsConsentPage() {
           </div>
         )}
 
-        <div className="space-y-5">
+        <div className="space-y-5 px-2 md:px-4">
           {terms.map((term) => {
             const url = termUrl(term);
             return (
