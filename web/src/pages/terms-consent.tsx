@@ -122,7 +122,6 @@ export function TermsConsentPage() {
                     ) : (
                       term.title
                     )}{" "}
-                    동의{" "}
                     <span className="text-[#525252]">
                       ({term.required ? "필수" : "선택"})
                     </span>
