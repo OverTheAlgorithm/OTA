@@ -9,6 +9,8 @@ import (
 	"ota/domain/level"
 )
 
+var kst = time.FixedZone("KST", 9*60*60)
+
 // categoryDisplay maps category keys to Korean labels with emoji for email card badges.
 var categoryDisplay = map[string]string{
 	"general":       "📰 일반",
@@ -198,7 +200,7 @@ func renderBrainCategoryTab(emoji, label string) string {
 
 // renderNewsCards renders a list of news item cards.
 func renderNewsCards(items []collector.ContextItem, frontendURL string, preferred bool, msgCtx *MessageContext) string {
-	today := time.Now().Format("2006.01.02")
+	today := time.Now().In(kst).Format("2006.01.02")
 	var rows strings.Builder
 	for _, item := range items {
 		rows.WriteString(renderNewsCard(item, frontendURL, preferred, msgCtx, today))
@@ -275,7 +277,7 @@ func renderCoinPill(coins int, href string) string {
 
 func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) string {
 	logoURL := frontendURL + "/wl-logo.png?v=2"
-	today := time.Now().Format("2006.01.02")
+	today := time.Now().In(kst).Format("2006.01.02")
 	dateTitle := today + "의 위즈레터"
 	levelCardRow := renderHeaderLevelRow(levelInfo, frontendURL)
 
@@ -326,21 +328,15 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
 
       <!-- Footer -->
       <tr><td style="padding-top:36px;text-align:center;">
-        <table cellpadding="0" cellspacing="0" border="0" align="center">
-          <tr><td style="background-color:#5bc2d9;border-radius:11px;padding:4px 16px;">
-            <p style="margin:0;font-size:12px;font-weight:700;color:#231815;">WizLetter</p>
-          </td></tr>
-        </table>
+        <img src="%s/wl-logo.png?v=2" alt="WizLetter" width="160" style="display:inline-block;opacity:0.6;" />
         <p style="margin:14px 0 6px;font-size:11px;color:#231815;line-height:1.7;">
-          사업자 등록번호: 000-00-00000 &nbsp;&nbsp; 주소: 서울특별시 강남구 테헤란로 000, 00층 &nbsp;&nbsp; 문의: contact@wizletter.kr
+          사업자 등록번호: 798-08-03338 | 주소: 서울특별시 영등포구 여의대방로43다길 19, 1층 101호(신길동)
         </p>
         <p style="margin:0 0 6px;font-size:11px;color:#231815;">
-          <a href="%s/terms" style="color:#231815;text-decoration:none;">이용약관</a>
-          &nbsp;|&nbsp;
-          <a href="%s/privacy" style="color:#231815;text-decoration:none;">개인정보처리방침</a>
+          문의: <a href="mailto:mindhacker.admin@gmail.com" style="color:#231815;">mindhacker.admin@gmail.com</a>
         </p>
         <p style="margin:0;font-size:11px;color:#231815;">
-          &copy; 2026 WizLetter All rights reserved.
+          &copy; 2026 WizLetter. All rights reserved.
         </p>
       </td></tr>
 
@@ -348,7 +344,7 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
   </td></tr>
 </table>
 </body>
-</html>`, logoURL, dateTitle, levelCardRow, infoText, content, frontendURL, frontendURL)
+</html>`, logoURL, dateTitle, levelCardRow, infoText, content, frontendURL)
 }
 
 // renderHeaderLevelRow returns a full <tr> for the level card.
