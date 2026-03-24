@@ -34,7 +34,6 @@ export function TermsConsentPage() {
 
   const requiredIds = terms.filter((t) => t.required).map((t) => t.id);
   const allRequiredAgreed = requiredIds.every((id) => agreed.has(id));
-  const allAgreed = terms.length > 0 && terms.every((t) => agreed.has(t.id));
 
   const toggleTerm = (id: string) => {
     setAgreed((prev) => {
@@ -43,14 +42,6 @@ export function TermsConsentPage() {
       else next.add(id);
       return next;
     });
-  };
-
-  const toggleAll = () => {
-    if (allAgreed) {
-      setAgreed(new Set());
-    } else {
-      setAgreed(new Set(terms.map((t) => t.id)));
-    }
   };
 
   const handleSubmit = async () => {
@@ -69,6 +60,11 @@ export function TermsConsentPage() {
     }
   };
 
+  const termUrl = (term: Term): string | null => {
+    if (!term.url) return null;
+    return term.url.match(/^https?:\/\//) ? term.url : `https://${term.url}`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -82,15 +78,10 @@ export function TermsConsentPage() {
       className="min-h-screen flex items-center justify-center p-4"
       style={{ backgroundColor: "var(--color-bg)" }}
     >
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold text-[#1e3a5f]">
-            서비스 이용 약관
-          </h1>
-          <p className="text-sm text-[#6b8db5]">
-            서비스 이용을 위해 아래 약관에 동의해주세요.
-          </p>
-        </div>
+      <div className="w-full max-w-md bg-white rounded-[20px] border-[2.5px] border-[#231815] px-8 py-10 space-y-8">
+        <h1 className="text-3xl font-semibold text-[#231815] tracking-tight">
+          위즈레터 시작하기
+        </h1>
 
         {error && (
           <div className="rounded-xl border border-[#ff5442]/30 bg-[#ff5442]/10 p-4 text-sm text-[#ff5442]">
@@ -98,77 +89,68 @@ export function TermsConsentPage() {
           </div>
         )}
 
-        <div className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] overflow-hidden">
-          {/* Toggle all */}
-          <label className="flex items-center gap-3 px-5 py-4 border-b border-[#d4e6f5] cursor-pointer hover:bg-[#e8f4fd] transition-colors">
-            <input
-              type="checkbox"
-              checked={allAgreed}
-              onChange={toggleAll}
-              className="w-5 h-5 rounded accent-[#4a9fe5]"
-            />
-            <span className="text-sm font-semibold text-[#1e3a5f]">
-              전체 동의
-            </span>
-          </label>
-
-          {/* Individual terms */}
-          {terms.map((term) => (
-            <label
-              key={term.id}
-              className="flex items-start gap-3 px-5 py-3.5 border-b border-[#d4e6f5] last:border-b-0 cursor-pointer hover:bg-[#e8f4fd] transition-colors"
-            >
-              <input
-                type="checkbox"
-                checked={agreed.has(term.id)}
-                onChange={() => toggleTerm(term.id)}
-                className="w-5 h-5 rounded accent-[#4a9fe5] mt-0.5 flex-shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-[#1e3a5f]">
-                    {term.title}
+        <div className="space-y-5">
+          {terms.map((term) => {
+            const url = termUrl(term);
+            return (
+              <label
+                key={term.id}
+                className="flex items-start gap-3 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={agreed.has(term.id)}
+                  onChange={() => toggleTerm(term.id)}
+                  className="w-[22px] h-[22px] rounded-md border-[#a8a8a8] accent-[#231815] mt-0.5 flex-shrink-0"
+                />
+                <div className="flex flex-col">
+                  <span className="text-sm text-[#231815] leading-snug">
+                    {url ? (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="underline hover:opacity-70"
+                      >
+                        {term.title}
+                      </a>
+                    ) : (
+                      term.title
+                    )}{" "}
+                    동의{" "}
+                    <span className="text-[#525252]">
+                      ({term.required ? "필수" : "선택"})
+                    </span>
                   </span>
-                  <span className="text-[10px] text-[#94a3b8]">
-                    v{term.version}
-                  </span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                      term.required
-                        ? "bg-[#ff5442]/10 text-[#ff5442]"
-                        : "bg-[#d4e6f5] text-[#6b8db5]"
-                    }`}
-                  >
-                    {term.required ? "필수" : "선택"}
-                  </span>
+                  {term.description && (
+                    <span className="text-xs text-[#525252] mt-0.5">
+                      {term.description}
+                    </span>
+                  )}
                 </div>
-                {term.description && (
-                  <p className="text-xs text-[#6b8db5] mt-0.5">
-                    {term.description}
-                  </p>
-                )}
-                <a
-                  href={term.url.match(/^https?:\/\//) ? term.url : `https://${term.url}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-xs text-[#4a9fe5] hover:underline mt-0.5 inline-block"
-                >
-                  전문 보기
-                </a>
-              </div>
-            </label>
-          ))}
+              </label>
+            );
+          })}
         </div>
 
-        <button
-          onClick={handleSubmit}
-          disabled={!allRequiredAgreed || submitting}
-          className="w-full py-3.5 rounded-xl font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: "var(--color-button-primary)" }}
-        >
-          {submitting ? "처리 중..." : "동의하고 가입하기"}
-        </button>
+        <div className="space-y-3">
+          <button
+            onClick={handleSubmit}
+            disabled={!allRequiredAgreed || submitting}
+            className="w-full py-3.5 rounded-xl font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "var(--color-button-primary)" }}
+          >
+            {submitting ? "처리 중..." : "동의하고 가입하기"}
+          </button>
+
+          <button
+            onClick={() => navigate("/")}
+            className="w-full py-3.5 rounded-xl font-semibold text-[#525252] border border-[#a8a8a8] bg-white hover:bg-[#f5f5f5] transition-colors"
+          >
+            돌아가기
+          </button>
+        </div>
 
         {!allRequiredAgreed && terms.length > 0 && (
           <p className="text-xs text-center text-[#ff5442]">
