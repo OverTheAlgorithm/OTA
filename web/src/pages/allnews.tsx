@@ -9,8 +9,7 @@ import {
   fetchAllTopics,
   fetchFilterOptions,
   batchEarnStatus,
-  getDefaultImage,
-  getPicsumImage,
+  defaultImage,
   type TopicPreview,
   type FilterOptions,
   type FilterType,
@@ -55,12 +54,11 @@ function NewsCard({
     <Link to={`/topic/${topic.id}`} className="group block">
       <div className="aspect-[16/10] overflow-hidden rounded-xl bg-[#f0ece0] mb-3">
         <img
-          src={topic.image_url || getPicsumImage(topic.id)}
+          src={topic.image_url || defaultImage}
           alt={topic.topic}
           className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform] group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
-            const fallback = getDefaultImage(topic.id);
-            if (e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
+            if (e.currentTarget.src !== defaultImage) e.currentTarget.src = defaultImage;
           }}
         />
       </div>
@@ -98,9 +96,12 @@ export function AllNewsPage() {
     categories: [],
     brain_categories: [],
   });
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter>({
-    type: "",
-    value: "",
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>(() => {
+    try {
+      const saved = sessionStorage.getItem("allnews_filter");
+      if (saved) return JSON.parse(saved) as ActiveFilter;
+    } catch { /* ignore */ }
+    return { type: "", value: "" };
   });
   const [topics, setTopics] = useState<TopicPreview[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -173,11 +174,12 @@ export function AllNewsPage() {
   }, [activeFilter, loadTopics]);
 
   const handleFilterChange = (type: FilterType, value: string) => {
-    if (activeFilter.type === type && activeFilter.value === value) {
-      setActiveFilter({ type: "", value: "" });
-    } else {
-      setActiveFilter({ type, value });
-    }
+    const next: ActiveFilter =
+      activeFilter.type === type && activeFilter.value === value
+        ? { type: "", value: "" }
+        : { type, value };
+    sessionStorage.setItem("allnews_filter", JSON.stringify(next));
+    setActiveFilter(next);
   };
 
   const handleLoadMore = () => {
