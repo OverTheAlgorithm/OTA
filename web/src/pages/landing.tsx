@@ -4,7 +4,7 @@ import { LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
 import { LoginModal } from "@/components/login-modal";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/contexts/auth-context";
-import { fetchRecentTopics, getDefaultImage, getPicsumImage, type TopicPreview } from "@/lib/api";
+import { fetchRecentTopics, defaultImage, type TopicPreview } from "@/lib/api";
 
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -71,10 +71,8 @@ export function LandingPage() {
   useEffect(() => {
     if (!user) return;
     const redirectPath = localStorage.getItem(LOGIN_REDIRECT_KEY);
-    if (redirectPath) {
-      localStorage.removeItem(LOGIN_REDIRECT_KEY);
-      navigate(redirectPath, { replace: true });
-    }
+    localStorage.removeItem(LOGIN_REDIRECT_KEY);
+    navigate(redirectPath || "/latest", { replace: true });
   }, [user, navigate]);
 
   const [recentTopics, setRecentTopics] = useState<TopicPreview[]>([]);
@@ -398,12 +396,11 @@ export function LandingPage() {
                 <div className="border-b-[3px] border-[#231815] flex flex-col md:flex-row">
                   <div className="md:w-[42%] aspect-[16/9] md:aspect-auto overflow-hidden bg-[#f0ece0] flex items-center justify-center">
                     <img
-                      src={news.image_url || getPicsumImage(news.id)}
+                      src={news.image_url || defaultImage}
                       alt={news.topic}
                       className="w-full h-full object-contain [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
                       onError={(e) => {
-                        const fallback = getDefaultImage(news.id);
-                        if (e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
+                        if (e.currentTarget.src !== defaultImage) e.currentTarget.src = defaultImage;
                       }}
                     />
                   </div>

@@ -57,7 +57,7 @@ export function TermsConsentPage() {
       await refreshUser();
       const redirectPath = localStorage.getItem(LOGIN_REDIRECT_KEY);
       localStorage.removeItem(LOGIN_REDIRECT_KEY);
-      navigate(redirectPath || "/", { replace: true });
+      navigate(redirectPath || "/latest", { replace: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "회원가입에 실패했습니다");
       setSubmitting(false);
