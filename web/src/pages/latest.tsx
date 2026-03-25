@@ -10,8 +10,7 @@ import {
   getBrainCategories,
   getSubscriptions,
   batchEarnStatus,
-  getDefaultImage,
-  getPicsumImage,
+  defaultImage,
   type TopicPreview,
   type BrainCategory,
   type EarnStatusItem,
@@ -89,12 +88,11 @@ function NewsItem({
       <div className="flex flex-col sm:flex-row">
         <div className="sm:w-[180px] sm:flex-shrink-0 aspect-[16/10] sm:aspect-auto overflow-hidden bg-[#f0ece0]">
           <img
-            src={topic.image_url || getPicsumImage(topic.id)}
+            src={topic.image_url || defaultImage}
             alt=""
             className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
             onError={(e) => {
-              const fallback = getDefaultImage(topic.id);
-              if (e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
+              if (e.currentTarget.src !== defaultImage) e.currentTarget.src = defaultImage;
             }}
           />
         </div>
