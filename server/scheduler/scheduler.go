@@ -12,17 +12,11 @@ import (
 	"ota/domain/delivery"
 )
 
-// CleanupRunner runs data-retention cleanup jobs.
-type CleanupRunner interface {
-	RunAll(ctx context.Context)
-}
-
-// Scheduler manages all scheduled tasks (collection, delivery, retry, cleanup)
+// Scheduler manages all scheduled tasks (collection, delivery, retry)
 type Scheduler struct {
 	cron             *cron.Cron
 	collectorService *collector.Service
 	deliveryService  *delivery.Service
-	cleanupRunner    CleanupRunner
 }
 
 // New creates a new Scheduler
@@ -34,17 +28,10 @@ func New(collectorService *collector.Service, deliveryService *delivery.Service)
 	}
 }
 
-// WithCleanup registers a CleanupRunner that will be invoked daily at 3 AM KST.
-func (s *Scheduler) WithCleanup(r CleanupRunner) *Scheduler {
-	s.cleanupRunner = r
-	return s
-}
-
 // Start registers all cron jobs and starts the scheduler.
 //
 // Schedule (all times KST = UTC+9):
 //
-//	Cleanup:    3:00 AM              (data retention: trending, runs, delivery logs)
 //	Collection: 4 AM, 5 AM, 6 AM    (multiple attempts to ensure data ready)
 //	Delivery:   7:00 AM, 7:15 AM    (primary + fallback)
 //	Retry:      7:30 AM, 8:00 AM, 8:30 AM (30min intervals, max 3 retries)
@@ -70,13 +57,6 @@ func (s *Scheduler) Start() error {
 	for _, schedule := range retrySchedules {
 		if _, err := s.cron.AddFunc(schedule, s.retryFailed); err != nil {
 			return fmt.Errorf("failed to schedule retry (%s): %w", schedule, err)
-		}
-	}
-
-	// Cleanup: 3:00 AM KST → 18:00 UTC
-	if s.cleanupRunner != nil {
-		if _, err := s.cron.AddFunc("0 18 * * *", s.cleanup); err != nil {
-			return fmt.Errorf("failed to schedule cleanup: %w", err)
 		}
 	}
 
@@ -132,12 +112,3 @@ func (s *Scheduler) retryFailed() {
 	}
 	slog.Info("retry completed", "total", result.TotalUsers, "success", result.SuccessCount, "failed", result.FailureCount)
 }
-
-func (s *Scheduler) cleanup() {
-	slog.Info("starting data retention cleanup")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	s.cleanupRunner.RunAll(ctx)
-	slog.Info("data retention cleanup completed")
-}
-

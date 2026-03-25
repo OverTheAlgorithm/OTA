@@ -240,16 +240,14 @@ func main() {
 	)
 	withdrawalService := withdrawal.NewService(withdrawalRepo, coinManager, cfg.MinWithdrawalAmount)
 
-	// Scheduler + data retention cleanup
-	cleanupRepo := storage.NewCleanupRepository(pool)
+	// Scheduler
 	sched := scheduler.New(collectorService, deliveryService)
-	sched.WithCleanup(cleanupRepo)
 	if err := sched.Start(); err != nil {
 		slog.Error("failed to start scheduler", "error", err)
 		os.Exit(1)
 	}
 	defer sched.Stop()
-	slog.Info("scheduler started", "schedule", "collection 4-6AM delivery 7AM retry 7:30-8:30AM cleanup 3AM KST")
+	slog.Info("scheduler started", "schedule", "collection 4-6AM delivery 7AM retry 7:30-8:30AM KST")
 
 	// Terms of service
 	termsRepo := storage.NewTermsRepository(pool)
