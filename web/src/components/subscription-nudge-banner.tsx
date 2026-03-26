@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import {
   getDeliveryChannels,
@@ -20,9 +20,12 @@ function dismissForWeek() {
   localStorage.setItem(DISMISS_KEY, String(Date.now() + oneWeek));
 }
 
+const HIDDEN_PATHS = ["/email-verification", "/mypage"];
+
 export function SubscriptionNudgeBanner() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const [channels, setChannels] = useState<ChannelPreference[] | null>(null);
   const [dismissed, setDismissed] = useState(false);
@@ -44,6 +47,7 @@ export function SubscriptionNudgeBanner() {
 
   // Don't render conditions
   if (authLoading || !user || dismissed) return null;
+  if (HIDDEN_PATHS.some((p) => pathname.startsWith(p))) return null;
   if (channels === null) return null; // still loading
   const hasEnabledChannel = channels.some((ch) => ch.enabled);
   if (hasEnabledChannel) return null;
