@@ -352,7 +352,7 @@ export function TermsConsentPage() {
 
           {/* Skip Nudge (Frame 1040) */}
           {modalStep === "skip-nudge" && (
-            <div className="relative w-full max-w-[660px] bg-white rounded-[40px] border border-black/10 px-10 py-12 md:px-16 md:py-14">
+            <div className="relative w-full max-w-[820px] bg-white rounded-[40px] border border-black/10 px-10 py-12 md:px-16 md:py-14">
               <button
                 onClick={goToFinalDestination}
                 className="absolute top-6 right-7 w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#f5f5f5] transition-colors"
