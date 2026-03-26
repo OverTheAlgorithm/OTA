@@ -66,6 +66,79 @@ function groupByBrainCategory(
   return groups;
 }
 
+function selectMainArticle(
+  topics: TopicPreview[],
+  brainCategories: BrainCategory[],
+  earnMap: Record<string, EarnStatusItem>,
+  isLoggedIn: boolean,
+): TopicPreview | null {
+  // Walk brain categories in display order, find first earnable topic
+  for (const bc of brainCategories) {
+    for (const topic of topics) {
+      if ((topic.brain_category ?? "") !== bc.key) continue;
+      if (!isLoggedIn) return topic; // not logged in — just pick first
+      const status = earnMap[topic.id];
+      if (!status || status.status === "PENDING") return topic;
+    }
+  }
+  // Fallback: any ungrouped earnable topic
+  for (const topic of topics) {
+    if (!isLoggedIn) return topic;
+    const status = earnMap[topic.id];
+    if (!status || status.status === "PENDING") return topic;
+  }
+  return null;
+}
+
+function HeroArticle({
+  topic,
+  earnStatus,
+}: {
+  topic: TopicPreview;
+  earnStatus?: EarnStatusItem;
+}) {
+  const categoryLabel = topic.category ? CATEGORY_LABELS[topic.category] ?? topic.category : "";
+
+  return (
+    <Link
+      to={`/topic/${topic.id}`}
+      className="group block border-[2px] border-[#231815] rounded-2xl overflow-hidden hover:shadow-lg transition-shadow bg-white"
+    >
+      <div className="aspect-[2/1] sm:aspect-[5/2] overflow-hidden bg-[#f0ece0]">
+        <img
+          src={topic.image_url || defaultImage}
+          alt=""
+          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300 [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
+          onError={(e) => {
+            if (e.currentTarget.src !== defaultImage) e.currentTarget.src = defaultImage;
+          }}
+        />
+      </div>
+      <div className="p-5 sm:p-6">
+        <div className="flex items-center gap-2 mb-2">
+          {topic.created_at && (
+            <span className="text-xs font-bold text-[#231815]">
+              {formatDate(topic.created_at)}
+            </span>
+          )}
+          {categoryLabel && (
+            <span className="text-xs font-bold text-[#231815]">
+              {categoryLabel}
+            </span>
+          )}
+          {earnStatus && <CoinTag status={earnStatus} />}
+        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-[#231815] leading-snug line-clamp-2 group-hover:opacity-70 transition-opacity">
+          {topic.topic}
+        </h2>
+        <p className="text-sm text-[#231815]/70 mt-2 leading-relaxed line-clamp-3">
+          {topic.summary}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
 function NewsItem({
   topic,
   earnStatus,
@@ -176,15 +249,21 @@ export function LatestPage() {
       })
     : topics;
 
-  // Split into preferred/non-preferred (only for logged-in users)
-  const preferredTopics = user
-    ? filteredTopics.filter((t) =>
-        isPreferredTopic(t.priority ?? "", t.category ?? "", subscriptions),
-      )
+  // Select main (hero) article
+  const mainArticle = selectMainArticle(filteredTopics, brainCategories, earnMap, !!user);
+  const remainingTopics = mainArticle
+    ? filteredTopics.filter((t) => t.id !== mainArticle.id)
     : filteredTopics;
 
+  // Split into preferred/non-preferred (only for logged-in users)
+  const preferredTopics = user
+    ? remainingTopics.filter((t) =>
+        isPreferredTopic(t.priority ?? "", t.category ?? "", subscriptions),
+      )
+    : remainingTopics;
+
   const nonPreferredTopics = user
-    ? filteredTopics.filter(
+    ? remainingTopics.filter(
         (t) => !isPreferredTopic(t.priority ?? "", t.category ?? "", subscriptions),
       )
     : [];
@@ -237,6 +316,16 @@ export function LatestPage() {
               </label>
             )}
           </div>
+
+          {/* Main (hero) article */}
+          {mainArticle && (
+            <div className="mb-10">
+              <HeroArticle
+                topic={mainArticle}
+                earnStatus={earnMap[mainArticle.id]}
+              />
+            </div>
+          )}
 
           {filteredTopics.length === 0 ? (
             <div className="text-center py-20">
