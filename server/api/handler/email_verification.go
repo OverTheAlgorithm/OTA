@@ -72,11 +72,11 @@ func (h *EmailVerificationHandler) SendCode(c *gin.Context) {
 	}
 
 	// Send the verification email
-	subject := "[OTA] 이메일 인증 코드"
-	textBody := fmt.Sprintf("OTA 이메일 인증 코드: %s\n\n이 코드는 5분간 유효합니다.", result.Code)
+	subject := "[위즈레터] 이메일 인증 코드"
+	textBody := fmt.Sprintf("위즈레터 이메일 인증 코드: %s\n\n이 코드는 5분간 유효합니다.", result.Code)
 	htmlBody := fmt.Sprintf(`
 		<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
-			<h2 style="color: #333;">OTA 이메일 인증</h2>
+			<h2 style="color: #333;">위즈레터 이메일 인증</h2>
 			<p>아래 인증 코드를 입력해주세요:</p>
 			<div style="background: #f5f5f5; padding: 16px; text-align: center; border-radius: 8px; margin: 16px 0;">
 				<span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">%s</span>
