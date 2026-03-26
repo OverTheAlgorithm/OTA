@@ -208,7 +208,7 @@ func renderNewsCards(items []collector.ContextItem, frontendURL string, preferre
 	return rows.String()
 }
 
-// renderNewsCard renders a single news card with optional thumbnail.
+// renderNewsCard renders a single news card with image on top, text below.
 func renderNewsCard(item collector.ContextItem, frontendURL string, preferred bool, msgCtx *MessageContext, date string) string {
 	catLabel := getCategoryLabel(item.Category)
 	coins := calcCoinsForLink(preferred, msgCtx)
@@ -223,45 +223,39 @@ func renderNewsCard(item collector.ContextItem, frontendURL string, preferred bo
 		summary = string([]rune(summary)[:117]) + "..."
 	}
 
-	// Build content cell
-	var content strings.Builder
-	content.WriteString(fmt.Sprintf(`
-                <table width="100%%" cellpadding="0" cellspacing="0" border="0">
-                  <tr>
-                    <td style="vertical-align:middle;">
-                      <p style="margin:0;font-size:12px;font-weight:700;color:#231815;">%s</p>
-                    </td>
-                    <td align="right" style="vertical-align:middle;">%s</td>
-                  </tr>
-                </table>
-                <p style="margin:6px 0 4px;font-size:11px;font-weight:700;color:#231815;">%s</p>`,
-		catLabel, coinPill, date))
-
-	content.WriteString(fmt.Sprintf(`
-                <a href="%s" style="text-decoration:none;">
-                  <p style="margin:0 0 6px;font-size:15px;font-weight:600;color:#000000;line-height:1.4;">%s</p>
-                </a>
-                <p style="margin:0;font-size:13px;color:#231815;line-height:1.5;">%s</p>`,
-		href, item.Topic, summary))
-
-	// Determine image URL: server image or picsum fallback
-	imageURL := fmt.Sprintf("https://picsum.photos/seed/%s/400/250", item.ID.String())
+	// Determine image URL: server image or default
+	imageURL := fmt.Sprintf("%s/wizletter_default.png", frontendURL)
 	if item.ImagePath != nil && *item.ImagePath != "" {
 		imageURL = fmt.Sprintf("%s/api/v1/images/%s", frontendURL, *item.ImagePath)
 	}
 
 	return fmt.Sprintf(`
       <tr><td style="padding:10px 0;">
-        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #231815;border-radius:8px;">
+        <a href="%s" style="text-decoration:none;display:block;">
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #231815;border-radius:8px;overflow:hidden;">
           <tr>
-            <td width="180"
-                style="width:180px;background-image:url('%s');background-size:cover;background-position:center;border-radius:7px 0 0 7px;padding:0;margin:0;font-size:0;line-height:0;">
-              <a href="%s" style="text-decoration:none;display:block;width:180px;min-height:1px;">&nbsp;</a>
+            <td style="padding:0;font-size:0;line-height:0;">
+              <img src="%s" alt="" width="600" style="display:block;width:100%%;height:auto;border-radius:7px 7px 0 0;" />
             </td>
-            <td valign="top" style="padding:12px 16px;">%s</td>
+          </tr>
+          <tr>
+            <td style="padding:14px 18px;">
+              <table width="100%%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <span style="font-size:13px;font-weight:700;color:#231815;">%s</span>
+                  </td>
+                  <td align="right" style="vertical-align:middle;">%s</td>
+                </tr>
+              </table>
+              <p style="margin:6px 0 4px;font-size:13px;font-weight:700;color:#231815;">%s</p>
+              <p style="margin:0 0 6px;font-size:16px;font-weight:600;color:#000000;line-height:1.4;">%s</p>
+              <p style="margin:0;font-size:13px;color:#231815;line-height:1.5;">%s</p>
+            </td>
           </tr>
         </table>
-      </td></tr>`, imageURL, href, content.String())
+        </a>
+      </td></tr>`, href, imageURL, date, coinPill, catLabel, item.Topic, summary)
 }
 
 // renderCoinPill renders the "+N포인트" or "획득!" pill button.
@@ -303,9 +297,9 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
   오늘 사람들이 가장 많이 이야기하고 있는 소식을 모아왔어요.
   &#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;
 </div>
-<table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fdf9ee;">
+<table width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fdf9ee;">
   <tr><td align="center" style="padding:32px 16px 48px;">
-    <table width="100%%%%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+    <table width="100%%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
 
       <!-- Logo -->
       <tr><td style="padding-bottom:8px;">
@@ -376,10 +370,10 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
 
 	return fmt.Sprintf(`
       <tr><td style="padding-bottom:16px;">
-        <table width="100%%%%" cellpadding="0" cellspacing="0" border="0"
+        <table width="100%%" cellpadding="0" cellspacing="0" border="0"
                style="background-color:#ffffff;border:2px solid #231815;border-radius:22px;">
           <tr><td style="padding:14px;">
-            <table width="100%%%%" cellpadding="0" cellspacing="0" border="0">
+            <table width="100%%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td width="78" valign="middle" style="vertical-align:middle;">
                   <!--[if mso]>
@@ -399,7 +393,7 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
                     <span style="font-size:11px;font-weight:700;color:#231815;"> 포인트</span>
                   </p>
                   <div style="margin-top:6px;background-color:#e8f4fd;border-radius:7px;border:1px solid #c0c0c0;height:12px;">
-                    <div style="background-color:#43b9d6;border-radius:7px;height:12px;width:%d%%%%;">&nbsp;</div>
+                    <div style="background-color:#43b9d6;border-radius:7px;height:12px;width:%d%%;">&nbsp;</div>
                   </div>
                   <p style="margin:4px 0 0;font-size:11px;font-weight:700;color:#231815;">%s 포인트를 더 모으면 레벨업!</p>
                   <p style="margin:1px 0 0;font-size:11px;font-weight:700;color:#231815;text-align:right;">%s / %s</p>
