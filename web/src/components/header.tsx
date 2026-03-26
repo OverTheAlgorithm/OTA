@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { LoginModal } from "./login-modal";
+import { SubscriptionNudgeBanner } from "./subscription-nudge-banner";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -145,6 +146,8 @@ export function Header() {
           </div>
         )}
       </header>
+
+      <SubscriptionNudgeBanner />
 
       <LoginModal
         open={loginOpen}

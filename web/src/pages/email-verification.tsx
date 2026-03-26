@@ -1,12 +1,19 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
-import { sendVerificationCode, verifyEmailCode } from "@/lib/api";
+import {
+  sendVerificationCode,
+  verifyEmailCode,
+  getDeliveryChannels,
+  updateDeliveryChannels,
+} from "@/lib/api";
 import { Header } from "@/components/header";
 
 export function EmailVerificationPage() {
   const { refreshUser } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const autoSubscribe = searchParams.get("auto_subscribe") === "true";
 
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
@@ -48,7 +55,19 @@ export function EmailVerificationPage() {
     try {
       await verifyEmailCode(code);
       await refreshUser();
-      navigate("/mypage?tab=settings", { replace: true });
+      if (autoSubscribe) {
+        const existing = await getDeliveryChannels();
+        const hasEmail = existing.some((ch) => ch.channel === "email");
+        const merged = hasEmail
+          ? existing.map((ch) =>
+              ch.channel === "email" ? { ...ch, enabled: true } : ch
+            )
+          : [...existing, { channel: "email", enabled: true }];
+        await updateDeliveryChannels(merged);
+        navigate("/mypage", { replace: true });
+      } else {
+        navigate("/mypage?tab=settings", { replace: true });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "인증 코드 확인에 실패했습니다");
     } finally {
