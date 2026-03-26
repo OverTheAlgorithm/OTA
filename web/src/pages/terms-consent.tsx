@@ -352,18 +352,18 @@ export function TermsConsentPage() {
 
           {/* Skip Nudge (Frame 1040) */}
           {modalStep === "skip-nudge" && (
-            <div className="relative w-full max-w-[520px] bg-white rounded-[30px] border border-black/10 px-10 py-12 md:px-14 md:py-16">
+            <div className="relative w-full max-w-[660px] bg-white rounded-[40px] border border-black/10 px-10 py-12 md:px-16 md:py-14">
               <button
                 onClick={goToFinalDestination}
-                className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#f5f5f5] transition-colors"
+                className="absolute top-6 right-7 w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#f5f5f5] transition-colors"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#231815" strokeWidth="2.5" strokeLinecap="round">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#231815" strokeWidth="2.5" strokeLinecap="round">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </button>
 
-              <div className="space-y-6">
-                <h2 className="text-2xl md:text-3xl font-semibold text-[#000] leading-snug">
+              <div className="space-y-5 pr-8">
+                <h2 className="text-[28px] md:text-[36px] font-semibold text-[#000] leading-[1.25]">
                   잠깐!{" "}
                   <br />
                   이메일을 인증하지 않으면{" "}
@@ -371,7 +371,7 @@ export function TermsConsentPage() {
                   매일 아침 최신 소식을 받을 수 없어요!
                 </h2>
 
-                <p className="text-base md:text-lg text-[#000] leading-relaxed">
+                <p className="text-[15px] md:text-[18px] text-[#000] leading-[1.5]">
                   위즈레터를 구독하시면 복잡한 소식을 간결하게 요약해서,{" "}
                   <br className="hidden md:block" />
                   매일 아침 7시에 보내드립니다.
