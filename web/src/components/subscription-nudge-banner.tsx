@@ -83,8 +83,8 @@ export function SubscriptionNudgeBanner() {
   };
 
   return (
-    <div className="w-full bg-white border-b border-black/10">
-      <div className="max-w-[1200px] mx-auto px-6 py-5 relative">
+    <div className="w-full">
+      <div className="max-w-[900px] mx-auto px-6 py-5 relative">
         {/* Close button */}
         <button
           onClick={handleClose}
