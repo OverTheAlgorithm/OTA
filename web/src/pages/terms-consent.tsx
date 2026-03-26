@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { getActiveTerms, completeSignup, type Term } from "@/lib/api";
+import {
+  getActiveTerms,
+  completeSignup,
+  sendVerificationCode,
+  verifyEmailCode,
+  type Term,
+} from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import { LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
+
+type ModalStep = "none" | "email-input" | "code-input" | "skip-nudge";
 
 export function TermsConsentPage() {
   const [searchParams] = useSearchParams();
@@ -15,6 +23,13 @@ export function TermsConsentPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Email verification modal state
+  const [modalStep, setModalStep] = useState<ModalStep>("none");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState("");
 
   useEffect(() => {
     if (!signupKey) {
@@ -48,6 +63,12 @@ export function TermsConsentPage() {
     });
   };
 
+  const goToFinalDestination = () => {
+    const redirectPath = localStorage.getItem(LOGIN_REDIRECT_KEY);
+    localStorage.removeItem(LOGIN_REDIRECT_KEY);
+    navigate(redirectPath || "/latest", { replace: true });
+  };
+
   const handleSubmit = async () => {
     if (!signupKey || !allRequiredAgreed) return;
     setSubmitting(true);
@@ -55,12 +76,50 @@ export function TermsConsentPage() {
     try {
       await completeSignup(signupKey, Array.from(agreed));
       await refreshUser();
-      const redirectPath = localStorage.getItem(LOGIN_REDIRECT_KEY);
-      localStorage.removeItem(LOGIN_REDIRECT_KEY);
-      navigate(redirectPath || "/latest", { replace: true });
+      setModalStep("email-input");
     } catch (e) {
       setError(e instanceof Error ? e.message : "회원가입에 실패했습니다");
       setSubmitting(false);
+    }
+  };
+
+  const handleSendCode = async () => {
+    const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      setModalError("올바른 이메일 형식을 입력해주세요");
+      return;
+    }
+    setModalLoading(true);
+    setModalError("");
+    try {
+      await sendVerificationCode(email);
+      setModalStep("code-input");
+    } catch (err) {
+      setModalError(
+        err instanceof Error ? err.message : "인증 코드 전송에 실패했습니다"
+      );
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (code.length !== 6) {
+      setModalError("6자리 인증 코드를 입력해주세요");
+      return;
+    }
+    setModalLoading(true);
+    setModalError("");
+    try {
+      await verifyEmailCode(code);
+      await refreshUser();
+      goToFinalDestination();
+    } catch (err) {
+      setModalError(
+        err instanceof Error ? err.message : "인증 코드 확인에 실패했습니다"
+      );
+    } finally {
+      setModalLoading(false);
     }
   };
 
@@ -161,6 +220,187 @@ export function TermsConsentPage() {
           </p>
         )}
       </div>
+
+      {/* Email verification modals */}
+      {modalStep !== "none" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          {/* Modal 1: Email Input */}
+          {modalStep === "email-input" && (
+            <div className="relative w-full max-w-[500px] bg-white rounded-[30px] px-10 py-12 md:px-14 md:py-16">
+              <button
+                onClick={() => setModalStep("skip-nudge")}
+                className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#f5f5f5] transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#231815" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+
+              <h2 className="text-4xl md:text-5xl font-semibold text-[#231815] tracking-tight leading-tight mb-8">
+                이메일 인증하기
+              </h2>
+
+              <div className="space-y-6">
+                <div>
+                  <label htmlFor="signup-email" className="block text-sm font-medium text-[#231815] mb-2">
+                    이메일 주소
+                  </label>
+                  <input
+                    id="signup-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="example@email.com"
+                    className="w-full px-6 py-4 bg-white border border-[#bdc4cd] rounded-xl text-[#231815] text-base placeholder-[#96a0ad] focus:outline-none focus:border-[#43b9d6] transition-colors"
+                    disabled={modalLoading}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSendCode();
+                    }}
+                  />
+                </div>
+
+                {modalError && (
+                  <p className="text-sm text-[#ff5442]">{modalError}</p>
+                )}
+
+                <button
+                  onClick={handleSendCode}
+                  disabled={modalLoading}
+                  className="w-full py-4 rounded-full text-lg font-semibold bg-[#43b9d6] text-[#231815] border-[2px] border-[#231815] hover:brightness-110 disabled:opacity-50 transition-all"
+                >
+                  {modalLoading ? "전송 중..." : "인증번호 보내기"}
+                </button>
+
+                <button
+                  onClick={() => setModalStep("skip-nudge")}
+                  className="block mx-auto text-sm font-medium text-[#3d3d3d] hover:underline"
+                >
+                  건너뛰기
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Modal 2: Code Verification */}
+          {modalStep === "code-input" && (
+            <div className="relative w-full max-w-[500px] bg-white rounded-[30px] px-10 py-12 md:px-14 md:py-16">
+              <button
+                onClick={goToFinalDestination}
+                className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#f5f5f5] transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#231815" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+
+              <h2 className="text-4xl md:text-5xl font-semibold text-[#231815] tracking-tight leading-tight mb-4">
+                이메일 인증하기
+              </h2>
+
+              <p className="text-[15px] text-[#231815] mb-8">
+                {email}로 인증 코드를 전송했습니다
+              </p>
+
+              <div className="space-y-6">
+                <div>
+                  <label htmlFor="signup-code" className="block text-sm font-medium text-[#231815] mb-2">
+                    인증 코드 (6자리)
+                  </label>
+                  <input
+                    id="signup-code"
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="000000"
+                    className="w-full px-6 py-4 bg-white border border-[#bdc4cd] rounded-xl text-[#231815] text-base placeholder-[#96a0ad] focus:outline-none focus:border-[#43b9d6] transition-colors"
+                    disabled={modalLoading}
+                    maxLength={6}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleVerifyCode();
+                    }}
+                  />
+                </div>
+
+                {modalError && (
+                  <p className="text-sm text-[#ff5442]">{modalError}</p>
+                )}
+
+                <div className="space-y-3">
+                  <button
+                    onClick={handleVerifyCode}
+                    disabled={modalLoading || code.length !== 6}
+                    className="w-full py-4 rounded-full text-lg font-semibold bg-[#43b9d6] text-[#231815] border-[2px] border-[#231815] hover:brightness-110 disabled:opacity-50 transition-all"
+                  >
+                    {modalLoading ? "확인 중..." : "인증 완료"}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setModalStep("email-input");
+                      setCode("");
+                      setModalError("");
+                    }}
+                    disabled={modalLoading}
+                    className="w-full py-4 rounded-full text-lg font-semibold bg-white text-[#231815] border-[2px] border-[#231815] hover:bg-[#f5f5f5] disabled:opacity-50 transition-all"
+                  >
+                    이메일 다시 입력하기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Skip Nudge (Frame 1040) */}
+          {modalStep === "skip-nudge" && (
+            <div className="relative w-full max-w-[520px] bg-white rounded-[30px] border border-black/10 px-10 py-12 md:px-14 md:py-16">
+              <button
+                onClick={goToFinalDestination}
+                className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#f5f5f5] transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#231815" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+
+              <div className="space-y-6">
+                <h2 className="text-2xl md:text-3xl font-semibold text-[#000] leading-snug">
+                  잠깐!{" "}
+                  <br />
+                  이메일을 인증하지 않으면{" "}
+                  <br />
+                  매일 아침 최신 소식을 받을 수 없어요!
+                </h2>
+
+                <p className="text-base md:text-lg text-[#000] leading-relaxed">
+                  위즈레터를 구독하시면 복잡한 소식을 간결하게 요약해서,{" "}
+                  <br className="hidden md:block" />
+                  매일 아침 7시에 보내드립니다.
+                  <br />
+                  이메일 인증을 완료하고 슬기로운 아침을 시작해 보세요!
+                </p>
+              </div>
+
+              <div className="flex gap-4 mt-10">
+                <button
+                  onClick={goToFinalDestination}
+                  className="flex-1 py-4 rounded-full text-lg font-semibold bg-white text-[#231815] border-[2px] border-[#231815] hover:bg-[#f5f5f5] transition-all"
+                >
+                  닫기
+                </button>
+                <button
+                  onClick={() => {
+                    setModalStep("email-input");
+                    setModalError("");
+                  }}
+                  className="flex-1 py-4 rounded-full text-lg font-semibold bg-[#43b9d6] text-[#231815] border-[2px] border-[#231815] hover:brightness-110 transition-all"
+                >
+                  이메일 인증하기
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
