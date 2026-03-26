@@ -68,12 +68,45 @@ func LoggerMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 }
 
 func CORSMiddleware(frontendURL string) gin.HandlerFunc {
-	origins := strings.Split(frontendURL, ",")
-	for i, o := range origins {
-		origins[i] = strings.TrimSpace(o)
+	// Extract allowed base domains from FRONTEND_URL (comma-separated).
+	// Each entry like "https://mindhacker.club" allows the domain itself
+	// and all its subdomains (e.g. https://wizletter.mindhacker.club).
+	type allowedDomain struct {
+		scheme string
+		host   string
 	}
+	var domains []allowedDomain
+	for _, raw := range strings.Split(frontendURL, ",") {
+		u := strings.TrimSpace(raw)
+		if u == "" {
+			continue
+		}
+		scheme := "https"
+		host := u
+		if strings.HasPrefix(u, "https://") {
+			host = u[len("https://"):]
+		} else if strings.HasPrefix(u, "http://") {
+			scheme = "http"
+			host = u[len("http://"):]
+		}
+		domains = append(domains, allowedDomain{scheme: scheme, host: host})
+	}
+
 	return cors.New(cors.Config{
-		AllowOrigins:     origins,
+		AllowOriginFunc: func(origin string) bool {
+			for _, d := range domains {
+				allowed := d.scheme + "://" + d.host
+				if origin == allowed {
+					return true
+				}
+				// Allow subdomains: origin ends with ".host" and has correct scheme
+				suffix := "." + d.host
+				if strings.HasPrefix(origin, d.scheme+"://") && strings.HasSuffix(origin, suffix) {
+					return true
+				}
+			}
+			return false
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,

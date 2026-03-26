@@ -2,9 +2,7 @@ server.mindhacker.club {
 	# Block requests from unknown origins (Gin handles CORS headers)
 	@has_wrong_origin {
 		header Origin *
-		not header Origin https://overthealgorithm.mindhacker.club
-		not header Origin https://wizletter.mindhacker.club
-		not header Origin https://mindhacker.club
+		not header_regexp Origin ^https://([a-zA-Z0-9-]+\.)?mindhacker\.club$
 	}
 	respond @has_wrong_origin "Forbidden" 403
 
