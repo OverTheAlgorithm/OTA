@@ -208,6 +208,21 @@ export function LatestPage() {
   const [loading, setLoading] = useState(true);
   const [unearnedOnly, setUnearnedOnly] = useState(false);
 
+  // Save scroll position on scroll (throttled)
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        sessionStorage.setItem("latest_scroll", String(window.scrollY));
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   useEffect(() => {
     Promise.all([
       fetchLatestRunTopics(),
@@ -229,7 +244,13 @@ export function LatestPage() {
         }
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        const saved = sessionStorage.getItem("latest_scroll");
+        if (saved) {
+          requestAnimationFrame(() => window.scrollTo(0, Number(saved)));
+        }
+      });
 
     if (user) {
       getSubscriptions().then(setSubscriptions).catch(() => {});

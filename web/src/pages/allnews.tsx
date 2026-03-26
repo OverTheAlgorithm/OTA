@@ -109,15 +109,34 @@ export function AllNewsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [earnMap, setEarnMap] = useState<Record<string, EarnStatusItem>>({});
   const offsetRef = useRef(0);
-
-  // Scroll to top on mount
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+  const restoringRef = useRef(false);
 
   // Load filter options once
   useEffect(() => {
     fetchFilterOptions().then(setFilterOptions).catch(() => {});
+  }, []);
+
+  // Save scroll position on scroll (throttled)
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        sessionStorage.setItem("allnews_scroll", String(window.scrollY));
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Restore scroll after data loads
+  const restoreScroll = useCallback(() => {
+    const saved = sessionStorage.getItem("allnews_scroll");
+    if (saved) {
+      requestAnimationFrame(() => window.scrollTo(0, Number(saved)));
+    }
   }, []);
 
   // Build brain category lookup map
@@ -128,16 +147,17 @@ export function AllNewsPage() {
 
   // Load topics when filter changes
   const loadTopics = useCallback(
-    async (filter: ActiveFilter, append = false) => {
+    async (filter: ActiveFilter, append = false, restoreCount = 0) => {
       if (!append) setLoading(true);
       else setLoadingMore(true);
 
       const offset = append ? offsetRef.current : 0;
+      const limit = restoreCount > 0 ? restoreCount : PAGE_SIZE;
       try {
         const { data, has_more } = await fetchAllTopics(
           filter.type,
           filter.value,
-          PAGE_SIZE,
+          limit,
           offset,
         );
         if (append) {
@@ -147,6 +167,7 @@ export function AllNewsPage() {
         }
         setHasMore(has_more);
         offsetRef.current = offset + data.length;
+        sessionStorage.setItem("allnews_count", String(offsetRef.current));
 
         // Batch earn status for logged-in users
         if (user && data.length > 0) {
@@ -164,13 +185,23 @@ export function AllNewsPage() {
       } finally {
         setLoading(false);
         setLoadingMore(false);
+        if (restoringRef.current) {
+          restoringRef.current = false;
+          restoreScroll();
+        }
       }
     },
-    [user],
+    [user, restoreScroll],
   );
 
   useEffect(() => {
-    loadTopics(activeFilter);
+    const savedCount = sessionStorage.getItem("allnews_count");
+    if (savedCount && Number(savedCount) > PAGE_SIZE) {
+      restoringRef.current = true;
+      loadTopics(activeFilter, false, Number(savedCount));
+    } else {
+      loadTopics(activeFilter);
+    }
   }, [activeFilter, loadTopics]);
 
   const handleFilterChange = (type: FilterType, value: string) => {
@@ -179,6 +210,8 @@ export function AllNewsPage() {
         ? { type: "", value: "" }
         : { type, value };
     sessionStorage.setItem("allnews_filter", JSON.stringify(next));
+    sessionStorage.removeItem("allnews_count");
+    sessionStorage.removeItem("allnews_scroll");
     setActiveFilter(next);
   };
 
