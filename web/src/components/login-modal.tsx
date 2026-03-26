@@ -36,9 +36,9 @@ export function LoginModal({ open, onClose, redirectPath, error }: LoginModalPro
         </button>
 
         <img
-          src="/wl-logo.png"
+          src="/wl-logo-square.png"
           alt="WizLetter"
-          className="w-[140px] md:w-[200px] object-contain"
+          className="w-[80px] md:w-[100px] object-contain"
         />
 
         <div className="text-center">
