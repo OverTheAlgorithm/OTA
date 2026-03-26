@@ -68,8 +68,12 @@ func LoggerMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 }
 
 func CORSMiddleware(frontendURL string) gin.HandlerFunc {
+	origins := strings.Split(frontendURL, ",")
+	for i, o := range origins {
+		origins[i] = strings.TrimSpace(o)
+	}
 	return cors.New(cors.Config{
-		AllowOrigins:     []string{frontendURL},
+		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
