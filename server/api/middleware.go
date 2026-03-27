@@ -97,7 +97,7 @@ func CORSMiddleware(frontendURL string) gin.HandlerFunc {
 	for _, d := range domains {
 		parsedDomains += "\n" + d.scheme + "://" + d.host + "\n"
 	}
-	slog.Info("[CORS middleware] Frontend URL: %s Parsed Domains: %s", frontendURL, parsedDomains)
+	slog.Info(fmt.Sprintf("[CORS middleware] Frontend URL: %s Parsed Domains: %s", frontendURL, parsedDomains))
 
 	return cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
