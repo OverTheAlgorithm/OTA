@@ -7,12 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"ota/auth"
+	"ota/domain/user"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	limiter "github.com/ulule/limiter/v3"
-	"ota/auth"
-	"ota/domain/user"
 )
 
 // RequestIDMiddleware ensures every request has a unique X-Request-ID header.
@@ -105,6 +106,7 @@ func CORSMiddleware(frontendURL string) gin.HandlerFunc {
 					return true
 				}
 			}
+			slog.Warn(fmt.Sprintf("Not allowed origin request detected: %s", origin))
 			return false
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},

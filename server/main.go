@@ -59,7 +59,6 @@ func (a *levelServiceAdapter) GetLevel(ctx context.Context, userID string) (deli
 	}, nil
 }
 
-
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -426,7 +425,7 @@ func main() {
 		slog.Info("server starting", "port", cfg.ServerPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server listen error", "error", err)
-		os.Exit(1)
+			os.Exit(1)
 		}
 	}()
 
