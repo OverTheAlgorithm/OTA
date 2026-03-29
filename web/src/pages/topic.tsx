@@ -240,6 +240,11 @@ export function TopicPage() {
   const [loginOpen, setLoginOpen] = useState(false);
   const [showCountdown, setShowCountdown] = useState<{ seconds: number; topicId: string } | null>(null);
 
+  // Scroll to top on mount
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // Block navigation while coin earning is in progress
   const isEarning = showCountdown !== null || coinTag?.kind === "loading";
   const [showLeaveModal, setShowLeaveModal] = useState(false);

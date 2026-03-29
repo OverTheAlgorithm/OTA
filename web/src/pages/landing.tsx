@@ -78,16 +78,34 @@ export function LandingPage() {
   const [recentTopics, setRecentTopics] = useState<TopicPreview[]>([]);
 
   useEffect(() => {
-    fetchRecentTopics().then(setRecentTopics).catch(() => setRecentTopics([]));
+    fetchRecentTopics()
+      .then(setRecentTopics)
+      .catch(() => setRecentTopics([]))
+      .finally(() => {
+        const saved = sessionStorage.getItem("landing_scroll");
+        if (saved) {
+          requestAnimationFrame(() => window.scrollTo(0, Number(saved)));
+        }
+      });
   }, []);
 
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
 
+  // Save scroll position (throttled) + track header scroll state
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
+    let ticking = false;
+    const onScroll = () => {
+      setScrolled(window.scrollY > 20);
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        sessionStorage.setItem("landing_scroll", String(window.scrollY));
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
