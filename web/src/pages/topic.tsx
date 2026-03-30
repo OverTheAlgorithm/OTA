@@ -16,6 +16,7 @@ import { UserLevelCard } from "@/components/user-level-card";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { LoginPromptModal, isLoginPromptDismissed } from "@/components/login-prompt-modal";
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
 
@@ -238,6 +239,14 @@ export function TopicPage() {
   const [error, setError] = useState<"not_found" | "server_error" | null>(null);
   const [loading, setLoading] = useState(true);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
+
+  // Show login prompt modal for non-logged-in users (unless dismissed for a day)
+  useEffect(() => {
+    if (!user && !isLoginPromptDismissed()) {
+      setLoginPromptOpen(true);
+    }
+  }, [user]);
   const [showCountdown, setShowCountdown] = useState<{ seconds: number; topicId: string } | null>(null);
 
   // Scroll to top on mount
@@ -616,6 +625,14 @@ export function TopicPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Login Prompt Modal (non-logged-in users) ── */}
+      {loginPromptOpen && (
+        <LoginPromptModal
+          redirectPath={`/topic/${id}`}
+          onClose={() => setLoginPromptOpen(false)}
+        />
       )}
 
       {/* ── Login Modal ── */}
