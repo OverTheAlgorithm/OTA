@@ -29,12 +29,6 @@ export function Footer({ compact = false }: FooterProps) {
           {t.title.replace(/ 동의$/, "")}
         </a>
       ))}
-      <a
-        href="mailto:mindhacker.admin@gmail.com"
-        className="hover:text-[#231815] transition-colors"
-      >
-        mindhacker.admin@gmail.com
-      </a>
     </div>
   );
 
@@ -44,6 +38,7 @@ export function Footer({ compact = false }: FooterProps) {
         <div className="max-w-2xl mx-auto flex flex-col items-center gap-3">
           <img src="/wl-logo.png" alt="WizLetter" className="w-[160px] opacity-60" />
           {links}
+          <p className="text-xs text-[#231815]/60">문의: mindhacker.admin@gmail.com</p>
           <p className="text-xs text-[#231815]/50">
             &copy; 2026 WizLetter. All rights reserved.
           </p>
