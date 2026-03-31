@@ -265,6 +265,33 @@ export function TopicPage() {
     window.scrollTo(0, 0);
   }, []);
 
+  // Anti-cheat: block right-click & DevTools shortcuts on the topic page only (production)
+  useEffect(() => {
+    if (!import.meta.env.PROD) return;
+
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F12") {
+        e.preventDefault();
+        return;
+      }
+      if (e.ctrlKey && e.shiftKey && ["I", "J", "C"].includes(e.key)) {
+        e.preventDefault();
+        return;
+      }
+      if (e.ctrlKey && e.key === "u") {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("contextmenu", handleContextMenu);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   // Block navigation while coin earning is in progress
   const isEarning = showCountdown !== null || coinTag?.kind === "loading";
   const [showLeaveModal, setShowLeaveModal] = useState(false);
