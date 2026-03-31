@@ -44,7 +44,7 @@ export function LoginPromptModal({ redirectPath, onClose }: LoginPromptModalProp
         </button>
 
         {/* Guide text */}
-        <img src="/wl-logo-square.png" alt="WizLetter" className="w-14 h-14 rounded-full object-cover" />
+        <img src="/wl-logo-square.png" alt="WizLetter" className="w-14 h-14 rounded-xl object-contain" />
         <div className="text-center">
           <h2 className="text-lg font-bold text-[#231815]">
             로그인하고 기사를 읽으면<br />포인트를 획득할 수 있어요!

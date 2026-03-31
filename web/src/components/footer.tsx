@@ -18,7 +18,7 @@ export function Footer({ compact = false }: FooterProps) {
         compact ? "gap-x-4 text-xs" : "gap-x-6 text-sm"
       } text-[#231815]/60`}
     >
-      {terms.map((t) => (
+      {terms.filter((t) => t.title === "개인정보 처리방침 동의" || t.title === "서비스 이용약관 동의").map((t) => (
         <a
           key={t.id}
           href={t.url.match(/^https?:\/\//) ? t.url : `https://${t.url}`}
@@ -26,7 +26,7 @@ export function Footer({ compact = false }: FooterProps) {
           rel="noopener noreferrer"
           className="hover:text-[#231815] transition-colors"
         >
-          {t.title}
+          {t.title.replace(/ 동의$/, "")}
         </a>
       ))}
       <a

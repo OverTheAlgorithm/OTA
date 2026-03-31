@@ -235,7 +235,7 @@ function CoinTag({ state }: { state: CoinTagState }) {
 
 export function TopicPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const goBack = () => location.key === "default" ? navigate("/latest") : navigate(-1);
@@ -249,11 +249,15 @@ export function TopicPage() {
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
 
   // Show login prompt modal for non-logged-in users (unless dismissed for a day)
+  // Wait for auth to finish loading to avoid flash, and close when user becomes available
   useEffect(() => {
-    if (!user && !isLoginPromptDismissed()) {
+    if (authLoading) return;
+    if (user) {
+      setLoginPromptOpen(false);
+    } else if (!isLoginPromptDismissed()) {
       setLoginPromptOpen(true);
     }
-  }, [user]);
+  }, [user, authLoading]);
   const [showCountdown, setShowCountdown] = useState<{ seconds: number; topicId: string } | null>(null);
 
   // Scroll to top on mount
@@ -310,9 +314,13 @@ export function TopicPage() {
       window.removeEventListener("popstate", handlePopState);
       document.removeEventListener("click", handleLinkClick, true);
       // Pop dummy history entry if it's still on the stack (e.g. earn completed normally)
+      // Disable scroll restoration to prevent browser from jumping to top
       if (dummyHistoryPushedRef.current) {
         dummyHistoryPushedRef.current = false;
+        const prev = history.scrollRestoration;
+        history.scrollRestoration = "manual";
         window.history.back();
+        setTimeout(() => { history.scrollRestoration = prev; }, 0);
       }
     };
   }, [isEarning]);
