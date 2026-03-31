@@ -537,7 +537,7 @@ export function TopicPage() {
               <div className="flex justify-center mb-8">
                 <img
                   src={topic.image_url}
-                  alt=""
+                  alt={topic.topic}
                   className="rounded-xl max-h-[400px] object-cover [image-rendering:-webkit-optimize-contrast] [will-change:transform]"
                   onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
                 />
