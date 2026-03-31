@@ -30,6 +30,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   health: "건강",
 };
 
+// ── GTM DataLayer helper ─────────────────────────────────────────────────────
+
+function gtmPush(event: string, params: Record<string, unknown>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ((window as any).dataLayer ??= []).push({ event, ...params });
+}
+
 // ── Coin tag states (priority order) ─────────────────────────────────────────
 
 type CoinTagState =
@@ -259,6 +266,7 @@ export function TopicPage() {
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   const pendingNavRef = useRef<string | null>(null);
+  const dummyHistoryPushedRef = useRef(false);
 
   useEffect(() => {
     if (!isEarning) return;
@@ -270,7 +278,9 @@ export function TopicPage() {
 
     // 2) Browser back/forward buttons → show modal
     window.history.pushState({ earning: true }, "");
+    dummyHistoryPushedRef.current = true;
     const handlePopState = () => {
+      dummyHistoryPushedRef.current = false;
       // Skip if another trigger (button click, link click) already set the destination
       if (pendingNavRef.current !== null) return;
       pendingNavRef.current = "__back__";
@@ -286,6 +296,7 @@ export function TopicPage() {
       if (!href || /^(https?:|mailto:|tel:|#)/.test(href)) return;
       e.preventDefault();
       e.stopPropagation();
+      dummyHistoryPushedRef.current = false;
       window.history.back(); // pop dummy entry first
       pendingNavRef.current = href;
       setShowLeaveModal(true);
@@ -298,10 +309,18 @@ export function TopicPage() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("popstate", handlePopState);
       document.removeEventListener("click", handleLinkClick, true);
+      // Pop dummy history entry if it's still on the stack (e.g. earn completed normally)
+      if (dummyHistoryPushedRef.current) {
+        dummyHistoryPushedRef.current = false;
+        window.history.back();
+      }
     };
   }, [isEarning]);
 
   const earnCalledRef = useRef(false);
+  const dwellSecondsRef = useRef(0);
+  const topicCategoryRef = useRef("");
+
   const handleCountdownComplete = useCallback((topicId: string, turnstileToken: string) => {
     // Guard against double-fire (rAF + useEffect race)
     if (earnCalledRef.current) return;
@@ -309,6 +328,7 @@ export function TopicPage() {
 
     setShowCountdown(null);
     setCoinTag({ kind: "loading" });
+    gtmPush("ad_dwell_complete", { topic_id: topicId, dwell_seconds: dwellSecondsRef.current, category: topicCategoryRef.current });
 
     earnCoin(topicId, turnstileToken)
       .then((result) => {
@@ -319,18 +339,18 @@ export function TopicPage() {
             leveledUp: result.leveled_up,
             newLevel: result.new_level,
           });
+          gtmPush("coin_earn", { topic_id: topicId, coins: result.coins_earned, category: topicCategoryRef.current });
           setLevelRefreshKey((k) => k + 1);
           setTimeout(() => setCoinTag({ kind: "duplicate" }), 3000);
         } else {
-          setCoinTag(
-            result.reason === "EXPIRED"
-              ? { kind: "expired" }
-              : { kind: "duplicate" }
-          );
+          const reason = result.reason === "EXPIRED" ? "expired" : "duplicate";
+          setCoinTag(reason === "expired" ? { kind: "expired" } : { kind: "duplicate" });
+          gtmPush("coin_earn_fail", { topic_id: topicId, reason, category: topicCategoryRef.current });
         }
       })
       .catch(() => {
         setCoinTag({ kind: "server_error" });
+        gtmPush("coin_earn_fail", { topic_id: topicId, reason: "server_error", category: topicCategoryRef.current });
       });
   }, []);
 
@@ -338,7 +358,7 @@ export function TopicPage() {
     if (!id) return;
 
     fetchTopicDetail(id)
-      .then(setTopic)
+      .then((t) => { setTopic(t); topicCategoryRef.current = t.category || ""; })
       .catch((e: Error) => {
         setError(e.message === "not_found" ? "not_found" : "server_error");
       })
@@ -354,23 +374,31 @@ export function TopicPage() {
     detectAdBlock().then((blocked) => {
       if (blocked) {
         setCoinTag({ kind: "adblock" });
+        gtmPush("coin_earn_fail", { topic_id: id, reason: "adblock", category: topicCategoryRef.current });
         return;
       }
 
       initEarn(id)
         .then((result) => {
           switch (result.status) {
-            case "PENDING":
-              setShowCountdown({ seconds: result.required_seconds ?? 10, topicId: id });
+            case "PENDING": {
+              const secs = result.required_seconds ?? 10;
+              dwellSecondsRef.current = secs;
+              setShowCountdown({ seconds: secs, topicId: id });
+              gtmPush("ad_dwell_start", { topic_id: id, required_seconds: secs, category: topicCategoryRef.current });
               break;
+            }
             case "EXPIRED":
               setCoinTag({ kind: "expired" });
+              gtmPush("coin_earn_fail", { topic_id: id, reason: "expired", category: topicCategoryRef.current });
               break;
             case "DUPLICATE":
               setCoinTag({ kind: "duplicate" });
+              gtmPush("coin_earn_fail", { topic_id: id, reason: "duplicate", category: topicCategoryRef.current });
               break;
             case "DAILY_LIMIT":
               setCoinTag({ kind: "daily_limit" });
+              gtmPush("coin_earn_fail", { topic_id: id, reason: "daily_limit", category: topicCategoryRef.current });
               break;
           }
         })
@@ -440,6 +468,7 @@ export function TopicPage() {
           <button
             onClick={() => {
               if (isEarning) {
+                dummyHistoryPushedRef.current = false;
                 window.history.back(); // pop dummy entry first
                 pendingNavRef.current = "__back__";
                 setShowLeaveModal(true);
@@ -594,6 +623,7 @@ export function TopicPage() {
             <div className="flex gap-3 w-full">
               <button
                 onClick={() => {
+                  gtmPush("ad_dwell_abandon", { topic_id: id, required_seconds: dwellSecondsRef.current, category: topicCategoryRef.current });
                   const dest = pendingNavRef.current;
                   pendingNavRef.current = null;
                   setShowCountdown(null);
@@ -617,6 +647,7 @@ export function TopicPage() {
                   setShowLeaveModal(false);
                   // Re-push dummy entry so next browser-back is caught again
                   window.history.pushState({ earning: true }, "");
+                  dummyHistoryPushedRef.current = true;
                 }}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-[#231815] border-[2px] border-[#231815] bg-[#43b9d6] hover:brightness-110 transition-all"
               >
