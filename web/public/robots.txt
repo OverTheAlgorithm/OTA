@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://overthealgorithm.mindhacker.club/sitemap.xml
+Sitemap: https://wizletter.mindhacker.club/sitemap.xml
