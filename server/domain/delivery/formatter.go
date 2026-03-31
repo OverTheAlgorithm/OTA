@@ -99,7 +99,11 @@ func FormatMessage(items []collector.ContextItem, subscriptions []string, brainC
 }
 
 func generateSubject(items []collector.ContextItem) string {
-	return fmt.Sprintf("위즈레터 | 오늘의 소식 %d가지", len(items))
+	mainTopic := ""
+	if len(items) > 0 {
+		mainTopic = items[0].Topic
+	}
+	return fmt.Sprintf("[🔥오늘의 필수 소식 %d가지]: %s", len(items), mainTopic)
 }
 
 func generateTextBody(preferred, nonPreferred []collector.ContextItem, brainCategories []collector.BrainCategory, frontendURL string, msgCtx *MessageContext) string {
