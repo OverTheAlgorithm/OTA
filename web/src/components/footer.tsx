@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getActiveTerms, type Term } from "@/lib/api";
 
 interface FooterProps {
@@ -29,6 +30,9 @@ export function Footer({ compact = false }: FooterProps) {
           {t.title.replace(/ 동의$/, "")}
         </a>
       ))}
+      <Link to="/cookie-policy" className="hover:text-[#231815] transition-colors">
+        쿠키 정책
+      </Link>
     </div>
   );
 

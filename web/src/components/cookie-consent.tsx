@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 
 const CONSENT_KEY = "wl_cookie_consent";
 
@@ -23,16 +24,12 @@ export function CookieConsent() {
     <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between gap-4 border-t border-[#231815] bg-[#fdf9ee] px-4 py-3 sm:px-6">
       <p className="text-sm text-[#231815]">
         이 웹사이트는 서비스 개선을 위해 쿠키를 사용합니다.{" "}
-        <a
-          href="#footer"
+        <Link
+          to="/cookie-policy"
           className="underline underline-offset-2 hover:text-[#43b9d6]"
-          onClick={(e) => {
-            e.preventDefault();
-            document.getElementById("footer")?.scrollIntoView({ behavior: "smooth" });
-          }}
         >
           자세히 보기
-        </a>
+        </Link>
       </p>
       <button
         onClick={handleConsent}

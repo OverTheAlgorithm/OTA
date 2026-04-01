@@ -14,6 +14,7 @@ import { AdminTermsPage } from "@/pages/admin-terms";
 import { AdminCoinsPage } from "@/pages/admin-coins";
 import { TermsConsentPage } from "@/pages/terms-consent";
 import { AllNewsPage } from "@/pages/allnews";
+import { CookiePolicyPage } from "@/pages/cookie-policy";
 import { LatestPage } from "@/pages/latest";
 import { NotFoundPage } from "@/pages/not-found";
 
@@ -42,6 +43,7 @@ function App() {
           <Route path="/terms-consent" element={<ErrorBoundary><TermsConsentPage /></ErrorBoundary>} />
           <Route path="/mypage" element={<ErrorBoundary><MypagePage /></ErrorBoundary>} />
           <Route path="/withdrawal" element={<ErrorBoundary><WithdrawalPage /></ErrorBoundary>} />
+          <Route path="/cookie-policy" element={<ErrorBoundary><CookiePolicyPage /></ErrorBoundary>} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         <CookieConsent />
