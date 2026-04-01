@@ -297,18 +297,21 @@ export function LandingPage() {
           <div className="flex-1 flex flex-col justify-center py-12 md:py-0">
             <FadeIn>
               <h1 className="text-4xl md:text-5xl lg:text-[74px] font-semibold leading-tight lg:leading-[90px] tracking-tight">
-                매일 아침 5분,
+                개인화에 갇힌 알고리즘 너머
                 <br />
-                세상의 흐름을 읽는 위즈레터
+                진짜 세상을 읽고 포인트까지
               </h1>
             </FadeIn>
 
             <FadeIn delay={100}>
               <p className="mt-6 text-lg md:text-xl lg:text-[22px] font-semibold leading-relaxed tracking-wide text-[#231815]/80 max-w-[600px]">
-                복잡한 소식을 간결하게 요약해 드립니다.
+                같은 뉴스만 반복하는 알고리즘 대신, 오늘 무조건 알아야 할
+                소식만 간결하게.
                 <br />
-                출근길, 아침 식사 시간에 세상이 돌아가는 이야기를 빠르게
-                파악하세요.
+                세상이 돌아가는 이야기를 빠르게 파악하세요.
+                <br />
+                위즈레터를 읽으면 용돈이 차곡차곡, 좋은 습관이 작은 수익으로
+                돌아옵니다.
               </p>
             </FadeIn>
 
