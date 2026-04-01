@@ -66,6 +66,28 @@ export function LandingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const loginError = searchParams.get("error");
+  const heroTextRef = useRef<HTMLDivElement>(null);
+  const heroImgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const sync = () => {
+      if (heroTextRef.current && heroImgRef.current) {
+        // Temporarily remove constraint to measure natural content height
+        heroImgRef.current.style.maxHeight = "0px";
+        heroImgRef.current.style.overflow = "hidden";
+        const h = heroTextRef.current.offsetHeight;
+        heroImgRef.current.style.maxHeight = `${h}px`;
+        heroImgRef.current.style.overflow = "";
+      }
+    };
+    // Initial sync after layout settles
+    const timer = setTimeout(sync, 100);
+    window.addEventListener("resize", sync);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", sync);
+    };
+  }, []);
 
   // Redirect to the page where login was initiated (if any)
   useEffect(() => {
@@ -293,7 +315,7 @@ export function LandingPage() {
         id="top"
         className="pt-24 md:pt-16 bg-[#fdf9ee] overflow-hidden"
       >
-        <div className="max-w-[1200px] mx-auto px-6 min-h-[calc(100vh-65px)] flex flex-col justify-center py-12">
+        <div className="max-w-[1200px] mx-auto px-6 flex flex-col justify-center py-12">
           <FadeIn>
             <h1 className="text-4xl md:text-5xl lg:text-[74px] font-semibold leading-tight lg:leading-[90px] tracking-tight text-center">
               개인화에 갇힌 알고리즘 너머
@@ -304,40 +326,43 @@ export function LandingPage() {
 
           <div className="mt-6 md:mt-8 flex flex-col md:flex-row items-center justify-center gap-6 md:gap-8">
             <div className="flex-1 flex flex-col justify-center max-w-[500px]">
-              <FadeIn delay={100}>
-                <p className="text-lg md:text-xl lg:text-[22px] font-semibold leading-relaxed tracking-wide text-[#231815]/80 max-w-[600px]">
-                  세상이 돌아가는 이야기를 빠르게 파악하세요.
-                  <br /><br />
-                  비슷한 것만 반복하는 알고리즘 대신,
-                  <br />
-                  진짜 시야를 넓힐 수 있게 도와드려요.
-                  <br /><br />
-                  내가 관심 없는 주제를 읽으면 
-                  <br />
-                  더 많은 포인트를 얻을 수 있어요.
-                  <br /><br />
-                  
-                  위즈레터를 읽으면 용돈이 차곡차곡,
-                  <br />
-                  좋은 습관이 작은 수익으로 돌아옵니다.
-                </p>
-              </FadeIn>
+              <div ref={heroTextRef}>
+                <FadeIn delay={100}>
+                  <p className="text-lg md:text-xl lg:text-[22px] font-semibold leading-relaxed tracking-wide text-[#231815]/80 max-w-[600px]">
+                    세상이 돌아가는 이야기를 빠르게 파악하세요.
+                    <br /><br />
+                    비슷한 것만 반복하는 알고리즘 대신,
+                    <br />
+                    진짜 시야를 넓힐 수 있게 도와드려요.
+                    <br /><br />
+                    내가 관심 없는 주제를 읽으면
+                    <br />
+                    더 많은 포인트를 얻을 수 있어요.
+                    <br /><br />
 
-              <FadeIn delay={200}>
-                <button
-                  onClick={handleStart}
-                  className="mt-10 inline-flex items-center justify-center px-14 py-5 rounded-full text-xl md:text-2xl font-semibold bg-[#43b9d6] text-[#231815] border-[2.5px] border-[#231815] hover:brightness-110 transition-all w-fit"
-                >
-                  무료로 구독하기
-                </button>
-              </FadeIn>
+                    위즈레터를 읽으면 용돈이 차곡차곡,
+                    <br />
+                    좋은 습관이 작은 수익으로 돌아옵니다.
+                  </p>
+                </FadeIn>
+
+                <FadeIn delay={200}>
+                  <button
+                    onClick={handleStart}
+                    className="mt-10 inline-flex items-center justify-center px-14 py-5 rounded-full text-xl md:text-2xl font-semibold bg-[#43b9d6] text-[#231815] border-[2.5px] border-[#231815] hover:brightness-110 transition-all w-fit"
+                  >
+                    무료로 구독하기
+                  </button>
+                </FadeIn>
+              </div>
             </div>
 
             <FadeIn delay={300} className="flex-shrink-0">
               <img
+                ref={heroImgRef}
                 src="/wl-hero.png"
                 alt="위즈레터 히어로"
-                className="w-[204px] md:w-[272px] lg:w-[340px] object-contain"
+                className="w-[204px] md:w-auto object-contain"
               />
             </FadeIn>
           </div>
