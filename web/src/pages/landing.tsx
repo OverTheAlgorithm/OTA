@@ -293,45 +293,49 @@ export function LandingPage() {
         id="top"
         className="pt-24 md:pt-16 bg-[#fdf9ee] overflow-hidden"
       >
-        <div className="max-w-[1200px] mx-auto px-6 min-h-[calc(100vh-65px)] flex flex-col md:flex-row items-center justify-center gap-8 md:gap-12">
-          <div className="flex-1 flex flex-col justify-center py-12 md:py-0">
-            <FadeIn>
-              <h1 className="text-4xl md:text-5xl lg:text-[74px] font-semibold leading-tight lg:leading-[90px] tracking-tight">
-                개인화에 갇힌 알고리즘 너머
-                <br />
-                진짜 세상을 읽고 포인트까지
-              </h1>
-            </FadeIn>
+        <div className="max-w-[1200px] mx-auto px-6 min-h-[calc(100vh-65px)] flex flex-col justify-center py-12">
+          <FadeIn>
+            <h1 className="text-4xl md:text-5xl lg:text-[74px] font-semibold leading-tight lg:leading-[90px] tracking-tight">
+              개인화에 갇힌 알고리즘 너머
+              <br />
+              진짜 세상을 읽고 포인트까지
+            </h1>
+          </FadeIn>
 
-            <FadeIn delay={100}>
-              <p className="mt-6 text-lg md:text-xl lg:text-[22px] font-semibold leading-relaxed tracking-wide text-[#231815]/80 max-w-[600px]">
-                같은 뉴스만 반복하는 알고리즘 대신, 오늘 무조건 알아야 할
-                소식만 간결하게.
-                <br />
-                세상이 돌아가는 이야기를 빠르게 파악하세요.
-                <br />
-                위즈레터를 읽으면 용돈이 차곡차곡, 좋은 습관이 작은 수익으로
-                돌아옵니다.
-              </p>
-            </FadeIn>
+          <div className="mt-8 md:mt-10 flex flex-col md:flex-row items-center gap-8 md:gap-12">
+            <div className="flex-1 flex flex-col justify-center">
+              <FadeIn delay={100}>
+                <p className="text-lg md:text-xl lg:text-[22px] font-semibold leading-relaxed tracking-wide text-[#231815]/80 max-w-[600px]">
+                  같은 뉴스만 반복하는 알고리즘 대신,
+                  <br />
+                  오늘 무조건 알아야 할 소식만 간결하게.
+                  <br /><br />
+                  세상이 돌아가는 이야기를 빠르게 파악하세요.
+                  <br /><br />
+                  위즈레터를 읽으면 용돈이 차곡차곡,
+                  <br />
+                  좋은 습관이 작은 수익으로 돌아옵니다.
+                </p>
+              </FadeIn>
 
-            <FadeIn delay={200}>
-              <button
-                onClick={handleStart}
-                className="mt-10 inline-flex items-center justify-center px-14 py-5 rounded-full text-xl md:text-2xl font-semibold bg-[#43b9d6] text-[#231815] border-[2.5px] border-[#231815] hover:brightness-110 transition-all w-fit"
-              >
-                무료로 구독하기
-              </button>
+              <FadeIn delay={200}>
+                <button
+                  onClick={handleStart}
+                  className="mt-10 inline-flex items-center justify-center px-14 py-5 rounded-full text-xl md:text-2xl font-semibold bg-[#43b9d6] text-[#231815] border-[2.5px] border-[#231815] hover:brightness-110 transition-all w-fit"
+                >
+                  무료로 구독하기
+                </button>
+              </FadeIn>
+            </div>
+
+            <FadeIn delay={300} className="flex-shrink-0">
+              <img
+                src="/wl-hero.png"
+                alt="위즈레터 히어로"
+                className="w-[240px] md:w-[320px] lg:w-[400px] object-contain"
+              />
             </FadeIn>
           </div>
-
-          <FadeIn delay={300} className="flex-shrink-0">
-            <img
-              src="/wl-hero.png"
-              alt="위즈레터 히어로"
-              className="w-[280px] md:w-[400px] lg:w-[500px] object-contain"
-            />
-          </FadeIn>
         </div>
       </section>
 
