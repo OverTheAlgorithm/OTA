@@ -295,14 +295,14 @@ export function LandingPage() {
       >
         <div className="max-w-[1200px] mx-auto px-6 min-h-[calc(100vh-65px)] flex flex-col justify-center py-12">
           <FadeIn>
-            <h1 className="text-4xl md:text-5xl lg:text-[74px] font-semibold leading-tight lg:leading-[90px] tracking-tight">
+            <h1 className="text-4xl md:text-5xl lg:text-[74px] font-semibold leading-tight lg:leading-[90px] tracking-tight text-center">
               개인화에 갇힌 알고리즘 너머
               <br />
               진짜 세상을 읽고 수익까지
             </h1>
           </FadeIn>
 
-          <div className="mt-6 md:mt-8 flex flex-col md:flex-row items-center gap-6 md:gap-8">
+          <div className="mt-6 md:mt-8 flex flex-col md:flex-row items-center justify-center gap-6 md:gap-8">
             <div className="flex-1 flex flex-col justify-center max-w-[500px]">
               <FadeIn delay={100}>
                 <p className="text-lg md:text-xl lg:text-[22px] font-semibold leading-relaxed tracking-wide text-[#231815]/80 max-w-[600px]">
