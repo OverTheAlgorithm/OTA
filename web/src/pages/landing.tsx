@@ -306,12 +306,17 @@ export function LandingPage() {
             <div className="flex-1 flex flex-col justify-center max-w-[500px]">
               <FadeIn delay={100}>
                 <p className="text-lg md:text-xl lg:text-[22px] font-semibold leading-relaxed tracking-wide text-[#231815]/80 max-w-[600px]">
-                  같은 뉴스만 반복하는 알고리즘 대신,
-                  <br />
-                  오늘 무조건 알아야 할 소식만 간결하게.
-                  <br /><br />
                   세상이 돌아가는 이야기를 빠르게 파악하세요.
                   <br /><br />
+                  비슷한 것만 반복하는 알고리즘 대신,
+                  <br />
+                  진짜 시야를 넓힐 수 있게 도와드려요.
+                  <br /><br />
+                  내가 관심 없는 주제를 읽으면 
+                  <br />
+                  더 많은 포인트를 얻을 수 있어요.
+                  <br /><br />
+                  
                   위즈레터를 읽으면 용돈이 차곡차곡,
                   <br />
                   좋은 습관이 작은 수익으로 돌아옵니다.
