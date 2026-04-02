@@ -236,6 +236,38 @@ func TestValidateSources_AllowedSpecificURLs(t *testing.T) {
 	}
 }
 
+func TestCheckBlockedURL_GoogleNews(t *testing.T) {
+	// Google News redirect URLs must be blocked (they indicate failed Stage 2 decoding).
+	blockedURLs := []string{
+		"https://news.google.com/rss/articles/CBMiW0FVX3lxTE5YTGtkMGt2WnZZQUUwcV9pR055TVBZbkZnM3k2SzZQUm0wWmI5T08zVmhzOV9oc2szdmtCUVhzTDhqSjByTDVXTEhSWlh5WmhUMk1NZTBUM1AxZlk",
+		"https://news.google.com/rss/articles/CBMi_ARTICLE_1",
+		"https://news.google.com/?hl=ko&gl=KR",
+	}
+	for _, u := range blockedURLs {
+		t.Run(u, func(t *testing.T) {
+			reason := checkBlockedURL(u)
+			if reason == "" {
+				t.Errorf("expected %q to be blocked, but it was allowed", u)
+			}
+		})
+	}
+
+	// Real article URLs must NOT be blocked.
+	allowedURLs := []string{
+		"https://www.chosun.com/economy/tech/2026/04/01/article123",
+		"https://www.donga.com/news/article/123",
+		"https://example.com/?ref=news.google.com", // contains substring but different host
+	}
+	for _, u := range allowedURLs {
+		t.Run(u, func(t *testing.T) {
+			reason := checkBlockedURL(u)
+			if reason != "" {
+				t.Errorf("expected %q to be allowed, got blocked: %s", u, reason)
+			}
+		})
+	}
+}
+
 func TestCheckBlockedURL_FinanceNaverWithPath(t *testing.T) {
 	// finance.naver.com with a deep article path should be allowed
 	reason := checkBlockedURL("https://finance.naver.com/item/main.naver?code=005930")

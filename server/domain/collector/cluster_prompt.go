@@ -97,7 +97,6 @@ Your job is to CLUSTER related topics, assign categories, calculate buzz_score, 
    - Do NOT modify, shorten, or reconstruct any URL.
    - Do NOT generate, guess, or hallucinate any URLs.
    - Prefer 2-3 sources per topic. Maximum 4.
-   - Google News redirect URLs (news.google.com/rss/articles/...) are acceptable — they will be resolved later.
 
 ## topic_hint
 For each topic, write a short Korean hint (5-15 words) that captures the essence.

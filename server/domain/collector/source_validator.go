@@ -80,6 +80,7 @@ var blockedHosts = []string{
 	"www.google.com",
 	"google.co.kr",
 	"www.google.co.kr",
+	"news.google.com", // Google News redirect URLs that failed Stage 2 decoding
 }
 
 // blockedPathPrefixes are host+path combos that are too generic (e.g. finance.naver.com with no article path).

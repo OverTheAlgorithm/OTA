@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -259,6 +260,15 @@ func rankForTopic(topic Phase1Topic, allTopics []Phase1Topic) int {
 
 // --- Phase 1 URL decoding ---
 
+// isGoogleNewsURL checks if a URL is a Google News redirect URL by parsing the hostname.
+func isGoogleNewsURL(rawURL string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(parsed.Hostname(), "news.google.com")
+}
+
 func (s *Service) decodePhase1URLs(ctx context.Context, runID uuid.UUID, topics []Phase1Topic) []Phase1Topic {
 	slog.Info("collection run stage 2: decoding redirect URLs", "run_id", runID)
 
@@ -274,6 +284,25 @@ func (s *Service) decodePhase1URLs(ctx context.Context, runID uuid.UUID, topics 
 
 	decoded := s.urlDecoder(ctx, slices...)
 	slog.Info("collection run stage 2 done", "run_id", runID, "decoded_urls", decoded, "topics", len(topics))
+
+	// Filter out any Google News URLs that failed to decode (silent fallback from decoder).
+	droppedTotal := 0
+	for i := range result {
+		var filtered []string
+		for _, src := range result[i].Sources {
+			if isGoogleNewsURL(src) {
+				slog.Warn("stage 2: dropped undecoded Google News URL", "topic", result[i].TopicHint, "url", src)
+				droppedTotal++
+				continue
+			}
+			filtered = append(filtered, src)
+		}
+		result[i].Sources = filtered
+	}
+	if droppedTotal > 0 {
+		slog.Warn("stage 2: dropped undecoded Google News URLs total", "run_id", runID, "count", droppedTotal)
+	}
+
 	return result
 }
 

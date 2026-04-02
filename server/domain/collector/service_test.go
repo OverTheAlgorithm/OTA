@@ -335,6 +335,102 @@ func TestCollectFromSources_SavesTrendingItems(t *testing.T) {
 	}
 }
 
+func TestIsGoogleNewsURL(t *testing.T) {
+	tests := []struct {
+		url  string
+		want bool
+	}{
+		{"https://news.google.com/rss/articles/CBMiW0FVX3lxTE5Y", true},
+		{"https://news.google.com/?hl=ko&gl=KR", true},
+		{"https://NEWS.GOOGLE.COM/rss/articles/abc", true}, // case insensitive
+		{"https://www.chosun.com/article/123", false},
+		{"https://example.com/?ref=news.google.com", false}, // substring in query, not host
+		{"https://not-news.google.com/article", false},
+		{"", false},
+		{"not-a-url", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			got := isGoogleNewsURL(tt.url)
+			if got != tt.want {
+				t.Errorf("isGoogleNewsURL(%q) = %v, want %v", tt.url, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecodePhase1URLs_FiltersUndecodedGoogleNews(t *testing.T) {
+	// Mock decoder: decodes the first gnews URL to a real URL, but leaves the second unchanged (simulating failure).
+	gnewsURL1 := "https://news.google.com/rss/articles/DECODED_OK"
+	gnewsURL2 := "https://news.google.com/rss/articles/DECODE_FAIL"
+	realURL := "https://www.chosun.com/article/123"
+	decodedURL := "https://www.donga.com/news/456"
+
+	mockDecoder := func(_ context.Context, slices ...[]string) int {
+		decoded := 0
+		for _, s := range slices {
+			for i, u := range s {
+				if u == gnewsURL1 {
+					s[i] = decodedURL // successful decode
+					decoded++
+				}
+				// gnewsURL2 stays unchanged (simulates decode failure)
+			}
+		}
+		return decoded
+	}
+
+	svc := &Service{urlDecoder: mockDecoder}
+	topics := []Phase1Topic{
+		{TopicHint: "토픽1", Sources: []string{gnewsURL1, realURL}},
+		{TopicHint: "토픽2", Sources: []string{gnewsURL2, realURL}},
+		{TopicHint: "토픽3", Sources: []string{gnewsURL2}}, // all sources will be filtered
+	}
+
+	result := svc.decodePhase1URLs(context.Background(), uuid.New(), topics)
+
+	// Topic 1: gnewsURL1 decoded to decodedURL, realURL stays → both survive
+	if len(result[0].Sources) != 2 {
+		t.Errorf("topic 1: expected 2 sources, got %d: %v", len(result[0].Sources), result[0].Sources)
+	}
+	if result[0].Sources[0] != decodedURL {
+		t.Errorf("topic 1: expected decoded URL %q, got %q", decodedURL, result[0].Sources[0])
+	}
+
+	// Topic 2: gnewsURL2 NOT decoded (still gnews URL) → filtered out, only realURL survives
+	if len(result[1].Sources) != 1 {
+		t.Errorf("topic 2: expected 1 source, got %d: %v", len(result[1].Sources), result[1].Sources)
+	}
+	if result[1].Sources[0] != realURL {
+		t.Errorf("topic 2: expected %q, got %q", realURL, result[1].Sources[0])
+	}
+
+	// Topic 3: only gnewsURL2 → all filtered, empty sources (Stage 3 will drop this topic)
+	if len(result[2].Sources) != 0 {
+		t.Errorf("topic 3: expected 0 sources, got %d: %v", len(result[2].Sources), result[2].Sources)
+	}
+}
+
+func TestDecodePhase1URLs_PreservesAllWhenFullyDecoded(t *testing.T) {
+	// All URLs are real article URLs (no gnews URLs) → nothing should be filtered.
+	mockDecoder := func(_ context.Context, _ ...[]string) int { return 0 }
+
+	svc := &Service{urlDecoder: mockDecoder}
+	topics := []Phase1Topic{
+		{TopicHint: "토픽1", Sources: []string{"https://www.chosun.com/1", "https://www.donga.com/2"}},
+		{TopicHint: "토픽2", Sources: []string{"https://www.hani.co.kr/3"}},
+	}
+
+	result := svc.decodePhase1URLs(context.Background(), uuid.New(), topics)
+
+	if len(result[0].Sources) != 2 {
+		t.Errorf("topic 1: expected 2 sources, got %d", len(result[0].Sources))
+	}
+	if len(result[1].Sources) != 1 {
+		t.Errorf("topic 2: expected 1 source, got %d", len(result[1].Sources))
+	}
+}
+
 func TestCollectFromSourcesIfNeeded_AlreadyRun(t *testing.T) {
 	repo := &mockRepo{canRunToday: false}
 	aiClient := &mockAIClient{}
