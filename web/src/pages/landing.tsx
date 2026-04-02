@@ -94,7 +94,7 @@ export function LandingPage() {
     if (!user) return;
     const redirectPath = localStorage.getItem(LOGIN_REDIRECT_KEY);
     localStorage.removeItem(LOGIN_REDIRECT_KEY);
-    navigate(redirectPath || "/latest", { replace: true });
+    navigate(redirectPath || "/latest", { replace: true, state: { fromLogin: true } });
   }, [user, navigate]);
 
   const [recentTopics, setRecentTopics] = useState<TopicPreview[]>([]);

@@ -66,7 +66,7 @@ export function TermsConsentPage() {
   const goToFinalDestination = () => {
     const redirectPath = localStorage.getItem(LOGIN_REDIRECT_KEY);
     localStorage.removeItem(LOGIN_REDIRECT_KEY);
-    navigate(redirectPath || "/latest", { replace: true });
+    navigate(redirectPath || "/latest", { replace: true, state: { fromLogin: true } });
   };
 
   const handleSubmit = async () => {

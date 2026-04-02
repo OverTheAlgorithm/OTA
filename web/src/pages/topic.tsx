@@ -238,7 +238,7 @@ export function TopicPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const goBack = () => location.key === "default" ? navigate("/latest") : navigate(-1);
+  const goBack = () => (location.key === "default" || location.state?.fromLogin) ? navigate("/latest") : navigate(-1);
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
   const [coinTag, setCoinTag] = useState<CoinTagState>(null);
@@ -344,10 +344,13 @@ export function TopicPage() {
       // Disable scroll restoration to prevent browser from jumping to top
       if (dummyHistoryPushedRef.current) {
         dummyHistoryPushedRef.current = false;
-        const prev = history.scrollRestoration;
-        history.scrollRestoration = "manual";
+        const scrollY = window.scrollY;
+        const restore = () => {
+          window.scrollTo(0, scrollY);
+          window.removeEventListener("popstate", restore);
+        };
+        window.addEventListener("popstate", restore);
         window.history.back();
-        setTimeout(() => { history.scrollRestoration = prev; }, 0);
       }
     };
   }, [isEarning]);
