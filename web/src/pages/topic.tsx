@@ -340,17 +340,10 @@ export function TopicPage() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("popstate", handlePopState);
       document.removeEventListener("click", handleLinkClick, true);
-      // Pop dummy history entry if it's still on the stack (e.g. earn completed normally)
-      // Disable scroll restoration to prevent browser from jumping to top
+      // [DEBUG] Skip history.back() entirely to test if it causes scroll jump
       if (dummyHistoryPushedRef.current) {
         dummyHistoryPushedRef.current = false;
-        const scrollY = window.scrollY;
-        const restore = () => {
-          window.scrollTo(0, scrollY);
-          window.removeEventListener("popstate", restore);
-        };
-        window.addEventListener("popstate", restore);
-        window.history.back();
+        // window.history.back(); — deliberately skipped
       }
     };
   }, [isEarning]);
