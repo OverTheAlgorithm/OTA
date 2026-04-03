@@ -12,9 +12,11 @@ export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWith
   return (
     <div className="rounded-[22px] bg-white border-[2px] border-[#231815] px-6 py-5 flex items-center gap-5">
       {/* Point icon */}
-      <div className="flex-shrink-0 w-[90px] h-[90px] md:w-[108px] md:h-[108px] rounded-full border-[3px] border-[#231815] bg-[#43b9d6]/15 flex items-center justify-center">
-        <span className="text-4xl md:text-5xl font-bold text-[#231815]">P</span>
-      </div>
+      <img
+        src="/wl-point.png"
+        alt="포인트"
+        className="flex-shrink-0 w-[90px] h-[90px] md:w-[108px] md:h-[108px] object-contain"
+      />
 
       {/* Content */}
       <div className="flex-1 min-w-0">

@@ -45,9 +45,11 @@ export function WithdrawalErrorModal({ open, message, onClose }: Props) {
         </button>
 
         <div className="flex justify-center mb-6">
-          <div className="w-[120px] h-[120px] flex items-center justify-center text-[80px]">
-            🪙
-          </div>
+          <img
+            src="/wl-piggy.png"
+            alt=""
+            className="w-[120px] h-[108px] object-contain"
+          />
         </div>
 
         <p className="text-lg text-[#231815] text-center whitespace-pre-line font-normal">
