@@ -408,16 +408,18 @@ export function LandingPage() {
           <div className="flex-1">
             <FadeIn>
               <h2 className="text-4xl md:text-5xl lg:text-[70px] font-bold leading-tight lg:leading-[90px]">
-                지식과 포인트를
+                포인트를 모아서
                 <br />
-                동시에 쌓을 수 있어요
+                현금으로 교환하세요
               </h2>
             </FadeIn>
             <FadeIn delay={100}>
               <p className="mt-6 text-xl md:text-2xl font-semibold leading-relaxed tracking-wide text-[#231815]/80">
-                소식을 읽을 때마다 포인트가 적립됩니다.
+                소식을 읽을 때마다 포인트가 쌓입니다.
                 <br />
-                포인트가 모이면 레벨이 올라 더 많은 포인트를 모을 수 있어요!
+                모은 포인트는 현금으로 교환할 수 있고,
+                <br />
+                레벨이 올라갈수록 더 많은 포인트를 적립할 수 있어요.
               </p>
             </FadeIn>
           </div>
