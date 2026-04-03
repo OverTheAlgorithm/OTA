@@ -8,13 +8,18 @@ import { ChannelPreferencesSection } from "@/components/channel-preferences-sect
 import { Footer } from "@/components/footer";
 import {
   getCoinHistory,
+  getWithdrawalHistory,
+  getBankAccount,
   getSubscriptions,
   deleteAccount,
   type CoinTransaction,
+  type WithdrawalDetail,
+  type BankAccount,
 } from "@/lib/api";
+import { BankAccountModal } from "@/components/bank-account-modal";
 import { formatDateTime } from "@/lib/utils";
 
-type Tab = "points" | "settings";
+type Tab = "points" | "withdrawals" | "settings";
 
 const COIN_TYPE_LABELS: Record<string, string> = {
   signup_bonus: "가입 보너스",
@@ -117,17 +122,115 @@ function PointHistoryTab() {
   );
 }
 
+// ── Withdrawal History Tab ───────────────────────────────────────────────────
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: "처리중",
+  approved: "완료",
+  rejected: "거절",
+  cancelled: "취소",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  pending: "bg-[#ffefc6] border-[#e0b830] text-[#8a6d00]",
+  approved: "bg-[#d4f5e2] border-[#2ea55e] text-[#1a6b3a]",
+  rejected: "bg-[#ffe0dc] border-[#e04b3a] text-[#9c2b1e]",
+  cancelled: "bg-[#e8e8e8] border-[#999] text-[#636363]",
+};
+
+function WithdrawalHistoryTab() {
+  const [items, setItems] = useState<WithdrawalDetail[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getWithdrawalHistory(20, 0)
+      .then(({ data, has_more }) => {
+        setItems(data);
+        setHasMore(has_more);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const loadMore = async () => {
+    try {
+      const { data, has_more } = await getWithdrawalHistory(20, items.length);
+      setItems((prev) => [...prev, ...data]);
+      setHasMore(has_more);
+    } catch {
+      // silently fail
+    }
+  };
+
+  if (loading) {
+    return <p className="text-sm text-[#231815]/50 py-8 text-center">불러오는 중...</p>;
+  }
+
+  if (items.length === 0) {
+    return <p className="text-sm text-[#231815]/50 py-8 text-center">출금 내역이 없습니다.</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {items.map((w) => (
+        <div
+          key={w.id}
+          className="border-l-[3px] border-[#43b9d6] pl-5 py-2"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-[#231815]/60">
+                {formatDateTime(w.created_at)}
+              </p>
+              <h3 className="text-base font-bold text-[#231815] leading-snug mt-1">
+                {w.amount.toLocaleString()}포인트 출금
+              </h3>
+            </div>
+            <span
+              className={`inline-flex items-center justify-center px-3 h-7 rounded-full border text-sm font-bold whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[w.current_status] ?? ""}`}
+            >
+              {STATUS_LABELS[w.current_status] ?? w.current_status}
+            </span>
+          </div>
+        </div>
+      ))}
+
+      {hasMore && (
+        <button
+          onClick={loadMore}
+          className="w-full py-3 text-sm font-medium text-[#008fb2] hover:text-[#006d8a] transition-colors"
+        >
+          더 보기
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Settings Tab ─────────────────────────────────────────────────────────────
 
 function SettingsTab() {
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
+  const [bankAccount, setBankAccount] = useState<BankAccount | null>(null);
+  const [bankLoading, setBankLoading] = useState(true);
+  const [showBankModal, setShowBankModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     getSubscriptions().then(setSubscriptions).catch(() => {});
+    getBankAccount()
+      .then(setBankAccount)
+      .catch(() => {})
+      .finally(() => setBankLoading(false));
   }, []);
+
+  const handleBankSuccess = () => {
+    setShowBankModal(false);
+    getBankAccount().then(setBankAccount).catch(() => {});
+  };
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
@@ -145,6 +248,49 @@ function SettingsTab() {
     <div className="space-y-8">
       <InterestSection selected={subscriptions} onChange={setSubscriptions} />
       <ChannelPreferencesSection />
+
+      {/* Bank Account Section */}
+      <div className="border-l-[3px] border-[#43b9d6] pl-5">
+        <h2 className="text-lg font-bold text-[#231815] mb-3">계좌</h2>
+        <div className="flex items-center gap-4 rounded-[22px] bg-white border border-[#231815] px-5 py-4">
+          <svg className="w-8 h-8 text-[#231815]/60 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <path d="M2 10h20" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            {bankLoading ? (
+              <p className="text-sm text-[#231815]/50">불러오는 중...</p>
+            ) : bankAccount ? (
+              <>
+                <p className="text-sm font-medium text-[#231815]">{bankAccount.bank_name}</p>
+                <p className="text-sm text-[#231815]/60 mt-0.5">
+                  {bankAccount.account_number}
+                  <button
+                    onClick={() => setShowBankModal(true)}
+                    className="ml-2 text-[#008fb2] underline"
+                  >
+                    변경하기
+                  </button>
+                </p>
+              </>
+            ) : (
+              <button
+                onClick={() => setShowBankModal(true)}
+                className="text-sm text-[#008fb2] underline font-medium"
+              >
+                계좌 등록하기
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <BankAccountModal
+        open={showBankModal}
+        onClose={() => setShowBankModal(false)}
+        onSuccess={handleBankSuccess}
+        existing={bankAccount}
+      />
 
       <div className="pt-4">
         <button
@@ -211,7 +357,8 @@ export function MypagePage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") === "settings" ? "settings" : "points";
+  const tabParam = searchParams.get("tab");
+  const initialTab: Tab = tabParam === "settings" ? "settings" : tabParam === "withdrawals" ? "withdrawals" : "points";
   const [tab, setTab] = useState<Tab>(initialTab);
 
   useEffect(() => {
@@ -277,6 +424,19 @@ export function MypagePage() {
               )}
             </button>
             <button
+              onClick={() => setTab("withdrawals")}
+              className={`px-6 py-3 text-lg font-medium transition-colors relative ${
+                tab === "withdrawals"
+                  ? "text-[#008fb2]"
+                  : "text-[#231815] hover:text-[#008fb2]/70"
+              }`}
+            >
+              출금 내역
+              {tab === "withdrawals" && (
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#008fb2]" />
+              )}
+            </button>
+            <button
               onClick={() => setTab("settings")}
               className={`px-6 py-3 text-lg font-medium transition-colors relative ${
                 tab === "settings"
@@ -292,7 +452,9 @@ export function MypagePage() {
           </div>
 
           {/* Tab Content */}
-          {tab === "points" ? <PointHistoryTab /> : <SettingsTab />}
+          {tab === "points" && <PointHistoryTab />}
+          {tab === "withdrawals" && <WithdrawalHistoryTab />}
+          {tab === "settings" && <SettingsTab />}
         </div>
       </main>
 
