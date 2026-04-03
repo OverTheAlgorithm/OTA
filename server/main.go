@@ -237,7 +237,7 @@ func main() {
 		levelRepo.DeductCoins,
 		levelRepo.RestoreCoins,
 	)
-	withdrawalService := withdrawal.NewService(withdrawalRepo, coinManager, cfg.MinWithdrawalAmount)
+	withdrawalService := withdrawal.NewService(withdrawalRepo, coinManager, cfg.MinWithdrawalAmount, cfg.WithdrawalUnitAmount)
 
 	// Scheduler
 	sched := scheduler.New(collectorService, deliveryService)

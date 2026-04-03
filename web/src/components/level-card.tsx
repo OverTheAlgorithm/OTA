@@ -1,9 +1,13 @@
 import type { LevelInfo } from "@/lib/api";
 
-export function LevelCard({ level }: { level: LevelInfo }) {
-  const { total_coins, coin_cap } = level;
+export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWithdrawClick?: () => void }) {
+  const { total_coins, coin_cap, thresholds } = level;
   const fillPercent = Math.min((total_coins / coin_cap) * 100, 100);
-  const remaining = Math.max(coin_cap - total_coins, 0);
+
+  // Next level threshold: find the first threshold > total_coins
+  const nextThreshold = thresholds.find((t) => t > total_coins) ?? coin_cap;
+  const remaining = Math.max(nextThreshold - total_coins, 0);
+  const isMaxLevel = nextThreshold === coin_cap && total_coins >= (thresholds[thresholds.length - 1] ?? 0);
 
   return (
     <div className="rounded-[22px] bg-white border-[2px] border-[#231815] px-6 py-5 flex items-center gap-5">
@@ -29,16 +33,36 @@ export function LevelCard({ level }: { level: LevelInfo }) {
           </span>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar with tick marks */}
         <div className="flex items-center gap-3 mt-2">
-          <div className="relative flex-1 h-[14px] rounded-full bg-[#e8f4fd] border border-[#231815]/50 overflow-hidden">
-            <div
-              className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
-              style={{
-                width: `${fillPercent}%`,
-                background: "linear-gradient(to right, rgba(67,185,214,0.5), #43b9d6)",
-              }}
-            />
+          <div className="flex-1">
+            <div className="relative h-[14px] rounded-full bg-[#e8f4fd] border border-[#231815]/50 overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
+                style={{
+                  width: `${fillPercent}%`,
+                  background: "linear-gradient(to right, rgba(67,185,214,0.5), #43b9d6)",
+                }}
+              />
+            </div>
+            {/* Tick marks + level labels */}
+            <div className="relative h-4 mt-0.5">
+              {thresholds.slice(1).map((t, i) => {
+                const pos = (t / coin_cap) * 100;
+                return (
+                  <div
+                    key={t}
+                    className="absolute flex flex-col items-center"
+                    style={{ left: `${pos}%`, transform: "translateX(-50%)" }}
+                  >
+                    <div className="w-px h-1.5 bg-[#231815]/30" />
+                    <span className="text-[9px] text-[#231815]/40 leading-none mt-px">
+                      Lv.{i + 2}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <span className="text-sm font-bold text-[#231815] whitespace-nowrap">
             {total_coins.toLocaleString()} / {coin_cap.toLocaleString()}
@@ -46,10 +70,22 @@ export function LevelCard({ level }: { level: LevelInfo }) {
         </div>
 
         {/* Remaining */}
-        <p className="text-sm font-bold text-[#231815] mt-1.5">
-          {remaining.toLocaleString()} 포인트를 더 모으면 레벨업!
+        <p className="text-sm font-bold text-[#231815] mt-0.5">
+          {isMaxLevel
+            ? "최고 레벨 달성!"
+            : `${remaining.toLocaleString()} 포인트를 더 모으면 레벨업!`}
         </p>
       </div>
+
+      {/* Withdraw button */}
+      {onWithdrawClick && (
+        <button
+          className="flex-shrink-0 px-8 py-3 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-lg font-medium text-[#231815] hover:brightness-110 transition-all"
+          onClick={onWithdrawClick}
+        >
+          출금하기
+        </button>
+      )}
     </div>
   );
 }

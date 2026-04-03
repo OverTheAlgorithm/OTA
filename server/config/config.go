@@ -49,6 +49,7 @@ type Config struct {
 	EarnMinDurationSec int // EARN_MIN_DURATION_SEC: minimum seconds user must stay on page before earning; default 10
 
 	MinWithdrawalAmount    int // MIN_WITHDRAWAL_AMOUNT: minimum coins required to request withdrawal; default 1000
+	WithdrawalUnitAmount   int // WITHDRAWAL_UNIT_AMOUNT: withdrawal amount must be a multiple of this; default 1000
 	ExtraCoinLimitPerLevel int // EXTRA_COIN_LIMIT_PER_LEVEL: additional daily coins per level; default 0
 	SignupBonusCoins       int // SIGNUP_BONUS_COINS: coins granted to new users on registration; default 0
 	CoinCap                int // COIN_CAP: maximum coins a user can hold; default 5000
@@ -120,6 +121,7 @@ func Load() (Config, error) {
 		DailyCoinLimit:         getEnvInt("DAILY_COIN_LIMIT", 10),
 		EarnMinDurationSec:    getEnvInt("EARN_MIN_DURATION_SEC", 10),
 		MinWithdrawalAmount:   getEnvInt("MIN_WITHDRAWAL_AMOUNT", 1000),
+		WithdrawalUnitAmount:   getEnvInt("WITHDRAWAL_UNIT_AMOUNT", 1000),
 		ExtraCoinLimitPerLevel: getEnvInt("EXTRA_COIN_LIMIT_PER_LEVEL", 0),
 		SignupBonusCoins:       getEnvInt("SIGNUP_BONUS_COINS", 0),
 		CoinCap:                getEnvInt("COIN_CAP", 5000),
@@ -160,6 +162,13 @@ func Load() (Config, error) {
 		}
 	default:
 		return cfg, fmt.Errorf("unsupported AI_PROVIDER: %s (must be \"gemini\" or \"openai\")", cfg.AIProvider)
+	}
+
+	if cfg.WithdrawalUnitAmount <= 0 {
+		return cfg, fmt.Errorf("WITHDRAWAL_UNIT_AMOUNT must be greater than 0")
+	}
+	if cfg.MinWithdrawalAmount%cfg.WithdrawalUnitAmount != 0 {
+		return cfg, fmt.Errorf("MIN_WITHDRAWAL_AMOUNT (%d) must be a multiple of WITHDRAWAL_UNIT_AMOUNT (%d)", cfg.MinWithdrawalAmount, cfg.WithdrawalUnitAmount)
 	}
 
 	return cfg, nil

@@ -572,6 +572,9 @@ export interface WithdrawalListItem {
 
 export interface WithdrawalInfo {
   min_withdrawal_amount: number;
+  withdrawal_unit_amount: number;
+  current_balance: number;
+  has_bank_account: boolean;
 }
 
 export async function getWithdrawalInfo(): Promise<WithdrawalInfo> {

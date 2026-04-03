@@ -82,11 +82,14 @@ func (h *WithdrawalHandler) RequestWithdrawal(c *gin.Context) {
 	if err != nil {
 		slog.Error("request withdrawal error", "error", err)
 		var me *apperr.MinimumAmountError
+		var ve *apperr.ValidationError
 		switch {
 		case errors.Is(err, apperr.ErrBankAccountRequired):
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		case errors.As(err, &me):
 			c.JSON(http.StatusBadRequest, gin.H{"error": me.Error()})
+		case errors.As(err, &ve):
+			c.JSON(http.StatusBadRequest, gin.H{"error": ve.Error()})
 		case errors.Is(err, apperr.ErrInsufficientBalance):
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		default:
@@ -138,9 +141,14 @@ func (h *WithdrawalHandler) CancelWithdrawal(c *gin.Context) {
 // ── Info ─────────────────────────────────────────────────────────────────────
 
 func (h *WithdrawalHandler) GetInfo(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"data": gin.H{
-		"min_withdrawal_amount": h.service.GetMinWithdrawalAmount(),
-	}})
+	userID := c.GetString("userID")
+	info, err := h.service.GetPreCheckInfo(c.Request.Context(), userID)
+	if err != nil {
+		slog.Error("get pre-check info error", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": info})
 }
 
 func (h *WithdrawalHandler) RegisterRoutes(group *gin.RouterGroup) {

@@ -65,3 +65,11 @@ type ListFilter struct {
 	Limit  int
 	Offset int
 }
+
+// PreCheckInfo contains data needed by the frontend before showing the withdrawal modal.
+type PreCheckInfo struct {
+	MinWithdrawalAmount  int  `json:"min_withdrawal_amount"`
+	WithdrawalUnitAmount int  `json:"withdrawal_unit_amount"`
+	CurrentBalance       int  `json:"current_balance"`
+	HasBankAccount       bool `json:"has_bank_account"`
+}

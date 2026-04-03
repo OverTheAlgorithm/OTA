@@ -45,16 +45,18 @@ func NewCoinManager(
 }
 
 type Service struct {
-	repo                Repository
-	coinManager         CoinManager
-	minWithdrawalAmount int
+	repo                 Repository
+	coinManager          CoinManager
+	minWithdrawalAmount  int
+	withdrawalUnitAmount int
 }
 
-func NewService(repo Repository, coinManager CoinManager, minWithdrawalAmount int) *Service {
+func NewService(repo Repository, coinManager CoinManager, minWithdrawalAmount, withdrawalUnitAmount int) *Service {
 	return &Service{
-		repo:                repo,
-		coinManager:         coinManager,
-		minWithdrawalAmount: minWithdrawalAmount,
+		repo:                 repo,
+		coinManager:          coinManager,
+		minWithdrawalAmount:  minWithdrawalAmount,
+		withdrawalUnitAmount: withdrawalUnitAmount,
 	}
 }
 
@@ -63,14 +65,56 @@ func (s *Service) GetMinWithdrawalAmount() int {
 	return s.minWithdrawalAmount
 }
 
+// GetWithdrawalUnitAmount returns the configured withdrawal unit amount.
+func (s *Service) GetWithdrawalUnitAmount() int {
+	return s.withdrawalUnitAmount
+}
+
+// GetPreCheckInfo returns data needed by the frontend before showing the withdrawal modal.
+func (s *Service) GetPreCheckInfo(ctx context.Context, userID string) (PreCheckInfo, error) {
+	coins, err := s.coinManager.GetUserCoins(ctx, userID)
+	if err != nil {
+		return PreCheckInfo{}, fmt.Errorf("get user coins: %w", err)
+	}
+
+	account, err := s.repo.GetBankAccount(ctx, userID)
+	if err != nil {
+		return PreCheckInfo{}, fmt.Errorf("get bank account: %w", err)
+	}
+
+	return PreCheckInfo{
+		MinWithdrawalAmount:  s.minWithdrawalAmount,
+		WithdrawalUnitAmount: s.withdrawalUnitAmount,
+		CurrentBalance:       coins,
+		HasBankAccount:       account != nil,
+	}, nil
+}
+
 // GetBankAccount returns the user's registered bank account, or nil if none.
 func (s *Service) GetBankAccount(ctx context.Context, userID string) (*BankAccount, error) {
 	return s.repo.GetBankAccount(ctx, userID)
 }
 
+// normalizeBankName removes all whitespace, strips trailing "은행" suffix, and trims.
+// e.g. "신한 은행" → "신한", "   신한  은행" → "신한", "카카오뱅크" → "카카오뱅크"
+func normalizeBankName(name string) string {
+	// Remove all whitespace characters
+	var b strings.Builder
+	for _, r := range name {
+		if r != ' ' && r != '\t' && r != '\n' && r != '\r' {
+			b.WriteRune(r)
+		}
+	}
+	n := b.String()
+	// Strip "은행" suffix if present
+	n = strings.TrimSuffix(n, "은행")
+	return strings.TrimSpace(n)
+}
+
 // SaveBankAccount creates or updates the user's bank account info.
 func (s *Service) SaveBankAccount(ctx context.Context, account BankAccount) error {
-	if strings.TrimSpace(account.BankName) == "" {
+	account.BankName = normalizeBankName(account.BankName)
+	if account.BankName == "" {
 		return apperr.NewValidationError("bank_name", "is required")
 	}
 	if strings.TrimSpace(account.AccountNumber) == "" {
@@ -100,6 +144,11 @@ func (s *Service) RequestWithdrawal(ctx context.Context, userID string, amount i
 	// 2. Validate minimum amount
 	if amount < s.minWithdrawalAmount {
 		return nil, apperr.NewMinimumAmountError(s.minWithdrawalAmount)
+	}
+
+	// 2b. Validate unit amount
+	if amount%s.withdrawalUnitAmount != 0 {
+		return nil, apperr.NewValidationError("amount", fmt.Sprintf("must be a multiple of %d", s.withdrawalUnitAmount))
 	}
 
 	// 3. Atomic: lock balance row, check, deduct, create withdrawal + transition
