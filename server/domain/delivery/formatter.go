@@ -347,14 +347,14 @@ func wrapEmailTemplate(content, frontendURL string, levelInfo *UserLevelInfo) st
 
 // renderHeaderLevelRow returns a full <tr> for the level card.
 // Returns an empty string if levelInfo is nil.
-// Design matches the frontend LevelCard component: circle with "P", gradient progress bar.
-func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
+// Design matches the frontend LevelCard component: wl-point.png icon, gradient progress bar with level ticks.
+func renderHeaderLevelRow(info *UserLevelInfo, frontendURL string) string {
 	if info == nil {
 		return ""
 	}
 
 	lv := info.Level
-	if lv < 1 || lv > 5 {
+	if lv < 1 {
 		lv = 1
 	}
 
@@ -367,10 +367,42 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
 		}
 	}
 
-	remaining := info.CoinCap - info.TotalCoins
-	if remaining < 0 {
-		remaining = 0
+	// Remaining coins to next level (not to coin_cap)
+	remaining := 0
+	isMaxLevel := true
+	for _, t := range info.Thresholds {
+		if t > info.TotalCoins {
+			remaining = t - info.TotalCoins
+			isMaxLevel = false
+			break
+		}
 	}
+	if isMaxLevel {
+		remaining = info.CoinCap - info.TotalCoins
+		if remaining < 0 {
+			remaining = 0
+		}
+	}
+
+	// Level-up message
+	levelMsg := fmt.Sprintf("%s 포인트를 더 모으면 레벨업! 레벨이 오르면 일일 포인트 한도가 늘어나요!", formatNumber(remaining))
+	if isMaxLevel && remaining == 0 {
+		levelMsg = "최고 레벨 달성!"
+	}
+	dailyLimitMsg := fmt.Sprintf("현재 일일 한도: %d 포인트", info.DailyLimit)
+
+	// Build level tick marks HTML
+	var ticksHTML string
+	if info.CoinCap > 0 && len(info.Thresholds) > 0 {
+		ticksHTML = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:2px;"><tr>`
+		for i := range info.Thresholds {
+			label := fmt.Sprintf("Lv.%d", i+1)
+			ticksHTML += fmt.Sprintf(`<td style="font-size:9px;color:#999;text-align:left;">%s</td>`, label)
+		}
+		ticksHTML += `</tr></table>`
+	}
+
+	pointImgURL := frontendURL + "/wl-point.png"
 
 	return fmt.Sprintf(`
       <tr><td style="padding-bottom:16px;">
@@ -380,15 +412,7 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
             <table width="100%%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td width="78" valign="middle" style="vertical-align:middle;">
-                  <!--[if mso]>
-                  <v:oval style="width:72px;height:72px;" stroke="true" fill="true" strokecolor="#231815" strokeweight="3px">
-                    <v:fill color="#d4eff5"/>
-                    <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:false;"><center style="font-size:30px;font-weight:700;color:#231815;">P</center></v:textbox>
-                  </v:oval>
-                  <![endif]-->
-                  <!--[if !mso]><!-->
-                  <div style="width:72px;height:72px;border-radius:36px;border:3px solid #231815;background-color:#d4eff5;text-align:center;line-height:72px;font-size:30px;font-weight:700;color:#231815;">P</div>
-                  <!--<![endif]-->
+                  <img src="%s" alt="P" width="72" height="72" style="display:block;width:72px;height:72px;object-fit:contain;" />
                 </td>
                 <td style="padding-left:12px;vertical-align:middle;">
                   <p style="margin:0;font-size:16px;font-weight:700;color:#231815;line-height:1.2;">Lv.%d</p>
@@ -399,7 +423,9 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
                   <div style="margin-top:6px;background-color:#e8f4fd;border-radius:7px;border:1px solid #c0c0c0;height:12px;">
                     <div style="background-color:#43b9d6;border-radius:7px;height:12px;width:%d%%;">&nbsp;</div>
                   </div>
-                  <p style="margin:4px 0 0;font-size:11px;font-weight:700;color:#231815;">%s 포인트를 더 모으면 레벨업!</p>
+                  %s
+                  <p style="margin:4px 0 0;font-size:11px;font-weight:700;color:#231815;">%s</p>
+                  <p style="margin:1px 0 0;font-size:11px;color:#231815;">%s</p>
                   <p style="margin:1px 0 0;font-size:11px;font-weight:700;color:#231815;text-align:right;">%s / %s</p>
                 </td>
               </tr>
@@ -407,10 +433,13 @@ func renderHeaderLevelRow(info *UserLevelInfo, _ string) string {
           </td></tr>
         </table>
       </td></tr>`,
+		pointImgURL,
 		lv,
 		formatNumber(info.TotalCoins),
 		fillPct,
-		formatNumber(remaining),
+		ticksHTML,
+		levelMsg,
+		dailyLimitMsg,
 		formatNumber(info.TotalCoins), formatNumber(info.CoinCap),
 	)
 }
