@@ -18,19 +18,29 @@ export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWith
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        {/* Level */}
-        <p className="text-xl md:text-2xl font-bold text-[#231815] leading-tight">
-          Lv.{level.level}
-        </p>
-
-        {/* Points */}
-        <div className="flex items-baseline gap-1.5 mt-0.5">
-          <span className="text-3xl md:text-[40px] font-bold text-[#231815] leading-tight">
-            {total_coins.toLocaleString()}
-          </span>
-          <span className="text-sm md:text-base font-bold text-[#231815]">
-            포인트
-          </span>
+        {/* Top row: Level + Withdraw button */}
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xl md:text-2xl font-bold text-[#231815] leading-tight">
+              Lv.{level.level}
+            </p>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-3xl md:text-[40px] font-bold text-[#231815] leading-tight">
+                {total_coins.toLocaleString()}
+              </span>
+              <span className="text-sm md:text-base font-bold text-[#231815]">
+                포인트
+              </span>
+            </div>
+          </div>
+          {onWithdrawClick && (
+            <button
+              className="flex-shrink-0 px-8 py-3 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-lg font-medium text-[#231815] hover:brightness-110 transition-all"
+              onClick={onWithdrawClick}
+            >
+              출금하기
+            </button>
+          )}
         </div>
 
         {/* Progress bar with tick marks */}
@@ -47,6 +57,17 @@ export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWith
             </div>
             {/* Tick marks + level labels */}
             <div className="relative h-4 mt-0.5">
+              {/* Lv.1 at start */}
+              <div
+                className="absolute flex flex-col items-center"
+                style={{ left: "0%", transform: "translateX(-10%)" }}
+              >
+                <div className="w-px h-1.5 bg-[#231815]/30" />
+                <span className="text-[9px] text-[#231815]/40 leading-none mt-px">
+                  Lv.1
+                </span>
+              </div>
+              {/* Lv.2+ at each threshold */}
               {thresholds.slice(1).map((t, i) => {
                 const pos = (t / coin_cap) * 100;
                 return (
@@ -76,16 +97,6 @@ export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWith
             : `${remaining.toLocaleString()} 포인트를 더 모으면 레벨업!`}
         </p>
       </div>
-
-      {/* Withdraw button */}
-      {onWithdrawClick && (
-        <button
-          className="flex-shrink-0 px-8 py-3 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-lg font-medium text-[#231815] hover:brightness-110 transition-all"
-          onClick={onWithdrawClick}
-        >
-          출금하기
-        </button>
-      )}
     </div>
   );
 }
