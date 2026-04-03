@@ -94,7 +94,9 @@ export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWith
         <p className="text-sm font-bold text-[#231815] mt-0.5">
           {isMaxLevel
             ? "최고 레벨 달성!"
-            : `${remaining.toLocaleString()} 포인트를 더 모으면 레벨업!`}
+            : `${remaining.toLocaleString()} 포인트를 더 모으면 레벨업! 레벨이 오르면 일일 포인트 한도가 늘어나요!`}
+          <br />
+          현재 일일 한도: {level.daily_limit} 포인트
         </p>
       </div>
     </div>
