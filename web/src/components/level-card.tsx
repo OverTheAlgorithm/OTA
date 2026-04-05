@@ -2,12 +2,15 @@ import type { LevelInfo } from "@/lib/api";
 
 export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWithdrawClick?: () => void }) {
   const { total_coins, coin_cap, thresholds } = level;
-  const fillPercent = Math.min((total_coins / coin_cap) * 100, 100);
 
-  // Next level threshold: find the first threshold > total_coins
+  // Current level range: from previous threshold to next threshold
+  const currentThreshold = [...thresholds].reverse().find((t) => t <= total_coins) ?? 0;
   const nextThreshold = thresholds.find((t) => t > total_coins) ?? coin_cap;
+  const levelRange = nextThreshold - currentThreshold;
+  const levelProgress = total_coins - currentThreshold;
+  const fillPercent = levelRange > 0 ? Math.min((levelProgress / levelRange) * 100, 100) : 100;
   const remaining = Math.max(nextThreshold - total_coins, 0);
-  const isMaxLevel = nextThreshold === coin_cap && total_coins >= (thresholds[thresholds.length - 1] ?? 0);
+  const isMaxLevel = total_coins >= (thresholds[thresholds.length - 1] ?? 0);
 
   return (
     <div className="relative rounded-[22px] bg-white border-[2px] border-[#231815] px-6 py-5 flex items-center gap-5">
@@ -43,7 +46,7 @@ export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWith
           </span>
         </div>
 
-        {/* Progress bar with tick marks */}
+        {/* Progress bar — represents current level range only */}
         <div className="flex items-center gap-3 mt-2">
           <div className="flex-1">
             <div className="relative h-[14px] rounded-full bg-[#e8f4fd] border border-[#231815]/50 overflow-hidden">
@@ -55,38 +58,9 @@ export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWith
                 }}
               />
             </div>
-            {/* Tick marks + level labels */}
-            <div className="relative h-4 mt-0.5">
-              {/* Lv.1 at start */}
-              <div
-                className="absolute flex flex-col items-center"
-                style={{ left: "0%", transform: "translateX(-10%)" }}
-              >
-                <div className="w-px h-1.5 bg-[#231815]/30" />
-                <span className="text-[9px] text-[#231815]/40 leading-none mt-px">
-                  Lv.1
-                </span>
-              </div>
-              {/* Lv.2+ at each threshold */}
-              {thresholds.slice(1).map((t, i) => {
-                const pos = (t / coin_cap) * 100;
-                return (
-                  <div
-                    key={t}
-                    className="absolute flex flex-col items-center"
-                    style={{ left: `${pos}%`, transform: "translateX(-50%)" }}
-                  >
-                    <div className="w-px h-1.5 bg-[#231815]/30" />
-                    <span className="text-[9px] text-[#231815]/40 leading-none mt-px">
-                      Lv.{i + 2}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
           </div>
           <span className="text-sm font-bold text-[#231815] whitespace-nowrap">
-            {total_coins.toLocaleString()} / {coin_cap.toLocaleString()}
+            {levelProgress.toLocaleString()} / {levelRange.toLocaleString()}
           </span>
         </div>
 
