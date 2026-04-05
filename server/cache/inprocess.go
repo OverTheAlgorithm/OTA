@@ -64,10 +64,11 @@ func (c *InProcessCache) Get(k string) (any, bool) {
 }
 
 // Set stores a value with the given TTL.
-func (c *InProcessCache) Set(k string, v any, ttl time.Duration) {
+func (c *InProcessCache) Set(k string, v any, ttl time.Duration) error {
 	c.mu.Lock()
 	c.data[k] = entry{value: v, expiresAt: time.Now().Add(ttl)}
 	c.mu.Unlock()
+	return nil
 }
 
 // Delete removes a key.

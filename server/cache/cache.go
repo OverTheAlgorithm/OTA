@@ -6,7 +6,7 @@ import "time"
 // Implementations include RedisCache (production) and InProcessCache (dev/test).
 type Cache interface {
 	Get(k string) (any, bool)
-	Set(k string, v any, ttl time.Duration)
+	Set(k string, v any, ttl time.Duration) error
 	Delete(k string)
 	Has(k string) bool
 	Close() error

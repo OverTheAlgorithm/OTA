@@ -275,9 +275,11 @@ func TestTerms_CompleteSignupFlow_Integration(t *testing.T) {
 	})
 
 	// Simulate cache entry (as if KakaoCallback placed it)
-	signupCache.Set("test-signup-key", handler.PendingSignup{
+	if err := signupCache.Set("test-signup-key", handler.PendingSignup{
 		KakaoID: 77777, Email: "new@user.com", Nickname: "NewUser",
-	}, 3*time.Minute)
+	}, 3*time.Minute); err != nil {
+		t.Fatalf("failed to set signup cache: %v", err)
+	}
 
 	// Complete signup with correct consents
 	body, _ := json.Marshal(map[string]any{

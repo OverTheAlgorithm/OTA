@@ -277,12 +277,16 @@ func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 	}
 
 	signupKey := uuid.New().String()
-	h.signupCache.Set(signupKey, PendingSignup{
+	if err := h.signupCache.Set(signupKey, PendingSignup{
 		KakaoID:         kakaoUser.ID,
 		Email:           kakaoUser.Account.Email,
 		Nickname:        kakaoUser.Account.Profile.Nickname,
 		ProfileImageURL: kakaoUser.Account.Profile.ProfileImageURL,
-	}, signupCacheTTL)
+	}, signupCacheTTL); err != nil {
+		slog.Error("signup: cache set failed", "kakao_id", kakaoUser.ID, "error", err)
+		c.Redirect(http.StatusFound, h.frontendURL+"/login?error=internal_error")
+		return
+	}
 
 	slog.Info("new user signup pending", "kakao_id", kakaoUser.ID)
 	c.Redirect(http.StatusFound, h.frontendURL+"/terms-consent?signup_key="+signupKey)

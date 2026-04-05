@@ -902,7 +902,7 @@ paths:
                       new_level:
                         type: integer
         '400':
-          description: TOO_EARLY (dwell time not met) or invalid input
+          description: EARN_NOT_INITIATED (earn not initiated) or TOO_EARLY (dwell time not met) or invalid input
           content:
             application/json:
               schema:

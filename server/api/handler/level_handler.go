@@ -37,6 +37,7 @@ type LevelHandler struct {
 	histRepo           collector.HistoryRepository
 	subGetter          SubscriptionGetter
 	earnCache          cache.Cache
+	earnCacheRetries   int
 	earnMinDuration    time.Duration
 	turnstileSecretKey string
 	authMW             gin.HandlerFunc
@@ -47,15 +48,20 @@ func NewLevelHandler(
 	histRepo collector.HistoryRepository,
 	subGetter SubscriptionGetter,
 	earnCache cache.Cache,
+	earnCacheRetries int,
 	earnMinDuration time.Duration,
 	turnstileSecretKey string,
 	authMW gin.HandlerFunc,
 ) *LevelHandler {
+	if earnCacheRetries < 1 {
+		earnCacheRetries = 1
+	}
 	return &LevelHandler{
 		service:            service,
 		histRepo:           histRepo,
 		subGetter:          subGetter,
 		earnCache:          earnCache,
+		earnCacheRetries:   earnCacheRetries,
 		earnMinDuration:    earnMinDuration,
 		turnstileSecretKey: turnstileSecretKey,
 		authMW:             authMW,
@@ -162,7 +168,23 @@ func (h *LevelHandler) InitEarn(c *gin.Context) {
 		RunID:         runID,
 	}
 	ttl := h.earnMinDuration * 2
-	h.earnCache.Set(earnCacheKey(userID, itemID), pending, ttl)
+	key := earnCacheKey(userID, itemID)
+
+	var cacheErr error
+	for attempt := 1; attempt <= h.earnCacheRetries; attempt++ {
+		if cacheErr = h.earnCache.Set(key, pending, ttl); cacheErr == nil {
+			break
+		}
+		slog.Warn("init-earn: cache set failed", "attempt", attempt, "max", h.earnCacheRetries, "user_id", userID, "item_id", itemID, "error", cacheErr)
+		if attempt < h.earnCacheRetries {
+			time.Sleep(50 * time.Millisecond * time.Duration(attempt))
+		}
+	}
+	if cacheErr != nil {
+		slog.Error("init-earn: cache set failed after retries", "retries", h.earnCacheRetries, "user_id", userID, "item_id", itemID, "error", cacheErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
 
 	slog.Info("init-earn: PENDING", "user_id", userID, "item_id", itemID, "run_id", runID, "required_seconds", int(h.earnMinDuration.Seconds()))
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
@@ -198,8 +220,8 @@ func (h *LevelHandler) EarnCoin(c *gin.Context) {
 	key := earnCacheKey(userID, itemID)
 	pending, ok := cache.GetTyped[EarnPending](h.earnCache, key)
 	if !ok {
-		slog.Warn("earn: TOO_EARLY (no cache)", "user_id", userID, "item_id", itemID, "ip", c.ClientIP())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "TOO_EARLY"})
+		slog.Warn("earn: EARN_NOT_INITIATED (no cache entry)", "user_id", userID, "item_id", itemID, "ip", c.ClientIP())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "EARN_NOT_INITIATED"})
 		return
 	}
 	elapsed := time.Since(pending.InitiatedAt)

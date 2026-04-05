@@ -121,7 +121,8 @@ func (m *mockSubGetterLevel) GetSubscriptions(_ context.Context, _ string) ([]st
 
 // mockCache is an in-memory cache for tests (no TTL enforcement — just store/fetch).
 type mockCache struct {
-	store map[string]any
+	store  map[string]any
+	setErr error // when non-nil, Set returns this error
 }
 
 func newMockCache() *mockCache {
@@ -133,8 +134,12 @@ func (c *mockCache) Get(k string) (any, bool) {
 	return v, ok
 }
 
-func (c *mockCache) Set(k string, v any, _ time.Duration) {
+func (c *mockCache) Set(k string, v any, _ time.Duration) error {
+	if c.setErr != nil {
+		return c.setErr
+	}
 	c.store[k] = v
+	return nil
 }
 
 func (c *mockCache) Delete(k string) {
@@ -170,7 +175,7 @@ func newLevelTestRouter(
 ) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := handler.NewLevelHandler(lvlSvc, histRepo, sub, earnCache, earnMinDuration, "dummy-secret-key", fakeAuthMW(userID))
+	h := handler.NewLevelHandler(lvlSvc, histRepo, sub, earnCache, 1, earnMinDuration, "dummy-secret-key", fakeAuthMW(userID))
 	h.RegisterRoutes(r.Group("/level"))
 	return r
 }
@@ -239,7 +244,7 @@ func TestEarnCoin_Success_Preferred(t *testing.T) {
 	}
 }
 
-func TestEarnCoin_TooEarly_NoCache(t *testing.T) {
+func TestEarnCoin_NotInitiated_NoCache(t *testing.T) {
 	topicID := uuid.New()
 	runID := uuid.New()
 	userID := uuid.New().String()
@@ -251,7 +256,7 @@ func TestEarnCoin_TooEarly_NoCache(t *testing.T) {
 	w := postEarn(r, topicID.String(), "dummy-token")
 
 	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 TOO_EARLY when cache empty, got %d", w.Code)
+		t.Errorf("expected 400 EARN_NOT_INITIATED when cache empty, got %d", w.Code)
 	}
 }
 
@@ -372,7 +377,7 @@ func TestEarnCoin_InvalidTurnstileToken(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := handler.NewLevelHandler(svc, histRepo, &mockSubGetterLevel{}, mc, 5*time.Second, "2x0000000000000000000000000000000AA", fakeAuthMW(userID))
+	h := handler.NewLevelHandler(svc, histRepo, &mockSubGetterLevel{}, mc, 1, 5*time.Second, "2x0000000000000000000000000000000AA", fakeAuthMW(userID))
 	h.RegisterRoutes(r.Group("/level"))
 
 	w := postEarn(r, topicID.String(), "invalid-token-here")
@@ -515,6 +520,27 @@ func TestInitEarn_TimerReset(t *testing.T) {
 	data := resp["data"].(map[string]interface{})
 	if data["status"] != "PENDING" {
 		t.Errorf("expected PENDING on second call, got %v", data["status"])
+	}
+}
+
+func TestInitEarn_CacheSetFailure(t *testing.T) {
+	topicID := uuid.New()
+	runID := uuid.New()
+	userID := uuid.New().String()
+
+	histRepo := &mockLevelHistoryRepo{
+		topic:   &collector.TopicDetail{ID: topicID, RunID: runID, Category: "tech", Topic: "테크"},
+		isToday: true,
+	}
+	svc := level.NewService(&mockLevelRepo{coins: 0}, level.NewLevelConfig(5000, 1000), 0, 0)
+	mc := newMockCache()
+	mc.setErr = fmt.Errorf("redis: connection refused")
+
+	r := newLevelTestRouter(histRepo, svc, &mockSubGetterLevel{}, mc, 5*time.Second, userID)
+	w := postInitEarn(r, topicID.String())
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 when cache set fails, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

@@ -59,13 +59,15 @@ func (r *RedisCache) Get(k string) (any, bool) {
 }
 
 // Set JSON-encodes v and stores it with the given TTL.
-// Silently skips the write if encoding fails.
-func (r *RedisCache) Set(k string, v any, ttl time.Duration) {
+func (r *RedisCache) Set(k string, v any, ttl time.Duration) error {
 	data, err := json.Marshal(v)
 	if err != nil {
-		return
+		return fmt.Errorf("cache set marshal: %w", err)
 	}
-	r.client.Set(r.ctx, r.prefixed(k), data, ttl)
+	if err := r.client.Set(r.ctx, r.prefixed(k), data, ttl).Err(); err != nil {
+		return fmt.Errorf("cache set redis: %w", err)
+	}
+	return nil
 }
 
 // Delete removes a key from the cache.

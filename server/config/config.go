@@ -47,6 +47,7 @@ type Config struct {
 	DailyCoinLimit int // max coins a user can earn per day (KST); 0 = unlimited
 
 	EarnMinDurationSec int // EARN_MIN_DURATION_SEC: minimum seconds user must stay on page before earning; default 10
+	EarnCacheRetries   int // EARN_CACHE_RETRIES: max retry attempts for earn cache writes; default 3
 
 	MinWithdrawalAmount    int // MIN_WITHDRAWAL_AMOUNT: minimum coins required to request withdrawal; default 1000
 	WithdrawalUnitAmount   int // WITHDRAWAL_UNIT_AMOUNT: withdrawal amount must be a multiple of this; default 1000
@@ -120,6 +121,7 @@ func Load() (Config, error) {
 
 		DailyCoinLimit:         getEnvInt("DAILY_COIN_LIMIT", 10),
 		EarnMinDurationSec:    getEnvInt("EARN_MIN_DURATION_SEC", 10),
+		EarnCacheRetries:      getEnvInt("EARN_CACHE_RETRIES", 3),
 		MinWithdrawalAmount:   getEnvInt("MIN_WITHDRAWAL_AMOUNT", 1000),
 		WithdrawalUnitAmount:   getEnvInt("WITHDRAWAL_UNIT_AMOUNT", 1000),
 		ExtraCoinLimitPerLevel: getEnvInt("EXTRA_COIN_LIMIT_PER_LEVEL", 0),
