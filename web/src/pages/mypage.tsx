@@ -412,7 +412,7 @@ export function MypagePage() {
           <div className="flex border-b border-[#dbdade] mb-8">
             <button
               onClick={() => setTab("points")}
-              className={`px-6 py-3 text-lg font-medium transition-colors relative ${
+              className={`flex-1 px-2 md:px-6 py-3 text-sm md:text-lg font-medium whitespace-nowrap transition-colors relative ${
                 tab === "points"
                   ? "text-[#008fb2]"
                   : "text-[#231815] hover:text-[#008fb2]/70"
@@ -425,7 +425,7 @@ export function MypagePage() {
             </button>
             <button
               onClick={() => setTab("withdrawals")}
-              className={`px-6 py-3 text-lg font-medium transition-colors relative ${
+              className={`flex-1 px-2 md:px-6 py-3 text-sm md:text-lg font-medium whitespace-nowrap transition-colors relative ${
                 tab === "withdrawals"
                   ? "text-[#008fb2]"
                   : "text-[#231815] hover:text-[#008fb2]/70"
@@ -438,7 +438,7 @@ export function MypagePage() {
             </button>
             <button
               onClick={() => setTab("settings")}
-              className={`px-6 py-3 text-lg font-medium transition-colors relative ${
+              className={`flex-1 px-2 md:px-6 py-3 text-sm md:text-lg font-medium whitespace-nowrap transition-colors relative ${
                 tab === "settings"
                   ? "text-[#008fb2]"
                   : "text-[#231815] hover:text-[#008fb2]/70"
