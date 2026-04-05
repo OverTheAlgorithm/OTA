@@ -61,7 +61,7 @@ export function InterestSection({ selected, onChange }: Props) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2 md:gap-3">
         {CATEGORIES.map((cat) => {
           const isActive = selected.includes(cat.key);
           return (
@@ -69,7 +69,7 @@ export function InterestSection({ selected, onChange }: Props) {
               key={cat.key}
               onClick={() => handleToggle(cat.key)}
               disabled={saving}
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium border-[2px] transition-colors
+              className={`flex items-center gap-1.5 md:gap-3 px-2.5 md:px-4 py-3 md:py-3.5 rounded-xl text-xs md:text-sm font-medium border-[2px] whitespace-nowrap transition-colors
                 ${isActive
                   ? "bg-[#43b9d6]/10 text-[#231815] border-[#43b9d6]"
                   : "bg-white text-[#231815] border-[#231815] hover:bg-[#43b9d6]/5"
@@ -77,7 +77,7 @@ export function InterestSection({ selected, onChange }: Props) {
                 ${saving ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
               `}
             >
-              <span className="text-xl">{cat.emoji}</span>
+              <span className="text-base md:text-xl">{cat.emoji}</span>
               <span>{cat.label}</span>
               {isActive && (
                 <svg className="w-4 h-4 ml-auto text-[#43b9d6]" viewBox="0 0 14 14" fill="none"
