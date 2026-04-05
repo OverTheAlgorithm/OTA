@@ -10,7 +10,17 @@ export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWith
   const isMaxLevel = nextThreshold === coin_cap && total_coins >= (thresholds[thresholds.length - 1] ?? 0);
 
   return (
-    <div className="rounded-[22px] bg-white border-[2px] border-[#231815] px-6 py-5 flex items-center gap-5">
+    <div className="relative rounded-[22px] bg-white border-[2px] border-[#231815] px-6 py-5 flex items-center gap-5">
+      {/* Withdraw button — absolute so it doesn't push content on mobile */}
+      {onWithdrawClick && (
+        <button
+          className="absolute top-4 right-4 px-5 py-2 md:px-8 md:py-3 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-sm md:text-lg font-medium text-[#231815] hover:brightness-110 transition-all"
+          onClick={onWithdrawClick}
+        >
+          출금하기
+        </button>
+      )}
+
       {/* Point icon */}
       <img
         src="/wl-point.png"
@@ -20,29 +30,17 @@ export function LevelCard({ level, onWithdrawClick }: { level: LevelInfo; onWith
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        {/* Top row: Level + Withdraw button */}
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xl md:text-2xl font-bold text-[#231815] leading-tight">
-              Lv.{level.level}
-            </p>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-3xl md:text-[40px] font-bold text-[#231815] leading-tight">
-                {total_coins.toLocaleString()}
-              </span>
-              <span className="text-sm md:text-base font-bold text-[#231815]">
-                포인트
-              </span>
-            </div>
-          </div>
-          {onWithdrawClick && (
-            <button
-              className="flex-shrink-0 px-8 py-3 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-lg font-medium text-[#231815] hover:brightness-110 transition-all"
-              onClick={onWithdrawClick}
-            >
-              출금하기
-            </button>
-          )}
+        {/* Level + coins */}
+        <p className="text-xl md:text-2xl font-bold text-[#231815] leading-tight">
+          Lv.{level.level}
+        </p>
+        <div className="flex items-baseline gap-1.5 mt-0.5">
+          <span className="text-3xl md:text-[40px] font-bold text-[#231815] leading-tight">
+            {total_coins.toLocaleString()}
+          </span>
+          <span className="text-sm md:text-base font-bold text-[#231815]">
+            포인트
+          </span>
         </div>
 
         {/* Progress bar with tick marks */}
