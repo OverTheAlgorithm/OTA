@@ -317,7 +317,7 @@ export function LandingPage() {
       >
         <div className="max-w-[1200px] mx-auto px-6 flex flex-col justify-center py-12">
           <FadeIn>
-            <h1 className="text-4xl md:text-5xl lg:text-[74px] font-semibold leading-tight lg:leading-[90px] tracking-tight text-center">
+            <h1 className="text-[26px] sm:text-4xl md:text-5xl lg:text-[74px] font-semibold leading-tight lg:leading-[90px] tracking-tight text-center">
               개인화에 갇힌 알고리즘 너머
               <br />
               진짜 세상을 읽고 수익까지
