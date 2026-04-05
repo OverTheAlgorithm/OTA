@@ -155,6 +155,10 @@ func (h *TermsAdminHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "버전은 필수입니다"})
 		return
 	}
+	if req.URL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "URL은 필수입니다"})
+		return
+	}
 	if req.Active == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "활성 상태는 필수입니다"})
 		return
