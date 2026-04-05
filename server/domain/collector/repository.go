@@ -12,4 +12,7 @@ type Repository interface {
 	SaveContextItems(ctx context.Context, items []ContextItem) error
 	UpdateItemImagePath(ctx context.Context, itemID uuid.UUID, imagePath string) error
 	CanRunToday(ctx context.Context) (bool, error)
+	// FailStaleRuns marks any "running" collection runs as "failed".
+	// Called on server startup to recover from unclean shutdowns.
+	FailStaleRuns(ctx context.Context) (int, error)
 }

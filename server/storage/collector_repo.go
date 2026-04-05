@@ -90,6 +90,16 @@ func (r *CollectorRepository) UpdateItemImagePath(ctx context.Context, itemID uu
 	return nil
 }
 
+func (r *CollectorRepository) FailStaleRuns(ctx context.Context) (int, error) {
+	query := `UPDATE collection_runs SET completed_at = NOW(), status = 'failed', error_message = 'server shutdown: stale running state recovered'
+		WHERE status = 'running'`
+	tag, err := r.pool.Exec(ctx, query)
+	if err != nil {
+		return 0, fmt.Errorf("failing stale runs: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 func (r *CollectorRepository) CanRunToday(ctx context.Context) (bool, error) {
 	query := `
 		SELECT EXISTS(

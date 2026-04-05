@@ -75,6 +75,10 @@ func (m *mockRepo) CanRunToday(_ context.Context) (bool, error) {
 	return m.canRunToday, m.canRunTodayErr
 }
 
+func (m *mockRepo) FailStaleRuns(_ context.Context) (int, error) {
+	return 0, nil
+}
+
 // mockSourceCollector is defined in aggregator_test.go (same package).
 
 // mockTrendingRepo records saved items for verification.

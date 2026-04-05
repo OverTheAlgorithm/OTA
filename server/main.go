@@ -124,6 +124,13 @@ func main() {
 	}
 	collectorRepo := storage.NewCollectorRepository(pool)
 
+	// Recover stale "running" collection runs from previous unclean shutdown
+	if n, err := collectorRepo.FailStaleRuns(ctx); err != nil {
+		slog.Error("failed to recover stale collection runs", "error", err)
+	} else if n > 0 {
+		slog.Warn("recovered stale collection runs", "count", n)
+	}
+
 	// -- Redis / in-process cache ------------------------------------------------
 	redisCfg := cache.RedisConfig{
 		Host:     cfg.RedisHost,
@@ -239,8 +246,10 @@ func main() {
 	)
 	withdrawalService := withdrawal.NewService(withdrawalRepo, coinManager, cfg.MinWithdrawalAmount, cfg.WithdrawalUnitAmount)
 
-	// Scheduler
-	sched := scheduler.New(collectorService, deliveryService)
+	// Scheduler — shutdownCtx is cancelled on SIGINT/SIGTERM so in-progress
+	// collection gets cancelled and its run is marked as failed.
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
+	sched := scheduler.New(collectorService, deliveryService, shutdownCtx)
 	if err := sched.Start(); err != nil {
 		slog.Error("failed to start scheduler", "error", err)
 		os.Exit(1)
@@ -306,6 +315,7 @@ func main() {
 		historyRepo,
 		subscriptionRepo,
 		earnCache,
+		cfg.EarnCacheRetries,
 		earnMinDuration,
 		cfg.TurnstileSecretKey,
 		api.AuthMiddleware(jwtManager),
@@ -434,9 +444,13 @@ func main() {
 	<-quit
 	slog.Info("shutdown signal received, draining requests")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
+	// Cancel scheduler's parent context so in-progress collection is
+	// interrupted and its run is marked as failed via failRun().
+	shutdownCancel()
+
+	httpShutdownCtx, httpCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer httpCancel()
+	if err := srv.Shutdown(httpShutdownCtx); err != nil {
 		slog.Error("server forced to shutdown", "error", err)
 		os.Exit(1)
 	}

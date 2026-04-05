@@ -17,14 +17,17 @@ type Scheduler struct {
 	cron             *cron.Cron
 	collectorService *collector.Service
 	deliveryService  *delivery.Service
+	shutdownCtx      context.Context
 }
 
-// New creates a new Scheduler
-func New(collectorService *collector.Service, deliveryService *delivery.Service) *Scheduler {
+// New creates a new Scheduler. The shutdownCtx is used as a parent context for
+// long-running tasks (e.g. collection) so they are cancelled on server shutdown.
+func New(collectorService *collector.Service, deliveryService *delivery.Service, shutdownCtx context.Context) *Scheduler {
 	return &Scheduler{
 		cron:             cron.New(cron.WithLocation(time.UTC)),
 		collectorService: collectorService,
 		deliveryService:  deliveryService,
+		shutdownCtx:      shutdownCtx,
 	}
 }
 
@@ -71,7 +74,7 @@ func (s *Scheduler) Stop() context.Context {
 
 func (s *Scheduler) collect() {
 	slog.Info("checking if collection is needed")
-	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	ctx, cancel := context.WithTimeout(s.shutdownCtx, time.Hour)
 	defer cancel()
 	result, err := s.collectorService.CollectFromSourcesIfNeeded(ctx)
 	if err != nil {
