@@ -9,6 +9,7 @@ import {
   type TopicDetail,
   type BrainCategory,
 } from "@/lib/api";
+import { QuizCard } from "@/components/quiz-card";
 import { useAuth } from "@/contexts/auth-context";
 import { detectAdBlock } from "@/lib/adblock";
 import { formatDate } from "@/lib/utils";
@@ -606,6 +607,19 @@ export function TopicPage() {
                 추가 정보가 없습니다.
               </p>
             )}
+
+            {/* Quiz Card — shown for logged-in users when has_quiz, not daily_limit, not expired */}
+            {user && topic.has_quiz &&
+              coinTag?.kind !== "daily_limit" &&
+              coinTag?.kind !== "expired" && (
+                <QuizCard
+                  quiz={topic.quiz}
+                  hasQuiz={topic.has_quiz}
+                  earnDone={coinTag?.kind === "success" || coinTag?.kind === "duplicate"}
+                  contextItemId={topic.id}
+                  onCoinsEarned={() => setLevelRefreshKey((k) => k + 1)}
+                />
+              )}
 
             {/* Sources */}
             {topic.sources && topic.sources.length > 0 && (

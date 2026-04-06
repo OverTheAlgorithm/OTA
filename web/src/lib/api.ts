@@ -220,6 +220,18 @@ export async function sendBriefingNow(): Promise<SendBriefingResult> {
 }
 
 // ── 주제 상세 ─────────────────────────────────────────
+export interface QuizForUser {
+  id: string;
+  question: string;
+  options: string[];
+}
+
+export interface QuizSubmitResult {
+  correct: boolean;
+  coins_earned: number;
+  total_coins: number;
+}
+
 export interface TopicDetail {
   id: string;
   topic: string;
@@ -231,6 +243,8 @@ export interface TopicDetail {
   brain_category: string;
   created_at: string;
   image_url: string | null;
+  has_quiz: boolean;
+  quiz: QuizForUser | null;
 }
 
 export interface TopicEarnResult {
@@ -243,7 +257,7 @@ export interface TopicEarnResult {
 }
 
 export async function fetchTopicDetail(id: string): Promise<TopicDetail> {
-  const res = await fetch(`${API_BASE}/api/v1/context/topic/${id}`);
+  const res = await apiFetch(`${API_BASE}/api/v1/context/topic/${id}`);
   if (res.status === 404) throw new Error("not_found");
   if (!res.ok) throw new Error("server_error");
   const body: ApiResponse<TopicDetail> = await res.json();
@@ -301,6 +315,7 @@ export interface TopicPreview {
   brain_category?: string;
   priority?: string;
   created_at?: string;
+  has_quiz?: boolean;
 }
 
 export async function fetchRecentTopics(): Promise<TopicPreview[]> {
@@ -371,6 +386,8 @@ export interface EarnStatusItem {
   id: string;
   status: "PENDING" | "DUPLICATE" | "EXPIRED" | "DAILY_LIMIT" | "NOT_FOUND";
   coins: number;
+  has_quiz: boolean;
+  quiz_completed: boolean;
 }
 
 export async function batchEarnStatus(ids: string[]): Promise<EarnStatusItem[]> {
@@ -876,5 +893,24 @@ export async function adminAdjustCoins(
     throw new Error(err.error || "포인트 수정에 실패했습니다");
   }
   const body: ApiResponse<AdjustCoinsResult> = await res.json();
+  return body.data;
+}
+
+// ── 퀴즈 ─────────────────────────────────────────────
+export async function submitQuizAnswer(
+  contextItemId: string,
+  answerIndex: number
+): Promise<QuizSubmitResult> {
+  const res = await apiFetch(`${API_BASE}/api/v1/quiz/${encodeURIComponent(contextItemId)}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answer_index: answerIndex }),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json().catch(() => ({ error: "quiz_failed" }));
+    throw new Error(err.error || "quiz_failed");
+  }
+  const body: ApiResponse<QuizSubmitResult> = await res.json();
   return body.data;
 }
