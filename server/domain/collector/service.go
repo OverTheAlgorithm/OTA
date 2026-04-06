@@ -33,6 +33,7 @@ type Service struct {
 	brainCatRepo   BrainCategoryRepository
 	catRepo        CategoryRepository // optional: loads categories from DB for AI prompts
 	quizRepo       QuizSaver          // optional: saves quizzes from collection pipeline
+	checkpointRepo CheckpointRepository // optional: enables checkpoint/resume
 	urlDecoder     URLDecoder
 	articleFetcher ArticleFetcher
 	imageGen       *ImageGenerator
@@ -81,6 +82,13 @@ func (s *Service) WithQuizRepo(repo QuizSaver) *Service {
 	return s
 }
 
+// WithCheckpointRepo sets the checkpoint repository for pipeline resume capability.
+// If not set, checkpoint saves are skipped and ResumeOrCollect delegates to CollectFromSources.
+func (s *Service) WithCheckpointRepo(repo CheckpointRepository) *Service {
+	s.checkpointRepo = repo
+	return s
+}
+
 // CollectFromSources runs the two-phase collection pipeline:
 // Stage 0: Collect from structured sources (Google Trends, Google News, etc.)
 // Stage 1: Phase 1 AI — cluster, categorize, buzz_score, select sources
@@ -114,6 +122,9 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 		return failRun(fmt.Errorf("source collection: %w", err), nil)
 	}
 	slog.Info("collection run stage 0 done", "run_id", run.ID, "items", len(data.Items))
+
+	// Checkpoint: Stage 0 complete — save formatted text for resume.
+	s.saveCheckpoint(ctx, run.ID, 0, Stage0Data{FormattedText: data.FormattedText})
 
 	// Persist raw trending data for tracking/analysis.
 	if err := s.trendingRepo.SaveTrendingItems(ctx, run.ID, data.Items); err != nil {
@@ -152,6 +163,9 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	}
 	slog.Info("collection run stage 1 done", "run_id", run.ID, "topics", len(topics))
 
+	// Checkpoint: Stage 1 complete — save topics + raw Phase 1 JSON for resume.
+	s.saveCheckpoint(ctx, run.ID, 1, Stage1Data{Topics: topics, Phase1RawJSON: phase1Resp.RawJSON})
+
 	// Stage 2: Decode redirect URLs to original article URLs.
 	topics = s.decodePhase1URLs(ctx, run.ID, topics)
 
@@ -165,47 +179,16 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	}
 	slog.Info("collection run stage 3 done", "run_id", run.ID, "topics", len(topics))
 
-	// Stage 4: Phase 2 AI — per-topic detail writing (parallel with semaphore).
-	slog.Info("collection run stage 4: Phase 2 AI detail writing", "run_id", run.ID)
-	items, phase2RawResponses := s.runPhase2(ctx, run.ID, topics, articleMap, brainCategories)
-	if len(items) == 0 {
-		rawResp := phase1Resp.RawJSON
-		return failRun(fmt.Errorf("Phase 2 AI: all topics failed"), &rawResp)
-	}
-	slog.Info("collection run stage 4 done", "run_id", run.ID, "written", len(items), "total", len(topics))
+	// Checkpoint: Stage 3 complete — save topics + articles + raw JSON for resume.
+	s.saveCheckpoint(ctx, run.ID, 3, Stage3Data{Topics: topics, ArticleMap: articleMap, Phase1RawJSON: phase1Resp.RawJSON})
 
-	// Build combined raw response for debugging (before save so it's available on failure).
-	combinedRaw := buildCombinedRawResponse(phase1Resp.RawJSON, phase2RawResponses)
-
-	// Stage 5: Save items + mark run as success.
-	// This happens BEFORE image generation so that content is persisted regardless of image failures.
-	if err := s.repo.SaveContextItems(ctx, items); err != nil {
-		return failRun(fmt.Errorf("saving context items: %w", err), &combinedRaw)
-	}
-	if err := s.repo.CompleteRun(ctx, run.ID, RunStatusSuccess, nil, &combinedRaw); err != nil {
-		return CollectionResult{}, fmt.Errorf("completing run: %w", err)
-	}
-	slog.Info("collection run stage 5 done", "run_id", run.ID, "items_saved", len(items))
-
-	// Stage 6: Generate thumbnail images (best-effort, does NOT affect run status).
-	items = s.generateImages(ctx, run.ID, items)
-	s.persistImagePaths(ctx, run.ID, items)
-
-	// Stage 7: Generate quizzes (best-effort, does NOT affect run status).
-	if s.quizRepo != nil {
-		s.generateQuizzes(ctx, run.ID, items)
-	}
-
-	slog.Info("collection run complete", "run_id", run.ID, "items", len(items), "source_items", len(data.Items))
-
-	now := time.Now().UTC()
-	run.CompletedAt = &now
-	run.Status = RunStatusSuccess
-	run.RawResponse = &combinedRaw
-	return CollectionResult{Run: run, Items: items}, nil
+	// Stages 4-7: shared pipeline tail.
+	return s.runPipelineTail(ctx, &run, topics, articleMap, brainCategories, phase1Resp.RawJSON, failRun)
 }
 
 // CollectFromSourcesIfNeeded checks if collection already ran today and skips if so.
+// When a checkpoint repository is configured, it attempts to resume a failed run
+// before starting a fresh one.
 func (s *Service) CollectFromSourcesIfNeeded(ctx context.Context) (*CollectionResult, error) {
 	canRun, err := s.repo.CanRunToday(ctx)
 	if err != nil {
@@ -217,12 +200,246 @@ func (s *Service) CollectFromSourcesIfNeeded(ctx context.Context) (*CollectionRe
 		return nil, nil
 	}
 
-	result, err := s.CollectFromSources(ctx)
+	result, err := s.ResumeOrCollect(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return &result, nil
+}
+
+// ResumeOrCollect checks for a resumable failed run with checkpoint data.
+// If found, creates a new run and resumes from the last completed stage.
+// If not found (or checkpointRepo is nil), delegates to CollectFromSources.
+func (s *Service) ResumeOrCollect(ctx context.Context) (CollectionResult, error) {
+	if s.checkpointRepo == nil {
+		return s.CollectFromSources(ctx)
+	}
+
+	oldRun, stage, cpData, err := s.checkpointRepo.GetLatestResumableRun(ctx, 3*time.Hour)
+	if err != nil {
+		slog.Warn("failed to check for resumable run, starting fresh", "error", err)
+		return s.CollectFromSources(ctx)
+	}
+	if oldRun == nil {
+		return s.CollectFromSources(ctx)
+	}
+
+	// Validate checkpoint envelope (version check).
+	cpStage, innerData, err := unmarshalCheckpoint(cpData)
+	if err != nil {
+		slog.Warn("corrupt checkpoint data, starting fresh", "old_run_id", oldRun.ID, "error", err)
+		return s.CollectFromSources(ctx)
+	}
+	if stage == nil || cpStage != *stage {
+		slog.Warn("checkpoint stage mismatch, starting fresh", "old_run_id", oldRun.ID)
+		return s.CollectFromSources(ctx)
+	}
+
+	slog.Info("resuming from checkpoint", "old_run_id", oldRun.ID, "stage", *stage)
+	return s.resumeFromCheckpoint(ctx, *stage, innerData)
+}
+
+// resumeFromCheckpoint creates a new run and executes the pipeline from startAfterStage+1 onwards.
+func (s *Service) resumeFromCheckpoint(ctx context.Context, startAfterStage int, data json.RawMessage) (CollectionResult, error) {
+	run := CollectionRun{
+		ID:        uuid.New(),
+		StartedAt: time.Now().UTC(),
+		Status:    RunStatusRunning,
+	}
+
+	// Atomic concurrency guard: only insert if no other run is currently running today.
+	created, err := s.checkpointRepo.CreateRunIfIdle(ctx, run)
+	if err != nil {
+		return CollectionResult{}, fmt.Errorf("creating resume run: %w", err)
+	}
+	if !created {
+		slog.Info("resume skipped: another run is already active")
+		return CollectionResult{}, nil
+	}
+
+	failRun := func(err error, rawResp *string) (CollectionResult, error) {
+		slog.Error("resumed collection run failed", "run_id", run.ID, "error", err)
+		errMsg := err.Error()
+		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, rawResp)
+		return CollectionResult{}, err
+	}
+
+	// Re-fetch brain categories from DB (not stored in checkpoint).
+	// Needed by Stage 1 (BuildClusterPrompt) and Stage 4 (BuildDetailPrompt).
+	brainCategories, err := s.brainCatRepo.GetAll(ctx)
+	if err != nil {
+		slog.Warn("failed to load brain categories on resume, proceeding without them", "error", err)
+		brainCategories = nil
+	}
+
+	// abandonAndFresh marks the orphaned resume run as failed, then starts a fresh pipeline.
+	abandonAndFresh := func(reason string) (CollectionResult, error) {
+		slog.Warn(reason, "run_id", run.ID, "stage", startAfterStage)
+		errMsg := reason
+		_ = s.repo.CompleteRun(ctx, run.ID, RunStatusFailed, &errMsg, nil)
+		return s.CollectFromSources(ctx)
+	}
+
+	// Deserialize checkpoint and execute remaining stages.
+	var formattedText string
+	var topics []Phase1Topic
+	var articleMap map[int][]FetchedArticle
+	var phase1RawJSON string
+
+	switch startAfterStage {
+	case 0:
+		var cp Stage0Data
+		if err := json.Unmarshal(data, &cp); err != nil {
+			return abandonAndFresh("failed to deserialize Stage 0 checkpoint, starting fresh")
+		}
+		formattedText = cp.FormattedText
+
+	case 1:
+		var cp Stage1Data
+		if err := json.Unmarshal(data, &cp); err != nil {
+			return abandonAndFresh("failed to deserialize Stage 1 checkpoint, starting fresh")
+		}
+		topics = cp.Topics
+		phase1RawJSON = cp.Phase1RawJSON
+
+	case 3:
+		var cp Stage3Data
+		if err := json.Unmarshal(data, &cp); err != nil {
+			return abandonAndFresh("failed to deserialize Stage 3 checkpoint, starting fresh")
+		}
+		topics = cp.Topics
+		articleMap = cp.ArticleMap
+		phase1RawJSON = cp.Phase1RawJSON
+
+	default:
+		return abandonAndFresh("unknown checkpoint stage, starting fresh")
+	}
+
+	// Execute remaining stages based on where we resume from.
+
+	// Stage 1: Phase 1 AI clustering (only if resuming from Stage 0).
+	if startAfterStage < 1 {
+		// categories are only needed for BuildClusterPrompt (Stage 1).
+		var categories []Category
+		if s.catRepo != nil {
+			categories, err = s.catRepo.GetAllCategories(ctx)
+			if err != nil {
+				slog.Warn("failed to load categories on resume, using defaults", "error", err)
+				categories = nil
+			}
+		}
+
+		slog.Info("resumed run stage 1: Phase 1 AI clustering", "run_id", run.ID)
+		phase1Prompt := BuildClusterPrompt(formattedText, brainCategories, categories)
+		phase1Resp, err := s.callAIWithRetry(ctx, phase1Prompt)
+		if err != nil {
+			return failRun(fmt.Errorf("Phase 1 AI clustering: %w", err), nil)
+		}
+
+		topics, err = parsePhase1Response(phase1Resp.OutputText)
+		if err != nil {
+			rawResp := phase1Resp.RawJSON
+			return failRun(fmt.Errorf("parsing Phase 1 response: %w", err), &rawResp)
+		}
+		phase1RawJSON = phase1Resp.RawJSON
+		slog.Info("resumed run stage 1 done", "run_id", run.ID, "topics", len(topics))
+
+		s.saveCheckpoint(ctx, run.ID, 1, Stage1Data{Topics: topics, Phase1RawJSON: phase1RawJSON})
+	}
+
+	// Stages 2+3: URL decode + article fetch (only if resuming from before Stage 3).
+	if startAfterStage < 3 {
+		topics = s.decodePhase1URLs(ctx, run.ID, topics)
+
+		slog.Info("resumed run stage 3: fetching articles + validating sources", "run_id", run.ID)
+		topics, articleMap = s.fetchAndValidateSources(ctx, run.ID, topics)
+		if len(topics) == 0 {
+			return failRun(fmt.Errorf("all topics dropped after source validation/fetch"), &phase1RawJSON)
+		}
+		slog.Info("resumed run stage 3 done", "run_id", run.ID, "topics", len(topics))
+
+		s.saveCheckpoint(ctx, run.ID, 3, Stage3Data{Topics: topics, ArticleMap: articleMap, Phase1RawJSON: phase1RawJSON})
+	}
+
+	// Stages 4-7: shared pipeline tail.
+	return s.runPipelineTail(ctx, &run, topics, articleMap, brainCategories, phase1RawJSON, failRun)
+}
+
+// runPipelineTail executes Stages 4-7 of the collection pipeline.
+// Shared by both CollectFromSources and resumeFromCheckpoint to avoid duplication.
+func (s *Service) runPipelineTail(
+	ctx context.Context,
+	run *CollectionRun,
+	topics []Phase1Topic,
+	articleMap map[int][]FetchedArticle,
+	brainCategories []BrainCategory,
+	phase1RawJSON string,
+	failRun func(error, *string) (CollectionResult, error),
+) (CollectionResult, error) {
+	// Stage 4: Phase 2 AI — per-topic detail writing (parallel with semaphore).
+	slog.Info("collection run stage 4: Phase 2 AI detail writing", "run_id", run.ID)
+	items, phase2RawResponses := s.runPhase2(ctx, run.ID, topics, articleMap, brainCategories)
+	if len(items) == 0 {
+		return failRun(fmt.Errorf("Phase 2 AI: all topics failed"), &phase1RawJSON)
+	}
+	slog.Info("collection run stage 4 done", "run_id", run.ID, "written", len(items), "total", len(topics))
+
+	// Build combined raw response for debugging (before save so it's available on failure).
+	combinedRaw := buildCombinedRawResponse(phase1RawJSON, phase2RawResponses)
+
+	// Stage 5: Save items + mark run as success.
+	if err := s.repo.SaveContextItems(ctx, items); err != nil {
+		return failRun(fmt.Errorf("saving context items: %w", err), &combinedRaw)
+	}
+	if err := s.repo.CompleteRun(ctx, run.ID, RunStatusSuccess, nil, &combinedRaw); err != nil {
+		return CollectionResult{}, fmt.Errorf("completing run: %w", err)
+	}
+	s.clearCheckpoint(ctx, run.ID)
+	slog.Info("collection run stage 5 done", "run_id", run.ID, "items_saved", len(items))
+
+	// Stage 6: Generate thumbnail images (best-effort, does NOT affect run status).
+	items = s.generateImages(ctx, run.ID, items)
+	s.persistImagePaths(ctx, run.ID, items)
+
+	// Stage 7: Generate quizzes (best-effort, does NOT affect run status).
+	if s.quizRepo != nil {
+		s.generateQuizzes(ctx, run.ID, items)
+	}
+
+	slog.Info("collection run complete", "run_id", run.ID, "items", len(items))
+
+	now := time.Now().UTC()
+	run.CompletedAt = &now
+	run.Status = RunStatusSuccess
+	run.RawResponse = &combinedRaw
+	return CollectionResult{Run: *run, Items: items}, nil
+}
+
+// saveCheckpoint persists intermediate pipeline data for resume capability.
+// No-op when checkpointRepo is nil. Errors are logged but never abort the pipeline.
+func (s *Service) saveCheckpoint(ctx context.Context, runID uuid.UUID, stage int, payload any) {
+	if s.checkpointRepo == nil {
+		return
+	}
+	data, err := marshalCheckpoint(stage, payload)
+	if err != nil {
+		slog.Warn("failed to marshal checkpoint", "run_id", runID, "stage", stage, "error", err)
+		return
+	}
+	if err := s.checkpointRepo.SaveCheckpoint(ctx, runID, stage, data); err != nil {
+		slog.Warn("failed to save checkpoint", "run_id", runID, "stage", stage, "error", err)
+	}
+}
+
+// clearCheckpoint removes checkpoint data after a successful run.
+func (s *Service) clearCheckpoint(ctx context.Context, runID uuid.UUID) {
+	if s.checkpointRepo == nil {
+		return
+	}
+	if err := s.checkpointRepo.ClearCheckpoint(ctx, runID); err != nil {
+		slog.Warn("failed to clear checkpoint", "run_id", runID, "error", err)
+	}
 }
 
 // --- Phase 1 parsing ---

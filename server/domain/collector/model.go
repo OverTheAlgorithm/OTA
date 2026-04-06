@@ -79,9 +79,9 @@ type QuizData struct {
 
 // FetchedArticle holds the plain-text body fetched from a source URL.
 type FetchedArticle struct {
-	URL  string
-	Body string // plain text, max 3000 chars
-	Err  error  // non-nil if fetch failed
+	URL  string `json:"url"`
+	Body string `json:"body"`  // plain text, max 3000 chars
+	Err  error  `json:"-"`     // non-nil if fetch failed; excluded from serialization
 }
 
 // UnmarshalDetails decodes a JSON blob into []DetailItem with backward

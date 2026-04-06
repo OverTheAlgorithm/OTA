@@ -132,6 +132,14 @@ func main() {
 		slog.Warn("recovered stale collection runs", "count", n)
 	}
 
+	// Cleanup old checkpoint data (>24h) to prevent unbounded JSONB growth
+	checkpointRepo := storage.NewCheckpointRepository(pool)
+	if n, err := checkpointRepo.CleanupOldCheckpoints(ctx); err != nil {
+		slog.Error("failed to cleanup old checkpoints", "error", err)
+	} else if n > 0 {
+		slog.Info("cleaned up old checkpoint data", "count", n)
+	}
+
 	// -- Redis / in-process cache ------------------------------------------------
 	redisCfg := cache.RedisConfig{
 		Host:     cfg.RedisHost,
@@ -206,6 +214,7 @@ func main() {
 	articleFetcher := collector.NewHTTPArticleFetcher()
 	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, articleFetcher, imageGen)
 	collectorService.WithCategoryRepo(categoryRepo)
+	collectorService.WithCheckpointRepo(checkpointRepo)
 	if fallbackAIClient != nil {
 		collectorService.WithFallback(fallbackAIClient)
 		slog.Info("collector service initialized", "provider", cfg.AIProvider, "model", cfg.GeminiModel, "fallback", cfg.GeminiModelFallback)
