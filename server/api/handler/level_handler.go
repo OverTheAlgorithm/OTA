@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -31,11 +32,20 @@ func earnCacheKey(uid string, contextItemID uuid.UUID) string {
 }
 
 
+// QuizStatusGetter provides batch quiz existence and completion queries for BatchEarnStatus.
+type QuizStatusGetter interface {
+	// GetQuizExistenceMap returns the set of context_item_ids that have a quiz.
+	GetQuizExistenceMap(ctx context.Context, itemIDs []uuid.UUID) (map[uuid.UUID]bool, error)
+	// GetQuizCompletionMap returns the set of context_item_ids where the user has completed the quiz.
+	GetQuizCompletionMap(ctx context.Context, userID string, itemIDs []uuid.UUID) (map[uuid.UUID]bool, error)
+}
+
 // LevelHandler handles coin-earning and level queries.
 type LevelHandler struct {
 	service            *level.Service
 	histRepo           collector.HistoryRepository
 	subGetter          SubscriptionGetter
+	quizStatusGetter   QuizStatusGetter
 	earnCache          cache.Cache
 	earnCacheRetries   int
 	earnMinDuration    time.Duration
@@ -66,6 +76,12 @@ func NewLevelHandler(
 		turnstileSecretKey: turnstileSecretKey,
 		authMW:             authMW,
 	}
+}
+
+// WithQuizStatusGetter sets the quiz status getter for BatchEarnStatus quiz fields.
+func (h *LevelHandler) WithQuizStatusGetter(getter QuizStatusGetter) *LevelHandler {
+	h.quizStatusGetter = getter
+	return h
 }
 
 // GetLevel handles GET /api/v1/level
@@ -390,40 +406,61 @@ func (h *LevelHandler) BatchEarnStatus(c *gin.Context) {
 		subs = nil
 	}
 
+	// 6. Batch-fetch quiz existence and completion (best-effort, fail-open)
+	quizExistsMap := make(map[uuid.UUID]bool)
+	quizCompletedMap := make(map[uuid.UUID]bool)
+	if h.quizStatusGetter != nil {
+		if m, err := h.quizStatusGetter.GetQuizExistenceMap(ctx, itemIDs); err != nil {
+			slog.Warn("batch-earn-status: GetQuizExistenceMap error", "user_id", userID, "error", err)
+		} else {
+			quizExistsMap = m
+		}
+		if m, err := h.quizStatusGetter.GetQuizCompletionMap(ctx, userID, itemIDs); err != nil {
+			slog.Warn("batch-earn-status: GetQuizCompletionMap error", "user_id", userID, "error", err)
+		} else {
+			quizCompletedMap = m
+		}
+	}
+
 	// Build response
 	type itemStatus struct {
-		ID     string `json:"id"`
-		Status string `json:"status"`
-		Coins  int    `json:"coins"`
+		ID            string `json:"id"`
+		Status        string `json:"status"`
+		Coins         int    `json:"coins"`
+		HasQuiz       bool   `json:"has_quiz"`
+		QuizCompleted bool   `json:"quiz_completed"`
 	}
 
 	results := make([]itemStatus, 0, len(itemIDs))
 	for _, id := range itemIDs {
 		meta, exists := itemMap[id]
+		hasQuiz := quizExistsMap[id]
+		quizCompleted := quizCompletedMap[id]
+
 		if !exists {
-			results = append(results, itemStatus{ID: id.String(), Status: "NOT_FOUND", Coins: 0})
+			results = append(results, itemStatus{ID: id.String(), Status: "NOT_FOUND", Coins: 0, HasQuiz: hasQuiz, QuizCompleted: quizCompleted})
 			continue
 		}
 
 		if earnedSet[id] {
-			results = append(results, itemStatus{ID: id.String(), Status: "DUPLICATE", Coins: 0})
+			results = append(results, itemStatus{ID: id.String(), Status: "DUPLICATE", Coins: 0, HasQuiz: hasQuiz, QuizCompleted: quizCompleted})
 			continue
 		}
 
 		isToday := uniqueRunIDs[meta.RunID]
 		if !isToday {
-			results = append(results, itemStatus{ID: id.String(), Status: "EXPIRED", Coins: 0})
+			results = append(results, itemStatus{ID: id.String(), Status: "EXPIRED", Coins: 0, HasQuiz: hasQuiz, QuizCompleted: quizCompleted})
 			continue
 		}
 
 		if atDailyLimit {
-			results = append(results, itemStatus{ID: id.String(), Status: "DAILY_LIMIT", Coins: 0})
+			results = append(results, itemStatus{ID: id.String(), Status: "DAILY_LIMIT", Coins: 0, HasQuiz: hasQuiz, QuizCompleted: quizCompleted})
 			continue
 		}
 
 		preferred := level.IsPreferredTopic(meta.Priority, meta.Category, subs)
 		coins := level.CalcCoins(preferred)
-		results = append(results, itemStatus{ID: id.String(), Status: "PENDING", Coins: coins})
+		results = append(results, itemStatus{ID: id.String(), Status: "PENDING", Coins: coins, HasQuiz: hasQuiz, QuizCompleted: quizCompleted})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": results})

@@ -101,11 +101,16 @@ func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID
 	var item collector.TopicDetail
 	var detailsJSON []byte
 	var imagePath *string
+	var quizID *uuid.UUID
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, collection_run_id, category, COALESCE(priority, 'none'), topic, COALESCE(detail, ''), COALESCE(details, '[]'), COALESCE(buzz_score, 0), COALESCE(sources, '[]'), COALESCE(brain_category, ''), created_at, image_path
-		FROM context_items
-		WHERE id = $1
-	`, id).Scan(&item.ID, &item.RunID, &item.Category, &item.Priority, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt, &imagePath)
+		SELECT ci.id, ci.collection_run_id, ci.category, COALESCE(ci.priority, 'none'), ci.topic,
+		       COALESCE(ci.detail, ''), COALESCE(ci.details, '[]'), COALESCE(ci.buzz_score, 0),
+		       COALESCE(ci.sources, '[]'), COALESCE(ci.brain_category, ''), ci.created_at, ci.image_path,
+		       q.id AS quiz_id
+		FROM context_items ci
+		LEFT JOIN quizzes q ON q.context_item_id = ci.id
+		WHERE ci.id = $1
+	`, id).Scan(&item.ID, &item.RunID, &item.Category, &item.Priority, &item.Topic, &item.Detail, &detailsJSON, &item.BuzzScore, &item.Sources, &item.BrainCategory, &item.CreatedAt, &imagePath, &quizID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -117,6 +122,7 @@ func (r *HistoryRepository) GetContextItemByID(ctx context.Context, id uuid.UUID
 		url := "/api/v1/images/" + *imagePath
 		item.ImageURL = &url
 	}
+	item.HasQuiz = quizID != nil
 	return &item, nil
 }
 
@@ -159,8 +165,10 @@ func (r *HistoryRepository) GetRecentTopics(ctx context.Context, count int) ([]c
 func (r *HistoryRepository) GetLatestRunTopics(ctx context.Context) ([]collector.TopicPreview, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT ci.id, ci.topic, ci.summary, ci.image_path,
-			ci.collection_run_id, ci.category, COALESCE(ci.brain_category, ''), COALESCE(ci.priority, 'none'), ci.created_at
+			ci.collection_run_id, ci.category, COALESCE(ci.brain_category, ''), COALESCE(ci.priority, 'none'), ci.created_at,
+			(q.id IS NOT NULL) AS has_quiz
 		FROM context_items ci
+		LEFT JOIN quizzes q ON q.context_item_id = ci.id
 		WHERE ci.collection_run_id = (
 			SELECT id FROM collection_runs
 			WHERE status = 'success'
@@ -179,7 +187,7 @@ func (r *HistoryRepository) GetLatestRunTopics(ctx context.Context) ([]collector
 		var item collector.TopicPreview
 		var imagePath *string
 		if err := rows.Scan(&item.ID, &item.Topic, &item.Summary, &imagePath,
-			&item.RunID, &item.Category, &item.BrainCategory, &item.Priority, &item.CreatedAt); err != nil {
+			&item.RunID, &item.Category, &item.BrainCategory, &item.Priority, &item.CreatedAt, &item.HasQuiz); err != nil {
 			return nil, err
 		}
 		if imagePath != nil {
@@ -215,9 +223,11 @@ func (r *HistoryRepository) GetAllTopics(ctx context.Context, filterType, filter
 	// Build query dynamically based on filter type.
 	baseQuery := `
 		SELECT ci.id, ci.topic, ci.summary, ci.image_path,
-			ci.collection_run_id, ci.category, COALESCE(ci.brain_category, ''), COALESCE(ci.priority, 'none'), ci.created_at
+			ci.collection_run_id, ci.category, COALESCE(ci.brain_category, ''), COALESCE(ci.priority, 'none'), ci.created_at,
+			(q.id IS NOT NULL) AS has_quiz
 		FROM context_items ci
 		JOIN collection_runs cr ON cr.id = ci.collection_run_id AND cr.status = 'success'
+		LEFT JOIN quizzes q ON q.context_item_id = ci.id
 		WHERE 1=1`
 
 	var args []interface{}
@@ -248,7 +258,7 @@ func (r *HistoryRepository) GetAllTopics(ctx context.Context, filterType, filter
 		var item collector.TopicPreview
 		var imagePath *string
 		if err := rows.Scan(&item.ID, &item.Topic, &item.Summary, &imagePath,
-			&item.RunID, &item.Category, &item.BrainCategory, &item.Priority, &item.CreatedAt); err != nil {
+			&item.RunID, &item.Category, &item.BrainCategory, &item.Priority, &item.CreatedAt, &item.HasQuiz); err != nil {
 			return nil, false, err
 		}
 		if imagePath != nil {

@@ -37,6 +37,7 @@ type TopicPreview struct {
 	BrainCategory string    `json:"brain_category,omitempty"`
 	Priority      string    `json:"priority,omitempty"`
 	CreatedAt     time.Time `json:"created_at,omitempty"`
+	HasQuiz       bool      `json:"has_quiz"`
 }
 
 // TopicDetail holds the full detail for a single context item, served on the public detail page.
@@ -53,6 +54,7 @@ type TopicDetail struct {
 	BrainCategory string       `json:"brain_category"`
 	CreatedAt     time.Time    `json:"created_at"`
 	ImageURL      *string      `json:"image_url"`
+	HasQuiz       bool         `json:"has_quiz"`
 }
 
 // ItemMeta holds lightweight metadata for batch earn status lookups.

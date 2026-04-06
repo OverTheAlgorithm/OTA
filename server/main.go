@@ -26,6 +26,7 @@ import (
 	"ota/domain/collector"
 	"ota/domain/delivery"
 	"ota/domain/level"
+	"ota/domain/quiz"
 	"ota/domain/terms"
 	"ota/domain/user"
 	"ota/domain/withdrawal"
@@ -303,10 +304,16 @@ func main() {
 	emailVerificationService := user.NewEmailVerificationService(emailVerificationRepo, userRepo)
 	emailVerificationHandler := handler.NewEmailVerificationHandler(emailVerificationService, emailSender)
 
+	// Quiz
+	quizRepo := storage.NewQuizRepository(pool)
+	quizService := quiz.NewService(quizRepo, levelRepo, levelCfg, cfg.QuizMaxBonusCoins)
+	collectorService.WithQuizRepo(quizRepo)
+
 	// Context history
 	historyRepo := storage.NewHistoryRepository(pool)
 	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
 	contextHistoryHandler.WithCategoryRepo(categoryRepo, brainCategoryRepo)
+	contextHistoryHandler.WithQuizService(quizService, api.OptionalAuthMiddleware(jwtManager))
 
 	// Level
 	earnMinDuration := time.Duration(cfg.EarnMinDurationSec) * time.Second
@@ -321,6 +328,9 @@ func main() {
 		api.AuthMiddleware(jwtManager),
 	)
 	deliveryService.WithLevelProvider(&levelServiceAdapter{svc: levelService})
+	levelHandler.WithQuizStatusGetter(quizRepo)
+
+	quizHandler := handler.NewQuizHandler(quizService, historyRepo, api.AuthMiddleware(jwtManager))
 
 	withdrawalHandler := handler.NewWithdrawalHandler(withdrawalService, api.AuthMiddleware(jwtManager))
 	withdrawalAdminHandler := handler.NewWithdrawalAdminHandler(withdrawalService)
@@ -415,6 +425,11 @@ func main() {
 			GroupName:   "admin/coins",
 			Handler:     adminCoinHandler,
 			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
+		},
+		{
+			GroupName:   "quiz",
+			Handler:     quizHandler,
+			Middlewares: []gin.HandlerFunc{},
 		},
 	})
 

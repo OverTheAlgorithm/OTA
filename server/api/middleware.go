@@ -149,6 +149,27 @@ func AuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 	}
 }
 
+// OptionalAuthMiddleware parses the JWT and sets userID/role in context if valid,
+// but does NOT abort — the request proceeds regardless of auth status.
+// Used for public endpoints that bundle user-specific data when logged in.
+func OptionalAuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenStr, _ := c.Cookie("ota_token")
+		if tokenStr == "" {
+			if h := c.GetHeader("Authorization"); strings.HasPrefix(h, "Bearer ") {
+				tokenStr = strings.TrimPrefix(h, "Bearer ")
+			}
+		}
+		if tokenStr != "" {
+			if claims, err := jwtManager.Validate(tokenStr); err == nil {
+				c.Set("userID", claims.UserID)
+				c.Set("role", claims.Role)
+			}
+		}
+		c.Next()
+	}
+}
+
 // AdminMiddleware must run after AuthMiddleware (requires userID in context).
 // Always checks DB so that role changes take effect immediately without re-login.
 func AdminMiddleware(userRepo user.Repository) gin.HandlerFunc {

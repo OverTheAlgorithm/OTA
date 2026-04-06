@@ -1,20 +1,24 @@
 package handler
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
 	"ota/domain/collector"
+	"ota/domain/quiz"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type ContextHistoryHandler struct {
-	repo        collector.HistoryRepository
-	categoryRepo collector.CategoryRepository
-	brainCatRepo collector.BrainCategoryRepository
-	authMW      gin.HandlerFunc
+	repo           collector.HistoryRepository
+	categoryRepo   collector.CategoryRepository
+	brainCatRepo   collector.BrainCategoryRepository
+	quizSvc        *quiz.Service
+	authMW         gin.HandlerFunc
+	optionalAuthMW gin.HandlerFunc
 }
 
 func NewContextHistoryHandler(repo collector.HistoryRepository, authMW gin.HandlerFunc) *ContextHistoryHandler {
@@ -26,6 +30,20 @@ func (h *ContextHistoryHandler) WithCategoryRepo(catRepo collector.CategoryRepos
 	h.categoryRepo = catRepo
 	h.brainCatRepo = brainCatRepo
 	return h
+}
+
+// WithQuizService sets the quiz service for bundling quiz data with topic detail responses.
+func (h *ContextHistoryHandler) WithQuizService(quizSvc *quiz.Service, optionalAuthMW gin.HandlerFunc) *ContextHistoryHandler {
+	h.quizSvc = quizSvc
+	h.optionalAuthMW = optionalAuthMW
+	return h
+}
+
+// topicResponse composes TopicDetail with quiz data at the handler level to avoid circular imports.
+type topicResponse struct {
+	collector.TopicDetail
+	HasQuiz bool              `json:"has_quiz"`
+	Quiz    *quiz.QuizForUser `json:"quiz"`
 }
 
 func (h *ContextHistoryHandler) GetHistory(c *gin.Context) {
@@ -43,7 +61,7 @@ func (h *ContextHistoryHandler) GetHistory(c *gin.Context) {
 }
 
 // GetTopicByID returns the full detail for a single context item.
-// Public endpoint — no auth required (linked from email).
+// Public endpoint with optional auth — quiz data bundled when user is logged in and eligible.
 func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -62,7 +80,23 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": topic})
+	resp := topicResponse{
+		TopicDetail: *topic,
+		HasQuiz:     topic.HasQuiz,
+		Quiz:        nil,
+	}
+
+	// Bundle quiz data if user is logged in and eligible.
+	userID := c.GetString("userID")
+	if userID != "" && h.quizSvc != nil {
+		quizForUser, err := h.quizSvc.GetQuizForUser(c.Request.Context(), userID, id)
+		if err != nil && !errors.Is(err, quiz.ErrNotEarned) && !errors.Is(err, quiz.ErrAlreadyAttempted) {
+			slog.Warn("get quiz for user error", "user_id", userID, "item_id", id, "error", err)
+		}
+		resp.Quiz = quizForUser
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": resp})
 }
 
 // GetRecentTopics returns up to 3 random topics from the latest collection run.
@@ -159,8 +193,12 @@ func (h *ContextHistoryHandler) GetCategories(c *gin.Context) {
 }
 
 func (h *ContextHistoryHandler) RegisterRoutes(group *gin.RouterGroup) {
-	// Public: topic detail page linked from email
-	group.GET("/topic/:id", h.GetTopicByID)
+	// Public with optional auth: topic detail page (quiz bundled when logged in)
+	if h.optionalAuthMW != nil {
+		group.GET("/topic/:id", h.optionalAuthMW, h.GetTopicByID)
+	} else {
+		group.GET("/topic/:id", h.GetTopicByID)
+	}
 
 	// Public: recent topics for landing page
 	group.GET("/recent", h.GetRecentTopics)
