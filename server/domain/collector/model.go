@@ -69,6 +69,14 @@ type Phase2Result struct {
 	Details []DetailItem `json:"details"`
 }
 
+// QuizData is the AI-generated quiz for a single topic, parsed from a separate AI call.
+// It is NOT part of Phase2Result — quiz generation is a separate pipeline stage.
+type QuizData struct {
+	Question     string   `json:"question"`
+	Options      []string `json:"options"`
+	CorrectIndex int      `json:"correct_index"`
+}
+
 // FetchedArticle holds the plain-text body fetched from a source URL.
 type FetchedArticle struct {
 	URL  string

@@ -11,11 +11,18 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"ota/domain/quiz"
 )
 
 // URLDecoder decodes redirect URLs in-place across the given string slices.
 // Returns the number of URLs successfully decoded.
 type URLDecoder func(ctx context.Context, urlSlices ...[]string) int
+
+// QuizSaver is a minimal interface for saving quiz data from the pipeline.
+// It only needs SaveQuizBatch — the full quiz.Repository is not required here.
+type QuizSaver interface {
+	SaveQuizBatch(ctx context.Context, quizzes []quiz.Quiz) error
+}
 
 type Service struct {
 	ai             AIClient
@@ -25,6 +32,7 @@ type Service struct {
 	trendingRepo   TrendingItemRepository
 	brainCatRepo   BrainCategoryRepository
 	catRepo        CategoryRepository // optional: loads categories from DB for AI prompts
+	quizRepo       QuizSaver          // optional: saves quizzes from collection pipeline
 	urlDecoder     URLDecoder
 	articleFetcher ArticleFetcher
 	imageGen       *ImageGenerator
@@ -63,6 +71,13 @@ func (s *Service) WithFallback(fallbackAI AIClient) *Service {
 // WithCategoryRepo sets the category repository for loading categories from DB.
 func (s *Service) WithCategoryRepo(catRepo CategoryRepository) *Service {
 	s.catRepo = catRepo
+	return s
+}
+
+// WithQuizRepo sets the quiz repository used to persist quizzes in Stage 7.
+// If not set, Stage 7 is skipped silently.
+func (s *Service) WithQuizRepo(repo QuizSaver) *Service {
+	s.quizRepo = repo
 	return s
 }
 
@@ -175,6 +190,11 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 	// Stage 6: Generate thumbnail images (best-effort, does NOT affect run status).
 	items = s.generateImages(ctx, run.ID, items)
 	s.persistImagePaths(ctx, run.ID, items)
+
+	// Stage 7: Generate quizzes (best-effort, does NOT affect run status).
+	if s.quizRepo != nil {
+		s.generateQuizzes(ctx, run.ID, items)
+	}
 
 	slog.Info("collection run complete", "run_id", run.ID, "items", len(items), "source_items", len(data.Items))
 
@@ -623,5 +643,85 @@ func (s *Service) generateImages(ctx context.Context, runID uuid.UUID, items []C
 
 	slog.Info("collection run stage 6 done", "run_id", runID, "generated", generated, "total", len(items))
 	return result
+}
+
+const quizConcurrency = 5
+
+// generateQuizzes generates quiz questions for each item via a separate AI call.
+// Runs after Stage 6, best-effort — failures are logged and do NOT affect run status.
+func (s *Service) generateQuizzes(ctx context.Context, runID uuid.UUID, items []ContextItem) {
+	slog.Info("collection run stage 7: generating quizzes", "run_id", runID, "items", len(items))
+
+	type quizOutput struct {
+		quiz quiz.Quiz
+		err  error
+	}
+
+	results := make(chan quizOutput, len(items))
+	sem := make(chan struct{}, quizConcurrency)
+	var wg sync.WaitGroup
+
+	for _, item := range items {
+		wg.Add(1)
+		go func(it ContextItem) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			prompt := BuildQuizPrompt(it.Topic, it.Summary, it.Detail, it.Details)
+			resp, err := s.callAIWithRetry(ctx, prompt)
+			if err != nil {
+				slog.Warn("stage 7: quiz AI call failed", "run_id", runID, "item_id", it.ID, "topic", it.Topic, "error", err)
+				results <- quizOutput{err: err}
+				return
+			}
+
+			var qd QuizData
+			cleanJSON := stripMarkdownCodeFence(resp.OutputText)
+			if err := json.Unmarshal([]byte(cleanJSON), &qd); err != nil {
+				slog.Warn("stage 7: quiz parse failed", "run_id", runID, "item_id", it.ID, "topic", it.Topic, "error", err)
+				results <- quizOutput{err: err}
+				return
+			}
+
+			if len(qd.Options) != 4 || qd.CorrectIndex < 0 || qd.CorrectIndex > 3 || qd.Question == "" {
+				slog.Warn("stage 7: quiz validation failed", "run_id", runID, "item_id", it.ID, "topic", it.Topic,
+					"options", len(qd.Options), "correct_index", qd.CorrectIndex)
+				results <- quizOutput{err: fmt.Errorf("invalid quiz data")}
+				return
+			}
+
+			results <- quizOutput{quiz: quiz.Quiz{
+				ID:            uuid.New(),
+				ContextItemID: it.ID,
+				Question:      qd.Question,
+				Options:       qd.Options,
+				CorrectIndex:  qd.CorrectIndex,
+			}}
+		}(item)
+	}
+
+	wg.Wait()
+	close(results)
+
+	var quizzes []quiz.Quiz
+	for out := range results {
+		if out.err != nil {
+			continue
+		}
+		quizzes = append(quizzes, out.quiz)
+	}
+
+	if len(quizzes) == 0 {
+		slog.Warn("stage 7: no valid quizzes generated", "run_id", runID)
+		return
+	}
+
+	if err := s.quizRepo.SaveQuizBatch(ctx, quizzes); err != nil {
+		slog.Warn("stage 7: failed to save quizzes", "run_id", runID, "count", len(quizzes), "error", err)
+		return
+	}
+
+	slog.Info("collection run stage 7 done", "run_id", runID, "saved", len(quizzes), "total", len(items))
 }
 
