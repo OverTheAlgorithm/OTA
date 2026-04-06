@@ -31,15 +31,15 @@ export function UserLevelCard({ refreshKey = 0 }: { refreshKey?: number }) {
     setChecking(true);
     try {
       const info = await getWithdrawalInfo();
-      if (!info.has_bank_account) {
-        setErrorModal({ open: true, message: "마이페이지에서 먼저 계좌를 등록해주세요." });
-        return;
-      }
       if (info.current_balance < info.min_withdrawal_amount) {
         setErrorModal({
           open: true,
           message: `현재 보유 포인트: ${info.current_balance.toLocaleString()}P\n최소 출금 가능 포인트: ${info.min_withdrawal_amount.toLocaleString()}P\n\n포인트가 부족합니다.`
         });
+        return;
+      }
+      if (!info.has_bank_account) {
+        setErrorModal({ open: true, message: "마이페이지에서 먼저 계좌를 등록해주세요." });
         return;
       }
       setWithdrawalModal({ open: true, info });

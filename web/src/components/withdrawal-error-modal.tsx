@@ -58,7 +58,7 @@ export function WithdrawalErrorModal({ open, message, onClose }: Props) {
 
         <button
           onClick={onClose}
-          className="mx-auto mt-8 block w-[300px] h-[50px] rounded-full border-[2px] border-[#231815] bg-white text-[#231815] font-semibold text-lg hover:bg-gray-50 transition-colors"
+          className="mx-auto mt-8 block w-[300px] max-w-full h-[50px] rounded-full border-[2px] border-[#231815] bg-white text-[#231815] font-semibold text-lg hover:bg-gray-50 transition-colors"
         >
           확인
         </button>
