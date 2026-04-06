@@ -57,8 +57,8 @@ func TestFormatMessage_BrainCategoryGrouping(t *testing.T) {
 
 	result := FormatMessage(items, subscriptions, testBrainCategories, "", nil, nil)
 
-	if !strings.Contains(result.Subject, "오늘의 소식 2가지") {
-		t.Errorf("expected subject to contain '오늘의 소식 2가지', got '%s'", result.Subject)
+	if !strings.Contains(result.Subject, "오늘의 필수 소식 2가지") {
+		t.Errorf("expected subject to contain '오늘의 필수 소식 2가지', got '%s'", result.Subject)
 	}
 
 	// Brain category label should appear

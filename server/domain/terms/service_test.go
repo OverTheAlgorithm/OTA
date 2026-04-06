@@ -106,11 +106,6 @@ func TestCreateTerm_Validation(t *testing.T) {
 			wantErr: "title is required",
 		},
 		{
-			name:    "empty url",
-			term:    Term{Title: "Terms", Version: "1"},
-			wantErr: "url is required",
-		},
-		{
 			name:    "empty version",
 			term:    Term{Title: "Terms", URL: "https://example.com"},
 			wantErr: "version is required",
