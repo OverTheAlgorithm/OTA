@@ -372,6 +372,20 @@ export function AdminPage() {
         </section>
 
         <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
+          <h2 className="text-lg font-semibold">푸시 알림 관리</h2>
+          <p className="text-sm text-[#6b8db5]">
+            푸시 알림을 생성, 예약, 즉시 발송할 수 있습니다.
+          </p>
+          <Link
+            to="/admin/push"
+            className="inline-block px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors"
+            style={{ background: "var(--color-button-primary)", color: "white" }}
+          >
+          푸시 관리
+          </Link>
+        </section>
+
+        <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
           <h2 className="text-lg font-semibold">데이터 수집</h2>
           <p className="text-sm text-[#6b8db5]">
             AI를 통해 오늘의 한국 트렌드를 즉시 수집합니다. 이 작업은 1시간까지 소요될 수 있습니다.
