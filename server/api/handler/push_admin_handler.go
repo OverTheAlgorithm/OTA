@@ -210,7 +210,9 @@ func (h *PushAdminHandler) ExecuteScheduledPush(c *gin.Context) {
 	// Cancel scheduled timer before sending to prevent double-send.
 	h.pushScheduler.Unschedule(id)
 
-	if err := h.scheduledSvc.ExecuteNow(c.Request.Context(), id); err != nil {
+	// Send only to the requesting admin's devices (test send).
+	userID := c.GetString("userID")
+	if err := h.scheduledSvc.ExecuteNow(c.Request.Context(), id, userID); err != nil {
 		slog.Error("execute scheduled push error", "id", id, "error", err)
 		var nfe *apperr.NotFoundError
 		if errors.As(err, &nfe) {

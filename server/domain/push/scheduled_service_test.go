@@ -99,6 +99,10 @@ type mockPushRepoForSender struct {
 func (m *mockPushRepoForSender) Save(_ context.Context, _ PushToken) error       { return nil }
 func (m *mockPushRepoForSender) Delete(_ context.Context, _, _ string) error     { return nil }
 func (m *mockPushRepoForSender) GetByUserID(_ context.Context, _ string) ([]PushToken, error) {
+	m.sendCalled = true
+	if m.err != nil {
+		return nil, m.err
+	}
 	return nil, nil
 }
 func (m *mockPushRepoForSender) GetAllActive(_ context.Context) ([]PushToken, error) {
@@ -339,7 +343,7 @@ func TestScheduledService_ExecuteNow_CAS_Won(t *testing.T) {
 	}
 	svc := newTestScheduledService(repo, pushRepo)
 
-	err := svc.ExecuteNow(context.Background(), repo.byID.ID)
+	err := svc.ExecuteNow(context.Background(), repo.byID.ID, "admin-user-id")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -357,7 +361,7 @@ func TestScheduledService_ExecuteNow_CAS_Lost(t *testing.T) {
 	}
 	svc := newTestScheduledService(repo, pushRepo)
 
-	err := svc.ExecuteNow(context.Background(), repo.byID.ID)
+	err := svc.ExecuteNow(context.Background(), repo.byID.ID, "admin-user-id")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

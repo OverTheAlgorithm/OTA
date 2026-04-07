@@ -113,19 +113,19 @@ func (s *ScheduledService) ListPending(ctx context.Context) ([]ScheduledPush, er
 	return pushes, nil
 }
 
-// ExecuteNow CAS-marks the push as sent first, then calls SendToAll only if CAS succeeds.
-// On send failure, marks as failed.
-func (s *ScheduledService) ExecuteNow(ctx context.Context, id uuid.UUID) error {
-	return s.execute(ctx, id)
+// ExecuteNow sends to the requesting admin's devices only (for testing).
+// CAS-marks the push as sent first, then calls SendToUser only if CAS succeeds.
+func (s *ScheduledService) ExecuteNow(ctx context.Context, id uuid.UUID, adminUserID string) error {
+	return s.execute(ctx, id, &adminUserID)
 }
 
-// ExecuteBySchedule is identical to ExecuteNow. The CAS guarantees only one caller wins,
-// preventing double-send between timer callbacks and manual triggers.
+// ExecuteBySchedule sends to ALL users (production delivery).
+// The CAS guarantees only one caller wins, preventing double-send.
 func (s *ScheduledService) ExecuteBySchedule(ctx context.Context, id uuid.UUID) error {
-	return s.execute(ctx, id)
+	return s.execute(ctx, id, nil)
 }
 
-func (s *ScheduledService) execute(ctx context.Context, id uuid.UUID) error {
+func (s *ScheduledService) execute(ctx context.Context, id uuid.UUID, targetUserID *string) error {
 	push, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("get scheduled push for execution: %w", err)
@@ -150,10 +150,18 @@ func (s *ScheduledService) execute(ctx context.Context, id uuid.UUID) error {
 		data["link"] = push.Link
 	}
 
-	if err := s.pushService.SendToAll(ctx, push.Title, push.Body, data); err != nil {
-		// Best-effort: mark as failed; ignore error from MarkFailed itself.
-		_, _ = s.repo.MarkFailed(ctx, id, err.Error())
-		return fmt.Errorf("send push notification: %w", err)
+	var sendErr error
+	if targetUserID != nil {
+		// Send to specific user only (admin test send)
+		sendErr = s.pushService.SendToUser(ctx, *targetUserID, push.Title, push.Body, data)
+	} else {
+		// Send to all users (scheduled delivery)
+		sendErr = s.pushService.SendToAll(ctx, push.Title, push.Body, data)
+	}
+
+	if sendErr != nil {
+		_, _ = s.repo.MarkFailed(ctx, id, sendErr.Error())
+		return fmt.Errorf("send push notification: %w", sendErr)
 	}
 	return nil
 }
