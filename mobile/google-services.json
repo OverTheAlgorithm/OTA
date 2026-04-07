@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "105333746289",
+    "project_id": "wizletter",
+    "storage_bucket": "wizletter.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:105333746289:android:5c6d3626aac9039df549d0",
+        "android_client_info": {
+          "package_name": "com.anonymous.wizletter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-CKvlbEuyr1jp2EjKZ0T1sQ49DjEtUg4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
