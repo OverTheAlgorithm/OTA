@@ -23,6 +23,11 @@ backups/
 node_modules/
 web/dist/
 
+# Mobile build artifacts
+mobile/android/
+mobile/ios/
+mobile/.expo/
+
 # OS
 .DS_Store
 Thumbs.db
