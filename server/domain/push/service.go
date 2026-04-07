@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -28,16 +29,19 @@ func NewService(repo Repository) *Service {
 	}
 }
 
-// RegisterToken saves a push token for a user.
+// RegisterToken saves a push token, optionally linked to a user.
+// If userID is empty, the token is registered anonymously (user_id = NULL).
 func (s *Service) RegisterToken(ctx context.Context, userID, token, platform string) error {
 	if platform == "" {
 		platform = "expo"
 	}
 	t := PushToken{
 		ID:       uuid.New(),
-		UserID:   userID,
 		Token:    token,
 		Platform: platform,
+	}
+	if userID != "" {
+		t.UserID = &userID
 	}
 	if err := s.repo.Save(ctx, t); err != nil {
 		return fmt.Errorf("register token: %w", err)
@@ -45,10 +49,11 @@ func (s *Service) RegisterToken(ctx context.Context, userID, token, platform str
 	return nil
 }
 
-// UnregisterToken removes a push token for a user.
-func (s *Service) UnregisterToken(ctx context.Context, userID, token string) error {
-	if err := s.repo.Delete(ctx, userID, token); err != nil {
-		return fmt.Errorf("unregister token: %w", err)
+// UnlinkToken removes the user association from a token without deleting it.
+// The token stays for anonymous push delivery.
+func (s *Service) UnlinkToken(ctx context.Context, userID, token string) error {
+	if err := s.repo.UnlinkUser(ctx, userID, token); err != nil {
+		return fmt.Errorf("unlink token: %w", err)
 	}
 	return nil
 }
@@ -104,6 +109,20 @@ type expoMessage struct {
 	Data  map[string]any `json:"data,omitempty"`
 }
 
+// expoResponse / expoTicket model the Expo Push API response.
+type expoTicket struct {
+	Status  string          `json:"status"`
+	Details json.RawMessage `json:"details,omitempty"`
+}
+
+type expoTicketDetails struct {
+	Error string `json:"error"`
+}
+
+type expoResponse struct {
+	Data []expoTicket `json:"data"`
+}
+
 func (s *Service) sendMessages(ctx context.Context, messages []expoMessage) error {
 	payload, err := json.Marshal(messages)
 	if err != nil {
@@ -126,5 +145,35 @@ func (s *Service) sendMessages(ctx context.Context, messages []expoMessage) erro
 	if resp.StatusCode >= 500 {
 		return fmt.Errorf("expo push API error: status %d", resp.StatusCode)
 	}
+
+	// Parse response to detect stale tokens (DeviceNotRegistered).
+	var expoResp expoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&expoResp); err != nil {
+		// Non-fatal: push was sent, just can't parse cleanup info.
+		slog.Warn("failed to parse expo push response", "error", err)
+		return nil
+	}
+
+	var staleTokens []string
+	for i, ticket := range expoResp.Data {
+		if ticket.Status != "error" || i >= len(messages) {
+			continue
+		}
+		var details expoTicketDetails
+		if err := json.Unmarshal(ticket.Details, &details); err != nil {
+			continue
+		}
+		if details.Error == "DeviceNotRegistered" {
+			staleTokens = append(staleTokens, messages[i].To)
+		}
+	}
+
+	if len(staleTokens) > 0 {
+		slog.Info("cleaning up stale push tokens", "count", len(staleTokens))
+		if err := s.repo.DeleteByTokens(ctx, staleTokens); err != nil {
+			slog.Error("failed to clean up stale push tokens", "error", err)
+		}
+	}
+
 	return nil
 }

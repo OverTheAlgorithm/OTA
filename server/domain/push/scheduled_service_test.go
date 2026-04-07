@@ -96,8 +96,9 @@ type mockPushRepoForSender struct {
 	err        error
 }
 
-func (m *mockPushRepoForSender) Save(_ context.Context, _ PushToken) error       { return nil }
-func (m *mockPushRepoForSender) Delete(_ context.Context, _, _ string) error     { return nil }
+func (m *mockPushRepoForSender) Save(_ context.Context, _ PushToken) error          { return nil }
+func (m *mockPushRepoForSender) UnlinkUser(_ context.Context, _, _ string) error   { return nil }
+func (m *mockPushRepoForSender) DeleteByTokens(_ context.Context, _ []string) error { return nil }
 func (m *mockPushRepoForSender) GetByUserID(_ context.Context, _ string) ([]PushToken, error) {
 	m.sendCalled = true
 	if m.err != nil {

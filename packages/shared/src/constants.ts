@@ -71,6 +71,9 @@ export const API_PATHS = {
   ADMIN_TERM_ACTIVE: (id: string) => `${API_PREFIX}/admin/terms/${id}/active`,
   ADMIN_TERM: (id: string) => `${API_PREFIX}/admin/terms/${id}`,
 
+  // Mobile Push Token
+  MOBILE_PUSH_TOKEN: `${API_PREFIX}/mobile/push-token`,
+
   // Admin Push
   ADMIN_PUSH: `${API_PREFIX}/admin/push`,
   ADMIN_PUSH_ITEM: (id: string) => `${API_PREFIX}/admin/push/${id}`,

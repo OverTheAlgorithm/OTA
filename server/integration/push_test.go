@@ -18,8 +18,9 @@ type mockPushSenderForIntegration struct {
 	callCount int
 }
 
-func (m *mockPushSenderForIntegration) Save(_ context.Context, _ push.PushToken) error { return nil }
-func (m *mockPushSenderForIntegration) Delete(_ context.Context, _, _ string) error    { return nil }
+func (m *mockPushSenderForIntegration) Save(_ context.Context, _ push.PushToken) error          { return nil }
+func (m *mockPushSenderForIntegration) UnlinkUser(_ context.Context, _, _ string) error         { return nil }
+func (m *mockPushSenderForIntegration) DeleteByTokens(_ context.Context, _ []string) error { return nil }
 func (m *mockPushSenderForIntegration) GetByUserID(_ context.Context, _ string) ([]push.PushToken, error) {
 	return nil, nil
 }

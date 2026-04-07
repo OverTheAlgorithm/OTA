@@ -345,7 +345,7 @@ func main() {
 	// Push notifications
 	pushRepo := storage.NewPushRepository(pool)
 	pushService := push.NewService(pushRepo)
-	pushHandler := handler.NewPushHandler(pushService)
+	pushHandler := handler.NewPushHandler(pushService, api.OptionalAuthMiddleware(jwtManager), api.AuthMiddleware(jwtManager))
 
 	// Scheduled push notifications
 	scheduledPushRepo := storage.NewScheduledPushRepository(pool)
@@ -464,7 +464,7 @@ func main() {
 		{
 			GroupName:   "mobile/push-token",
 			Handler:     pushHandler,
-			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager)},
+			Middlewares: []gin.HandlerFunc{},
 		},
 		{
 			GroupName:   "admin/push",

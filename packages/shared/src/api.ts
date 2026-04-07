@@ -724,6 +724,48 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     }
   }
 
+  // ── Mobile Push Token ───────────────────────────────────────────────────
+
+  // Register push token without authentication (anonymous).
+  // Server stores the token with user_id = NULL.
+  async function registerPushTokenPublic(token: string, platform: string): Promise<void> {
+    const res = await publicFetch(API_PATHS.MOBILE_PUSH_TOKEN, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, platform }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "push_register_failed" }));
+      throw new Error(err.error || "푸시 토큰 등록에 실패했습니다");
+    }
+  }
+
+  // Register push token with authentication (links user_id).
+  async function registerPushToken(token: string, platform: string): Promise<void> {
+    const res = await apiFetch(API_PATHS.MOBILE_PUSH_TOKEN, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, platform }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "push_register_failed" }));
+      throw new Error(err.error || "푸시 토큰 등록에 실패했습니다");
+    }
+  }
+
+  // Unlink user from push token (token preserved for anonymous push).
+  async function unlinkPushToken(token: string): Promise<void> {
+    const res = await apiFetch(API_PATHS.MOBILE_PUSH_TOKEN, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "push_unlink_failed" }));
+      throw new Error(err.error || "푸시 토큰 해제에 실패했습니다");
+    }
+  }
+
   return {
     // Auth
     fetchMe,
@@ -792,6 +834,10 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     updateScheduledPush,
     deleteScheduledPush,
     executeScheduledPush,
+    // Mobile Push Token
+    registerPushTokenPublic,
+    registerPushToken,
+    unlinkPushToken,
   };
 }
 

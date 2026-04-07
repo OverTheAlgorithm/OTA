@@ -95,8 +95,9 @@ func (m *mockPushExecutorForHandler) ExecuteBySchedule(_ context.Context, _ uuid
 
 type mockPushRepoForHandler struct{}
 
-func (m *mockPushRepoForHandler) Save(_ context.Context, _ push.PushToken) error { return nil }
-func (m *mockPushRepoForHandler) Delete(_ context.Context, _, _ string) error    { return nil }
+func (m *mockPushRepoForHandler) Save(_ context.Context, _ push.PushToken) error          { return nil }
+func (m *mockPushRepoForHandler) UnlinkUser(_ context.Context, _, _ string) error         { return nil }
+func (m *mockPushRepoForHandler) DeleteByTokens(_ context.Context, _ []string) error { return nil }
 func (m *mockPushRepoForHandler) GetByUserID(_ context.Context, _ string) ([]push.PushToken, error) {
 	return nil, nil
 }
