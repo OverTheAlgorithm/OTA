@@ -17,6 +17,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -50,7 +52,7 @@ async function getExpoPushToken(): Promise<string | null> {
     });
   }
 
-  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
   const maxRetries = 3;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
