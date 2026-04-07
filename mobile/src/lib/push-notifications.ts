@@ -7,8 +7,8 @@
 //   Logout    → unlinkToken()             → user_id set to NULL, token preserved
 
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 import { api } from "./api";
 
 // Configure how notifications are displayed when the app is in the foreground.
@@ -30,11 +30,6 @@ let cachedToken: string | null = null;
 async function getExpoPushToken(): Promise<string | null> {
   if (cachedToken) return cachedToken;
 
-  if (!Device.isDevice) {
-    console.warn("[Push] Push notifications are not supported on emulators");
-    return null;
-  }
-
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
 
@@ -55,9 +50,27 @@ async function getExpoPushToken(): Promise<string | null> {
     });
   }
 
-  const tokenData = await Notifications.getExpoPushTokenAsync();
-  cachedToken = tokenData.data;
-  return cachedToken;
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+      cachedToken = tokenData.data;
+      console.log("[Push] Expo token obtained:", cachedToken);
+      return cachedToken;
+    } catch (err) {
+      const isTransient = String(err).includes("503") || String(err).includes("isTransient");
+      if (isTransient && attempt < maxRetries) {
+        const delay = attempt * 3000; // 3s, 6s
+        console.warn(`[Push] Transient error (attempt ${attempt}/${maxRetries}), retrying in ${delay / 1000}s...`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      console.error("[Push] Failed to get Expo Push Token:", err);
+      return null;
+    }
+  }
+  return null;
 }
 
 /**
