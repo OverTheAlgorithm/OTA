@@ -12,6 +12,7 @@ import { WithdrawalPage } from "@/pages/withdrawal";
 import { AdminWithdrawalsPage } from "@/pages/admin-withdrawals";
 import { AdminTermsPage } from "@/pages/admin-terms";
 import { AdminCoinsPage } from "@/pages/admin-coins";
+import { AdminPushPage } from "@/pages/admin-push";
 import { TermsConsentPage } from "@/pages/terms-consent";
 import { AllNewsPage } from "@/pages/allnews";
 import { CookiePolicyPage } from "@/pages/cookie-policy";
@@ -40,6 +41,7 @@ function App() {
           <Route path="/admin/withdrawals" element={<ErrorBoundary><AdminWithdrawalsPage /></ErrorBoundary>} />
           <Route path="/admin/terms" element={<ErrorBoundary><AdminTermsPage /></ErrorBoundary>} />
           <Route path="/admin/coins" element={<ErrorBoundary><AdminCoinsPage /></ErrorBoundary>} />
+          <Route path="/admin/push" element={<ErrorBoundary><AdminPushPage /></ErrorBoundary>} />
           <Route path="/terms-consent" element={<ErrorBoundary><TermsConsentPage /></ErrorBoundary>} />
           <Route path="/mypage" element={<ErrorBoundary><MypagePage /></ErrorBoundary>} />
           <Route path="/withdrawal" element={<ErrorBoundary><WithdrawalPage /></ErrorBoundary>} />

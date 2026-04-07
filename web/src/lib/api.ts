@@ -896,6 +896,101 @@ export async function adminAdjustCoins(
   return body.data;
 }
 
+// ── 푸시 알림 관리 (어드민) ──────────────────────────
+export interface ScheduledPush {
+  id: string;
+  title: string;
+  body: string;
+  link: string;
+  data?: Record<string, unknown>;
+  status: 'pending' | 'sent' | 'failed' | 'cancelled';
+  scheduled_at: string | null;
+  sent_at: string | null;
+  error_message?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateScheduledPushRequest {
+  title: string;
+  body: string;
+  link?: string;
+  data?: Record<string, unknown>;
+  scheduled_at?: string;
+}
+
+export interface UpdateScheduledPushRequest {
+  title: string;
+  body: string;
+  link?: string;
+  data?: Record<string, unknown>;
+  scheduled_at?: string;
+}
+
+export async function listScheduledPushes(status?: string): Promise<ScheduledPush[]> {
+  const url = status
+    ? `${API_BASE}/api/v1/admin/push?status=${encodeURIComponent(status)}`
+    : `${API_BASE}/api/v1/admin/push`;
+  const res = await apiFetch(url, { credentials: "include" });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "Failed to list scheduled pushes");
+  }
+  const body: ApiResponse<ScheduledPush[]> = await res.json();
+  return Array.isArray(body.data) ? body.data : [];
+}
+
+export async function createScheduledPush(req: CreateScheduledPushRequest): Promise<ScheduledPush> {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/push`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "Failed to create scheduled push");
+  }
+  const body: ApiResponse<ScheduledPush> = await res.json();
+  return body.data;
+}
+
+export async function updateScheduledPush(id: string, req: UpdateScheduledPushRequest): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/push/${id}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "Failed to update scheduled push");
+  }
+}
+
+export async function deleteScheduledPush(id: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/push/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "Failed to delete scheduled push");
+  }
+}
+
+export async function executeScheduledPush(id: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/api/v1/admin/push/${id}/send`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err: ApiError = await res.json();
+    throw new Error(err.error || "Failed to execute scheduled push");
+  }
+}
+
 // ── 퀴즈 ─────────────────────────────────────────────
 export async function submitQuizAnswer(
   contextItemId: string,

@@ -26,6 +26,7 @@ import (
 	"ota/domain/collector"
 	"ota/domain/delivery"
 	"ota/domain/level"
+	"ota/domain/push"
 	"ota/domain/quiz"
 	"ota/domain/terms"
 	"ota/domain/user"
@@ -341,6 +342,26 @@ func main() {
 
 	quizHandler := handler.NewQuizHandler(quizService, historyRepo, api.AuthMiddleware(jwtManager))
 
+	// Push notifications
+	pushRepo := storage.NewPushRepository(pool)
+	pushService := push.NewService(pushRepo)
+	pushHandler := handler.NewPushHandler(pushService)
+
+	// Scheduled push notifications
+	scheduledPushRepo := storage.NewScheduledPushRepository(pool)
+	scheduledPushSvc := push.NewScheduledService(scheduledPushRepo, pushService)
+	pushScheduler := scheduler.NewPushScheduler(scheduledPushSvc, shutdownCtx)
+	pending, err := scheduledPushSvc.ListPending(ctx)
+	if err != nil {
+		slog.Error("failed to list pending pushes on startup", "error", err)
+	} else if err := pushScheduler.ReloadPending(ctx, pending); err != nil {
+		slog.Error("failed to reload pending pushes", "error", err)
+	} else {
+		slog.Info("reloaded pending pushes", "count", len(pending))
+	}
+	defer pushScheduler.Stop()
+	pushAdminHandler := handler.NewPushAdminHandler(scheduledPushSvc, pushScheduler)
+
 	withdrawalHandler := handler.NewWithdrawalHandler(withdrawalService, api.AuthMiddleware(jwtManager))
 	withdrawalAdminHandler := handler.NewWithdrawalAdminHandler(withdrawalService)
 
@@ -439,6 +460,16 @@ func main() {
 			GroupName:   "quiz",
 			Handler:     quizHandler,
 			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "mobile/push-token",
+			Handler:     pushHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager)},
+		},
+		{
+			GroupName:   "admin/push",
+			Handler:     pushAdminHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
 		},
 	})
 
