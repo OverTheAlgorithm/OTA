@@ -35,18 +35,24 @@ export function CookieConsent() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const consented = localStorage.getItem(CONSENT_KEY);
-    if (consented) {
+    const consent = localStorage.getItem(CONSENT_KEY);
+    if (consent === "true") {
       loadTrackingScripts();
-    } else {
+    } else if (!consent) {
       setVisible(true);
     }
+    // consent === "essential" → banner hidden, scripts not loaded
   }, []);
 
-  const handleConsent = () => {
+  const handleAccept = () => {
     localStorage.setItem(CONSENT_KEY, "true");
     setVisible(false);
     loadTrackingScripts();
+  };
+
+  const handleReject = () => {
+    localStorage.setItem(CONSENT_KEY, "essential");
+    setVisible(false);
   };
 
   if (!visible) return null;
@@ -62,12 +68,20 @@ export function CookieConsent() {
           자세히 보기
         </Link>
       </p>
-      <button
-        onClick={handleConsent}
-        className="shrink-0 border border-[#231815] bg-[#43b9d6] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
-      >
-        동의
-      </button>
+      <div className="flex shrink-0 gap-2">
+        <button
+          onClick={handleReject}
+          className="border border-[#231815]/30 px-4 py-1.5 text-sm font-medium text-[#231815]/70 hover:opacity-90"
+        >
+          필수만
+        </button>
+        <button
+          onClick={handleAccept}
+          className="border border-[#231815] bg-[#43b9d6] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+        >
+          동의
+        </button>
+      </div>
     </div>
   );
 }

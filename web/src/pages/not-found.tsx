@@ -1,10 +1,15 @@
 import { Link } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 
 export function NotFoundPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+      <Helmet>
+        <title>페이지를 찾을 수 없습니다 - 위즈레터</title>
+        <meta name="description" content="요청하신 페이지가 존재하지 않거나 이동되었습니다." />
+      </Helmet>
       <Header />
 
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-20">

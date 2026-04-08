@@ -92,7 +92,7 @@ Output ONLY pure JSON. No markdown code fences, no explanations.
   "topic": "구체적이고 간결한 제목",
   "summary": "1-3문장 요약",
   "detail": "3-5문장 상세",
-  "details": [{"title": "핵심 포인트 제목", "content": "2-3문장 상세 설명"}]
+  "details": [{"title": "핵심 포인트 제목", "content": "3-5문장 상세 설명"}]
 }
 
 ## Writing Rules (Korean Output)
@@ -104,9 +104,9 @@ Output ONLY pure JSON. No markdown code fences, no explanations.
 ### summary (1-3 sentences)
 Enough context to start a conversation. Must include names, events, and why it matters.
 
-### detail (3-5 sentences)
+### detail (5-8 sentences)
 Extended context beyond the summary. Background, timeline, causes, and implications.
-Write as a coherent paragraph, not bullet points.`)
+Write as a coherent paragraph, not bullet points. Aim for depth — explain the context thoroughly.`)
 
 	if topic.Priority == "brief" {
 		sb.WriteString("\nFor \"brief\" category: use 1-sentence summary and shorter detail (1-2 sentences).")
@@ -121,28 +121,28 @@ Write as a coherent paragraph, not bullet points.`)
 **포맷 A — 핵심 포인트** (기본, 가장 범용적)
 각 entry가 독립적인 사실/관점을 전달:
 - title: 핵심 사실을 한 문장으로 ("삼성, 3분기 영업이익 40% 감소")
-- content: 그 사실의 배경/맥락/수치 (2-3문장)
+- content: 그 사실의 배경/맥락/수치 (3-5문장)
 
 **포맷 B — 타임라인** (사건 전개가 있는 토픽에 적합)
 시간 순서로 전개:
 - title: 시점 + 사건 ("3월 5일 — 첫 공식 발표")
-- content: 해당 시점에 무슨 일이 있었는지 (2-3문장)
+- content: 해당 시점에 무슨 일이 있었는지 (3-5문장)
 
 **포맷 C — 궁금증 해소** (독자가 '왜?'를 궁금해할 토픽에 적합)
 질문-답변 구조:
 - title: 독자가 궁금해할 질문 ("왜 이게 중요할까?", "앞으로 어떻게 될까?")
-- content: 해당 질문에 대한 답변 (2-3문장)
+- content: 해당 질문에 대한 답변 (3-5문장)
 
 **포맷 D — 핵심 한줄 + 깊이** (임팩트가 강한 토픽에 적합)
 첫 entry에 결론, 나머지에 근거:
 - entry 1 title: 한 문장으로 핵심 결론
-- entry 1 content: 왜 이것이 결론인지 (2-3문장)
+- entry 1 content: 왜 이것이 결론인지 (3-5문장)
 - 이후 entries: 이 결론을 뒷받침하는 근거/반론/맥락
 
 **포맷 E — 비교/대립** (찬반 또는 양측이 있는 토픽에 적합)
 서로 다른 입장을 대비:
 - title: 입장 레이블 ("정부 입장", "업계 반응", "소비자 시각")
-- content: 해당 입장의 핵심 주장과 근거 (2-3문장)
+- content: 해당 입장의 핵심 주장과 근거 (3-5문장)
 
 ### details 공통 규칙
 - MUST include at least 1 entry. Empty array [] is NEVER allowed.
