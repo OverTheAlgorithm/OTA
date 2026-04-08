@@ -25,7 +25,9 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@wizletter/shared": ["../packages/shared/src"],
+      "@wizletter/shared/*": ["../packages/shared/src/*"]
     }
   },
   "include": ["src"]

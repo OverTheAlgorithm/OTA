@@ -4,3 +4,4 @@ export * from "./utils";
 export * from "./constants";
 export * from "./api";
 export * from "./push-admin";
+export * from "./web-adapter";

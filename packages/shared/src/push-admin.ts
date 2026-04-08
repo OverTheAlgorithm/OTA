@@ -1,5 +1,5 @@
-// New feature — shared across web and mobile
-// No web source to extract from; this IS the source of truth
+// Extracted from: web/src/lib/api.ts — ScheduledPush, CreateScheduledPushRequest, UpdateScheduledPushRequest
+// Shared across web and mobile
 
 export interface ScheduledPush {
   id: string;

@@ -4,7 +4,7 @@
 // - Web: uses credentials:"include" (cookie-based JWT)
 // - Mobile: uses Authorization: Bearer <token> header (SecureStore-backed)
 
-import {
+import type {
   User,
   ApiResponse,
   ApiError,
@@ -32,7 +32,7 @@ import {
   FilterOptions,
   FilterType,
 } from "./types";
-import {
+import type {
   ScheduledPush,
   CreateScheduledPushRequest,
   UpdateScheduledPushRequest,

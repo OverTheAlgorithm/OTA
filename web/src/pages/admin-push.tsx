@@ -1,71 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
-import { apiFetch } from "@/lib/api";
-import type { ScheduledPush, CreateScheduledPushRequest, UpdateScheduledPushRequest } from "../../../packages/shared/src/push-admin";
-
-const API_BASE = import.meta.env.VITE_API_URL || "";
-const PUSH_BASE = `${API_BASE}/api/v1/admin/push`;
-
-interface ApiError {
-  error: string;
-}
-interface ApiResponse<T> {
-  data: T;
-}
-
-async function listPushes(status?: string): Promise<ScheduledPush[]> {
-  const url = status ? `${PUSH_BASE}?status=${encodeURIComponent(status)}` : PUSH_BASE;
-  const res = await apiFetch(url);
-  if (!res.ok) {
-    const err: ApiError = await res.json();
-    throw new Error(err.error || "Failed to list pushes");
-  }
-  const body: ApiResponse<ScheduledPush[]> = await res.json();
-  return Array.isArray(body.data) ? body.data : [];
-}
-
-async function createPush(req: CreateScheduledPushRequest): Promise<ScheduledPush> {
-  const res = await apiFetch(PUSH_BASE, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) {
-    const err: ApiError = await res.json();
-    throw new Error(err.error || "Failed to create push");
-  }
-  const body: ApiResponse<ScheduledPush> = await res.json();
-  return body.data;
-}
-
-async function updatePush(id: string, req: UpdateScheduledPushRequest): Promise<void> {
-  const res = await apiFetch(`${PUSH_BASE}/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) {
-    const err: ApiError = await res.json();
-    throw new Error(err.error || "Failed to update push");
-  }
-}
-
-async function deletePush(id: string): Promise<void> {
-  const res = await apiFetch(`${PUSH_BASE}/${id}`, { method: "DELETE" });
-  if (!res.ok) {
-    const err: ApiError = await res.json();
-    throw new Error(err.error || "Failed to delete push");
-  }
-}
-
-async function executePush(id: string): Promise<void> {
-  const res = await apiFetch(`${PUSH_BASE}/${id}/send`, { method: "POST" });
-  if (!res.ok) {
-    const err: ApiError = await res.json();
-    throw new Error(err.error || "Failed to execute push");
-  }
-}
+import {
+  listScheduledPushes,
+  createScheduledPush,
+  updateScheduledPush,
+  deleteScheduledPush,
+  executeScheduledPush,
+} from "@/lib/api";
+import type { ScheduledPush, CreateScheduledPushRequest, UpdateScheduledPushRequest } from "@/lib/api";
 
 const STATUS_LABELS: Record<ScheduledPush["status"], string> = {
   pending: "대기중",
@@ -120,7 +63,7 @@ export function AdminPushPage() {
   const loadPushes = () => {
     setLoading(true);
     setError(null);
-    listPushes(statusFilter || undefined)
+    listScheduledPushes(statusFilter || undefined)
       .then(setPushes)
       .catch((e) => setError(e instanceof Error ? e.message : "불러오기 실패"))
       .finally(() => setLoading(false));
@@ -140,7 +83,7 @@ export function AdminPushPage() {
         link: createForm.link.trim() || undefined,
         scheduled_at: createForm.scheduled_at || undefined,
       };
-      await createPush(req);
+      await createScheduledPush(req);
       setShowCreate(false);
       setCreateForm(emptyForm);
       loadPushes();
@@ -172,7 +115,7 @@ export function AdminPushPage() {
         link: editForm.link.trim() || undefined,
         scheduled_at: editForm.scheduled_at || undefined,
       };
-      await updatePush(id, req);
+      await updateScheduledPush(id, req);
       setEditingId(null);
       loadPushes();
     } catch (e) {
@@ -186,7 +129,7 @@ export function AdminPushPage() {
     if (!confirm("이 푸시 알림을 취소하시겠습니까?")) return;
     setActioningId(id);
     try {
-      await deletePush(id);
+      await deleteScheduledPush(id);
       loadPushes();
     } catch (e) {
       setError(e instanceof Error ? e.message : "삭제 실패");
@@ -199,7 +142,7 @@ export function AdminPushPage() {
     if (!confirm("지금 즉시 전송하시겠습니까?")) return;
     setActioningId(id);
     try {
-      await executePush(id);
+      await executeScheduledPush(id);
       loadPushes();
     } catch (e) {
       setError(e instanceof Error ? e.message : "전송 실패");
