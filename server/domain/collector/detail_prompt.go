@@ -5,6 +5,36 @@ import (
 	"strings"
 )
 
+// categoryTone returns category-specific writing tone instructions.
+func categoryTone(category string) string {
+	switch category {
+	case "business":
+		return `톤: 분석적, 차분
+- "~한 것으로 분석됩니다", "전문가들은 ~에 주목하고 있습니다", "~한 흐름이 이어지고 있어요"
+- 수치와 맥락을 강조하되 딱딱하지 않게. 독자가 경제 흐름을 이해할 수 있도록.`
+	case "entertainment":
+		return `톤: 경쾌, 수다스러운
+- "~라니 놀랍죠?", "팬들 사이에서 화제가 되고 있어요", "~해서 난리예요"
+- 에너지 있게 쓰되 가십 수준으로 떨어지지 않게. 왜 화제인지 맥락을 담아서.`
+	case "sports":
+		return `톤: 생생, 열정적
+- "짜릿한 역전승!", "~의 활약이 돋보였습니다", "팬들의 환호 속에"
+- 경기 현장의 감각을 살리되, 결과와 의미를 명확히.`
+	case "technology":
+		return `톤: 호기심 자극, 설명적
+- "쉽게 말하면 ~인 셈이죠", "이 기술이 중요한 이유는", "~가 바뀔 수 있어요"
+- 기술 용어는 쉬운 비유로 풀어주고, 일상에 미치는 영향을 연결.`
+	case "science", "health":
+		return `톤: 교육적, 신중한
+- "연구에 따르면", "다만 아직 ~단계라는 점은 유의해야 합니다", "~할 수 있다고 해요"
+- 사실 기반으로 신중하게 쓰되 딱딱한 논문체는 피하기. 독자가 궁금해할 '그래서 나한테 어떤 의미?'에 답하기.`
+	default: // general
+		return `톤: 담백, 간결
+- "~한 가운데", "핵심은 ~입니다", "~인 셈이에요"
+- 군더더기 없이 핵심을 전달. 짧고 명확한 문장 위주.`
+	}
+}
+
 // BuildDetailPrompt returns the Phase 2 prompt for a single topic.
 // It includes the topic hint, category, article bodies, and writing instructions.
 // The AI writes topic title, summary, detail, and details based on actual article content.
@@ -41,6 +71,9 @@ func BuildDetailPrompt(topic Phase1Topic, articles []FetchedArticle, brainCatego
 		sb.WriteString("\n(WARNING: No article content available. This topic should have been dropped.)\n")
 	}
 
+	// Category-specific tone
+	sb.WriteString(fmt.Sprintf("\n## 문체 (이 토픽에 적용)\n%s\n", categoryTone(topic.Category)))
+
 	sb.WriteString(`
 ## Task — Write (Chain-of-Thought — follow this order STRICTLY)
 Build the output BOTTOM-UP. Each step uses ONLY the result of the previous step.
@@ -62,10 +95,10 @@ Output ONLY pure JSON. No markdown code fences, no explanations.
   "details": [{"title": "핵심 포인트 제목", "content": "2-3문장 상세 설명"}]
 }
 
-## Writing Style (Korean Output)
+## Writing Rules (Korean Output)
 - NO news-speak: "~했다", "~밝혔다", "~것으로 알려졌다"
 - NO casual speech: "~했어", "~됐음", "~임"
-- YES friendly polite tone: "~했는데요", "~라서 난리예요", "~해서 화제예요", "~했대요"
+- Use the tone specified in 문체 section above
 - Include: WHO (names), WHAT (specific event), WHY people care (controversy/surprise/record)
 
 ### summary (1-3 sentences)
@@ -81,22 +114,41 @@ Write as a coherent paragraph, not bullet points.`)
 
 	sb.WriteString(`
 
-### details (up to 5 structured detail entries)
-Each entry is a JSON object with "title" and "content" fields:
-- "title": A concise one-sentence heading that captures the key point (works as a scannable subtitle)
-- "content": 2-3 sentences expanding on the title with specific details, quotes, numbers, or context
+### details — 포맷 선택 + 작성
+아래 5가지 포맷 중 이 토픽의 콘텐츠에 가장 적합한 것을 하나 골라서 작성하세요.
+어떤 포맷을 골랐는지 출력할 필요 없습니다. 결과 JSON만 출력하세요.
 
-The title should be instantly understandable on its own — users scan titles first, then tap to read content.
-Each entry must be an independent, NEW fact not in summary or detail.
+**포맷 A — 핵심 포인트** (기본, 가장 범용적)
+각 entry가 독립적인 사실/관점을 전달:
+- title: 핵심 사실을 한 문장으로 ("삼성, 3분기 영업이익 40% 감소")
+- content: 그 사실의 배경/맥락/수치 (2-3문장)
 
-Types of content for each entry:
-- Direct quotes from people involved + context of when/where they said it
-- Community memes or reactions + why they went viral
-- Related statistics or numbers + what they mean in context
-- Connection to previous events + how this changes things
-- Expected next developments + what experts/insiders are saying
-MUST include at least 1 entry. Empty array [] is NEVER allowed.
-MUST NOT repeat summary or detail content.
+**포맷 B — 타임라인** (사건 전개가 있는 토픽에 적합)
+시간 순서로 전개:
+- title: 시점 + 사건 ("3월 5일 — 첫 공식 발표")
+- content: 해당 시점에 무슨 일이 있었는지 (2-3문장)
+
+**포맷 C — 궁금증 해소** (독자가 '왜?'를 궁금해할 토픽에 적합)
+질문-답변 구조:
+- title: 독자가 궁금해할 질문 ("왜 이게 중요할까?", "앞으로 어떻게 될까?")
+- content: 해당 질문에 대한 답변 (2-3문장)
+
+**포맷 D — 핵심 한줄 + 깊이** (임팩트가 강한 토픽에 적합)
+첫 entry에 결론, 나머지에 근거:
+- entry 1 title: 한 문장으로 핵심 결론
+- entry 1 content: 왜 이것이 결론인지 (2-3문장)
+- 이후 entries: 이 결론을 뒷받침하는 근거/반론/맥락
+
+**포맷 E — 비교/대립** (찬반 또는 양측이 있는 토픽에 적합)
+서로 다른 입장을 대비:
+- title: 입장 레이블 ("정부 입장", "업계 반응", "소비자 시각")
+- content: 해당 입장의 핵심 주장과 근거 (2-3문장)
+
+### details 공통 규칙
+- MUST include at least 1 entry. Empty array [] is NEVER allowed.
+- Up to 5 entries.
+- MUST NOT repeat summary or detail content.
+- Each entry must be an independent, NEW fact not in summary or detail.
 
 ## Critical Rules
 1. Write in Korean. All topic/summary/detail/details must be Korean.
