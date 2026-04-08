@@ -181,12 +181,14 @@ func (r *WithdrawalRepository) GetByID(ctx context.Context, id uuid.UUID) (*with
 	var d withdrawal.WithdrawalDetail
 	err := r.pool.QueryRow(ctx, `
 		SELECT w.id, w.user_id, w.amount, w.bank_name, w.account_number, w.account_holder, w.created_at,
-		       (SELECT t.status FROM withdrawal_transitions t WHERE t.withdrawal_id = w.id ORDER BY t.created_at DESC LIMIT 1)
+		       (SELECT t.status FROM withdrawal_transitions t WHERE t.withdrawal_id = w.id ORDER BY t.created_at DESC LIMIT 1),
+		       u.adblock_detected_at, u.adblock_not_detected_at
 		FROM withdrawals w
+		LEFT JOIN users u ON u.id = w.user_id
 		WHERE w.id = $1
 	`, id).Scan(
 		&d.ID, &d.UserID, &d.Amount, &d.BankName, &d.AccountNumber, &d.AccountHolder, &d.CreatedAt,
-		&d.CurrentStatus,
+		&d.CurrentStatus, &d.AdblockDetectedAt, &d.AdblockNotDetectedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -329,7 +331,8 @@ func (r *WithdrawalRepository) ListAll(ctx context.Context, filter withdrawal.Li
 	dataQuery := `
 		SELECT w.id, w.user_id, w.amount, w.bank_name, w.account_number, w.account_holder, w.created_at,
 		       (SELECT t.status FROM withdrawal_transitions t WHERE t.withdrawal_id = w.id ORDER BY t.created_at DESC LIMIT 1),
-		       COALESCE(u.nickname, ''), COALESCE(u.email, '')
+		       COALESCE(u.nickname, ''), COALESCE(u.email, ''),
+		       u.adblock_detected_at, u.adblock_not_detected_at
 		FROM withdrawals w
 		LEFT JOIN users u ON u.id = w.user_id
 		WHERE 1=1
@@ -359,6 +362,7 @@ func (r *WithdrawalRepository) ListAll(ctx context.Context, filter withdrawal.Li
 		if err := rows.Scan(
 			&item.ID, &item.UserID, &item.Amount, &item.BankName, &item.AccountNumber, &item.AccountHolder, &item.CreatedAt,
 			&item.CurrentStatus, &item.UserNickname, &item.UserEmail,
+			&item.AdblockDetectedAt, &item.AdblockNotDetectedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan withdrawal list item: %w", err)
 		}

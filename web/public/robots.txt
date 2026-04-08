@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://wizletter.mindhacker.club/sitemap.xml
+Sitemap: https://server.mindhacker.club/api/v1/sitemap.xml

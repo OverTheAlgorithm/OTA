@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { Turnstile } from "@marsidev/react-turnstile";
 import {
   fetchTopicDetail,
@@ -43,7 +44,6 @@ function gtmPush(event: string, params: Record<string, unknown>) {
 type CoinTagState =
   | { kind: "expired" }
   | { kind: "not_logged_in" }
-  | { kind: "adblock" }
   | { kind: "duplicate" }
   | { kind: "daily_limit" }
   | { kind: "server_error" }
@@ -180,11 +180,6 @@ function CoinTag({ state }: { state: CoinTagState }) {
       break;
     case "not_logged_in":
       label = "로그인 필요";
-      color = "#231815";
-      bgColor = "#e8e8e8";
-      break;
-    case "adblock":
-      label = "광고 차단 해제 필요";
       color = "#231815";
       bgColor = "#e8e8e8";
       break;
@@ -405,9 +400,7 @@ export function TopicPage() {
 
     detectAdBlock().then((blocked) => {
       if (blocked) {
-        setCoinTag({ kind: "adblock" });
-        gtmPush("coin_earn_fail", { topic_id: id, reason: "adblock", category: topicCategoryRef.current });
-        return;
+        gtmPush("adblock_detected", { topic_id: id, category: topicCategoryRef.current });
       }
 
       initEarn(id)
@@ -485,6 +478,38 @@ export function TopicPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+      <Helmet>
+        <title>{topic.topic} - 위즈레터</title>
+        <meta name="description" content={topic.detail} />
+        <link rel="canonical" href={`https://wizletter.mindhacker.club/topic/${topic.id}`} />
+        <meta property="og:title" content={topic.topic} />
+        <meta property="og:description" content={topic.detail} />
+        <meta property="og:url" content={`https://wizletter.mindhacker.club/topic/${topic.id}`} />
+        <meta property="og:type" content="article" />
+        <meta property="og:image" content={topic.image_url || "https://wizletter.mindhacker.club/w_logo.png"} />
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "NewsArticle",
+            "headline": topic.topic,
+            "description": topic.detail,
+            "datePublished": topic.created_at,
+            "image": topic.image_url || "https://wizletter.mindhacker.club/w_logo.png",
+            "publisher": {
+              "@type": "Organization",
+              "name": "위즈레터",
+              "logo": {
+                "@type": "ImageObject",
+                "url": "https://wizletter.mindhacker.club/w_logo.png",
+              },
+            },
+            "mainEntityOfPage": {
+              "@type": "WebPage",
+              "@id": `https://wizletter.mindhacker.club/topic/${topic.id}`,
+            },
+          })}
+        </script>
+      </Helmet>
       {/* ── Header ── */}
       <Header />
 

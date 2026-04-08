@@ -16,6 +16,9 @@ import { AdminPushPage } from "@/pages/admin-push";
 import { TermsConsentPage } from "@/pages/terms-consent";
 import { AllNewsPage } from "@/pages/allnews";
 import { CookiePolicyPage } from "@/pages/cookie-policy";
+import { PrivacyPolicyPage } from "@/pages/privacy-policy";
+import { TermsOfServicePage } from "@/pages/terms-of-service";
+import { AboutPage } from "@/pages/about";
 import { LatestPage } from "@/pages/latest";
 import { NotFoundPage } from "@/pages/not-found";
 
@@ -46,6 +49,9 @@ function App() {
           <Route path="/mypage" element={<ErrorBoundary><MypagePage /></ErrorBoundary>} />
           <Route path="/withdrawal" element={<ErrorBoundary><WithdrawalPage /></ErrorBoundary>} />
           <Route path="/cookie-policy" element={<ErrorBoundary><CookiePolicyPage /></ErrorBoundary>} />
+          <Route path="/privacy-policy" element={<ErrorBoundary><PrivacyPolicyPage /></ErrorBoundary>} />
+          <Route path="/terms-of-service" element={<ErrorBoundary><TermsOfServicePage /></ErrorBoundary>} />
+          <Route path="/about" element={<ErrorBoundary><AboutPage /></ErrorBoundary>} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         <CookieConsent />

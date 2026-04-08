@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/contexts/auth-context";
 import { UserLevelCard } from "@/components/user-level-card";
 import { Header } from "@/components/header";
@@ -306,6 +307,11 @@ export function LatestPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+      <Helmet>
+        <title>최신 소식 - 위즈레터</title>
+        <meta name="description" content="오늘의 최신 뉴스 브리핑을 확인하세요." />
+        <link rel="canonical" href="https://wizletter.mindhacker.club/latest" />
+      </Helmet>
       <Header />
 
       <main className="flex-1">

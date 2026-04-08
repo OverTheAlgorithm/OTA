@@ -144,6 +144,8 @@ function DetailPanel({
         <div><span className="text-[#6b8db5]">계좌:</span> {detail.account_number}</div>
         <div><span className="text-[#6b8db5]">예금주:</span> {detail.account_holder}</div>
         <div><span className="text-[#6b8db5]">신청일:</span> {formatDateTime(detail.created_at)}</div>
+        <div><span className="text-[#6b8db5]">Adblock 감지:</span> {detail.adblock_detected_at ? formatDateTime(detail.adblock_detected_at) : "없음"}</div>
+        <div><span className="text-[#6b8db5]">Adblock 미감지:</span> {detail.adblock_not_detected_at ? formatDateTime(detail.adblock_not_detected_at) : "없음"}</div>
       </div>
 
       {error && <p className="text-sm text-[#ff5442]">{error}</p>}
@@ -365,6 +367,7 @@ export function AdminWithdrawalsPage() {
                   <th className="text-right px-4 py-3 text-[#6b8db5] font-medium">금액</th>
                   <th className="text-left px-4 py-3 text-[#6b8db5] font-medium">은행/계좌</th>
                   <th className="text-center px-4 py-3 text-[#6b8db5] font-medium">상태</th>
+                  <th className="text-center px-4 py-3 text-[#6b8db5] font-medium">Adblock</th>
                   <th className="text-center px-4 py-3 text-[#6b8db5] font-medium">상세</th>
                 </tr>
               </thead>
@@ -387,6 +390,15 @@ export function AdminWithdrawalsPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLOR[item.current_status]}`}>
                         {STATUS_LABEL[item.current_status]}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs">
+                      {item.adblock_detected_at ? (
+                        <span className="text-[#ff5442]" title={`감지: ${formatDateTime(item.adblock_detected_at)}`}>
+                          사용
+                        </span>
+                      ) : (
+                        <span className="text-green-600">미사용</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button

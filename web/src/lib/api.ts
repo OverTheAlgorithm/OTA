@@ -572,6 +572,8 @@ export interface WithdrawalDetail {
   created_at: string;
   current_status: "pending" | "approved" | "rejected" | "cancelled";
   transitions: WithdrawalTransition[];
+  adblock_detected_at: string | null;
+  adblock_not_detected_at: string | null;
 }
 
 export interface WithdrawalListItem {
@@ -585,6 +587,8 @@ export interface WithdrawalListItem {
   current_status: "pending" | "approved" | "rejected" | "cancelled";
   user_nickname: string;
   user_email: string;
+  adblock_detected_at: string | null;
+  adblock_not_detected_at: string | null;
 }
 
 export interface WithdrawalInfo {

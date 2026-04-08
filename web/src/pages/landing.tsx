@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
 import { LoginModal } from "@/components/login-modal";
 import { Footer } from "@/components/footer";
@@ -161,6 +162,39 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#fdf9ee] text-[#231815]">
+      <Helmet>
+        <title>위즈레터 - 매일 아침 5분, 세상의 흐름을 읽다</title>
+        <meta name="description" content="복잡한 뉴스를 간결하게 요약해 드립니다. 출근길, 아침 식사 시간에 세상이 돌아가는 이야기를 빠르게 파악하세요." />
+        <link rel="canonical" href="https://wizletter.mindhacker.club/" />
+        <meta property="og:title" content="위즈레터 - 매일 아침 5분, 세상의 흐름을 읽다" />
+        <meta property="og:description" content="복잡한 뉴스를 간결하게 요약해 드립니다." />
+        <meta property="og:url" content="https://wizletter.mindhacker.club/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:image" content="https://wizletter.mindhacker.club/w_logo.png" />
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "위즈레터",
+            "url": "https://wizletter.mindhacker.club",
+            "description": "매일 아침 AI가 요약하는 뉴스 브리핑 서비스",
+          })}
+        </script>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "위즈레터",
+            "url": "https://wizletter.mindhacker.club",
+            "logo": "https://wizletter.mindhacker.club/w_logo.png",
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "email": "mindhacker.admin@gmail.com",
+              "contactType": "customer service",
+            },
+          })}
+        </script>
+      </Helmet>
       {/* ── Header ── */}
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${

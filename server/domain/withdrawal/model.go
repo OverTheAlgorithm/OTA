@@ -49,14 +49,18 @@ type Transition struct {
 // WithdrawalDetail includes the withdrawal and all its transitions.
 type WithdrawalDetail struct {
 	Withdrawal
-	Transitions []Transition `json:"transitions"`
+	Transitions          []Transition `json:"transitions"`
+	AdblockDetectedAt    *time.Time   `json:"adblock_detected_at"`
+	AdblockNotDetectedAt *time.Time   `json:"adblock_not_detected_at"`
 }
 
 // WithdrawalListItem is for admin listings with user info.
 type WithdrawalListItem struct {
 	Withdrawal
-	UserNickname string `json:"user_nickname"`
-	UserEmail    string `json:"user_email"`
+	UserNickname         string     `json:"user_nickname"`
+	UserEmail            string     `json:"user_email"`
+	AdblockDetectedAt    *time.Time `json:"adblock_detected_at"`
+	AdblockNotDetectedAt *time.Time `json:"adblock_not_detected_at"`
 }
 
 // ListFilter is used by the admin to filter withdrawal listings.

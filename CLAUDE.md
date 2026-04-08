@@ -74,6 +74,7 @@ contexts/         # auth-context (AuthProvider with JWT cookie)
 
 ### Public
 - `GET /terms/active` -- active terms for consent screen
+- `GET /sitemap.xml` -- dynamic sitemap (DB에서 topic ID 조회 + 정적 페이지 목록). **새 정적 페이지 추가 시 `server/api/handler/sitemap_handler.go`의 `staticPages` 슬라이스에도 경로 추가 필요**
 - `GET /context/topic/:id` -- single topic detail
 - `GET /context/recent` -- recent topics (landing)
 - `GET /context/topics?filter_type=&filter_value=&limit=&offset=` -- paginated topics

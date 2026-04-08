@@ -1,35 +1,25 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getActiveTerms, type Term } from "@/lib/api";
 
 interface FooterProps {
   compact?: boolean;
 }
 
 export function Footer({ compact = false }: FooterProps) {
-  const [terms, setTerms] = useState<Term[]>([]);
-
-  useEffect(() => {
-    getActiveTerms().then(setTerms).catch(() => {});
-  }, []);
-
   const links = (
     <div
       className={`flex flex-wrap justify-center gap-y-1 ${
         compact ? "gap-x-4 text-xs" : "gap-x-6 text-sm"
       } text-[#231815]/60`}
     >
-      {terms.filter((t) => t.title === "개인정보 처리방침 동의" || t.title === "서비스 이용약관 동의").map((t) => (
-        <a
-          key={t.id}
-          href={t.url.match(/^https?:\/\//) ? t.url : `https://${t.url}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-[#231815] transition-colors"
-        >
-          {t.title.replace(/ 동의$/, "")}
-        </a>
-      ))}
+      <Link to="/about" className="hover:text-[#231815] transition-colors">
+        서비스 소개
+      </Link>
+      <Link to="/privacy-policy" className="hover:text-[#231815] transition-colors">
+        개인정보 처리방침
+      </Link>
+      <Link to="/terms-of-service" className="hover:text-[#231815] transition-colors">
+        서비스 이용약관
+      </Link>
       <Link to="/cookie-policy" className="hover:text-[#231815] transition-colors">
         쿠키 정책
       </Link>

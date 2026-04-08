@@ -41,6 +41,23 @@ import (
 	"ota/storage"
 )
 
+// sitemapRepoAdapter bridges storage.SitemapRepository to handler.SitemapRepository.
+type sitemapRepoAdapter struct {
+	repo *storage.SitemapRepository
+}
+
+func (a *sitemapRepoAdapter) GetAllTopicIDs(ctx context.Context) ([]handler.TopicEntry, error) {
+	rows, err := a.repo.GetAllTopicRows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]handler.TopicEntry, len(rows))
+	for i, r := range rows {
+		entries[i] = handler.TopicEntry{ID: r.ID, CreatedAt: r.CreatedAt}
+	}
+	return entries, nil
+}
+
 // levelServiceAdapter bridges level.Service to delivery.LevelProvider.
 type levelServiceAdapter struct {
 	svc *level.Service
@@ -379,6 +396,14 @@ func main() {
 		healthHandler = healthHandler.WithRedisPinger(redisPinger)
 	}
 
+	// Adblock status reporting
+	adblockRepo := storage.NewAdblockRepository(pool)
+	adblockHandler := handler.NewAdblockHandler(adblockRepo)
+
+	// Sitemap
+	sitemapRepo := storage.NewSitemapRepository(pool)
+	sitemapHandler := handler.NewSitemapHandler(&sitemapRepoAdapter{sitemapRepo}, cfg.FrontendURL)
+
 	// Router
 	r := api.NewRouter("api", "v1", cfg.FrontendURL, jwtManager, cfg.RateLimitPerMin, rateLimitStore, []api.RouteModule{
 		{
@@ -470,6 +495,16 @@ func main() {
 			GroupName:   "admin/push",
 			Handler:     pushAdminHandler,
 			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
+		},
+		{
+			GroupName:   "adblock",
+			Handler:     adblockHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager)},
+		},
+		{
+			GroupName:   "",
+			Handler:     sitemapHandler,
+			Middlewares: []gin.HandlerFunc{},
 		},
 	})
 

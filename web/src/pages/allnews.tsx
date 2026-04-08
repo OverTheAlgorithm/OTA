@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/contexts/auth-context";
 import { UserLevelCard } from "@/components/user-level-card";
 import { Footer } from "@/components/footer";
@@ -242,6 +243,11 @@ export function AllNewsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+      <Helmet>
+        <title>전체 뉴스 - 위즈레터</title>
+        <meta name="description" content="위즈레터의 모든 뉴스를 한눈에 확인하세요." />
+        <link rel="canonical" href="https://wizletter.mindhacker.club/allnews" />
+      </Helmet>
       <Header />
 
       <main className="flex-1">

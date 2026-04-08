@@ -1,9 +1,15 @@
 import { Link } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { Footer } from "@/components/footer";
 
 export function CookiePolicyPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[#fdf9ee]">
+      <Helmet>
+        <title>쿠키 정책 - 위즈레터</title>
+        <meta name="description" content="위즈레터의 쿠키 사용 정책을 안내합니다." />
+        <link rel="canonical" href="https://wizletter.mindhacker.club/cookie-policy" />
+      </Helmet>
       <header className="border-b-[3px] border-[#231815] px-6 py-4">
         <div className="mx-auto max-w-3xl">
           <Link to="/">
