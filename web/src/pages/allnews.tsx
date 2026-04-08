@@ -247,6 +247,20 @@ export function AllNewsPage() {
         <title>전체 뉴스 - 위즈레터</title>
         <meta name="description" content="위즈레터의 모든 뉴스를 한눈에 확인하세요." />
         <link rel="canonical" href="https://wizletter.mindhacker.club/allnews" />
+        {topics.length > 0 && (
+          <script type="application/ld+json">
+            {JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "ItemList",
+              "itemListElement": topics.map((t, i) => ({
+                "@type": "ListItem",
+                "position": i + 1,
+                "name": t.topic,
+                "url": `https://wizletter.mindhacker.club/topic/${t.id}`,
+              })),
+            })}
+          </script>
+        )}
       </Helmet>
       <Header />
 
