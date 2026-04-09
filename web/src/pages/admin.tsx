@@ -11,6 +11,7 @@ import {
   type BrainCategory,
   type TestEmailResult,
 } from "@/lib/api";
+import { LoadingState } from "@/components/spinner";
 
 type CollectState =
   | { status: "idle" }
@@ -102,7 +103,7 @@ function BrainCategoryManager() {
   };
 
   if (loading) {
-    return <p className="text-sm text-[#6b8db5]">불러오는 중...</p>;
+    return <LoadingState inline label="불러오는 중" className="text-[#6b8db5] py-6" />;
   }
 
   return (
@@ -292,7 +293,7 @@ export function AdminPage() {
   if (loading || !user || user.role !== "admin") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <p className="text-[#6b8db5]">로딩 중...</p>
+        <LoadingState label="로딩 중" className="text-[#6b8db5]" />
       </div>
     );
   }

@@ -17,6 +17,7 @@ import {
   type BankAccount,
 } from "@/lib/api";
 import { BankAccountModal } from "@/components/bank-account-modal";
+import { LoadingState } from "@/components/spinner";
 import { formatDateTime } from "@/lib/utils";
 
 type Tab = "points" | "withdrawals" | "settings";
@@ -59,7 +60,7 @@ function PointHistoryTab() {
   };
 
   if (loading) {
-    return <p className="text-sm text-[#231815]/50 py-8 text-center">불러오는 중...</p>;
+    return <LoadingState inline label="불러오는 중" className="text-[#231815]/50 py-8" />;
   }
 
   if (transactions.length === 0) {
@@ -164,7 +165,7 @@ function WithdrawalHistoryTab() {
   };
 
   if (loading) {
-    return <p className="text-sm text-[#231815]/50 py-8 text-center">불러오는 중...</p>;
+    return <LoadingState inline label="불러오는 중" className="text-[#231815]/50 py-8" />;
   }
 
   if (items.length === 0) {
@@ -259,7 +260,7 @@ function SettingsTab() {
           </svg>
           <div className="flex-1 min-w-0">
             {bankLoading ? (
-              <p className="text-sm text-[#231815]/50">불러오는 중...</p>
+              <LoadingState inline label="불러오는 중" className="text-[#231815]/50" />
             ) : bankAccount ? (
               <>
                 <p className="text-sm font-medium text-[#231815]">{bankAccount.bank_name}</p>
@@ -368,7 +369,7 @@ export function MypagePage() {
   if (authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
-        <p className="text-[#231815]/60">로딩 중...</p>
+        <LoadingState label="로딩 중" className="text-[#231815]/60" />
       </div>
     );
   }

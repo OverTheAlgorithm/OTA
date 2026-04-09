@@ -8,6 +8,7 @@ import {
   type ChannelPreference,
   type ChannelDeliveryStatus,
 } from "@/lib/api";
+import { LoadingState } from "@/components/spinner";
 
 const CHANNEL_INFO = {
   email: { label: "이메일", icon: "📧", description: "이메일로 소식을 받아요" },
@@ -86,7 +87,7 @@ export function ChannelPreferencesSection() {
   if (loading) {
     return (
       <section className="border-l-[3px] border-[#43b9d6] pl-5">
-        <p className="text-sm text-[#231815]/50">채널 정보를 불러오는 중...</p>
+        <LoadingState inline label="채널 정보를 불러오는 중" className="text-[#231815]/50 py-2" />
       </section>
     );
   }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { getAdminTerms, createTerm, updateTermActive, updateTerm, type Term } from "@/lib/api";
+import { LoadingState } from "@/components/spinner";
 
 export function AdminTermsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -47,7 +48,7 @@ export function AdminTermsPage() {
   if (authLoading || !user || user.role !== "admin") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <p className="text-[#6b8db5]">로딩 중...</p>
+        <LoadingState label="로딩 중" className="text-[#6b8db5]" />
       </div>
     );
   }
@@ -96,7 +97,7 @@ export function AdminTermsPage() {
 
         {/* Terms list */}
         {loading ? (
-          <p className="text-sm text-[#6b8db5]">불러오는 중...</p>
+          <LoadingState inline label="불러오는 중" className="text-[#6b8db5] py-6" />
         ) : terms.length === 0 ? (
           <p className="text-sm text-[#6b8db5]">등록된 약관이 없습니다.</p>
         ) : (

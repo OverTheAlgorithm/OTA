@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Footer } from "@/components/footer";
+import { LoadingState } from "@/components/spinner";
 import { renderMarkdown } from "@/lib/markdown";
 
 export function PrivacyPolicyPage() {
@@ -38,7 +39,7 @@ export function PrivacyPolicyPage() {
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
         {loading ? (
-          <p className="text-sm text-[#231815]/50">불러오는 중...</p>
+          <LoadingState inline label="불러오는 중" className="text-[#231815]/50 py-8" />
         ) : (
           <div
             className="prose-wl"

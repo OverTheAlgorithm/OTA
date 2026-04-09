@@ -6,6 +6,7 @@ import { UserLevelCard } from "@/components/user-level-card";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { CoinTag } from "@/components/coin-tag";
+import { LoadingState } from "@/components/spinner";
 import {
   fetchLatestRunTopics,
   getBrainCategories,
@@ -300,7 +301,7 @@ export function LatestPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
-        <p className="text-[#231815]/60">불러오는 중...</p>
+        <LoadingState label="불러오는 중" className="text-[#231815]/60" />
       </div>
     );
   }

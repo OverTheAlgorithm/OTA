@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { HistoryEntry, HistoryItem, BrainCategory } from "@/lib/api";
 import { getContextHistory, getBrainCategories } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
+import { LoadingState } from "@/components/spinner";
 
 const PAGE_SIZE = 10;
 
@@ -260,15 +261,7 @@ export function HistorySection({ subscriptions, onFirstLoad }: Props) {
           <div ref={sentinelRef} className="h-1" />
 
           {loadingMore && (
-            <div className="flex justify-center py-4">
-              <div className="flex items-center gap-2 text-[#6b8db5] text-sm">
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                이전 소식을 불러오는 중...
-              </div>
-            </div>
+            <LoadingState inline label="이전 소식을 불러오는 중" className="text-[#6b8db5] py-4" />
           )}
 
           {!hasMore && entries.length > 0 && (

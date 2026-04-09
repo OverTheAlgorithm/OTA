@@ -9,6 +9,7 @@ import {
   executeScheduledPush,
 } from "@/lib/api";
 import type { ScheduledPush, CreateScheduledPushRequest, UpdateScheduledPushRequest } from "@/lib/api";
+import { LoadingState } from "@/components/spinner";
 
 const STATUS_LABELS: Record<ScheduledPush["status"], string> = {
   pending: "대기중",
@@ -154,7 +155,7 @@ export function AdminPushPage() {
   if (authLoading || !user || user.role !== "admin") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <p className="text-[#6b8db5]">로딩 중...</p>
+        <LoadingState label="로딩 중" className="text-[#6b8db5]" />
       </div>
     );
   }
@@ -253,7 +254,7 @@ export function AdminPushPage() {
 
         {/* Push list */}
         {loading ? (
-          <p className="text-sm text-[#6b8db5]">불러오는 중...</p>
+          <LoadingState inline label="불러오는 중" className="text-[#6b8db5] py-6" />
         ) : pushes.length === 0 ? (
           <p className="text-sm text-[#6b8db5]">등록된 푸시 알림이 없습니다.</p>
         ) : (

@@ -18,6 +18,7 @@ import { UserLevelCard } from "@/components/user-level-card";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { LoadingState } from "@/components/spinner";
 import { LoginPromptModal, isLoginPromptDismissed } from "@/components/login-prompt-modal";
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
@@ -437,7 +438,7 @@ export function TopicPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
-        <p className="text-[#231815]/60">불러오는 중...</p>
+        <LoadingState label="불러오는 중" className="text-[#231815]/60" />
       </div>
     );
   }

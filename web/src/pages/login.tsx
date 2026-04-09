@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
+import { LoadingState } from "@/components/spinner";
 import { useAuth } from "@/contexts/auth-context";
 
 export function LoginPage() {
@@ -18,7 +19,7 @@ export function LoginPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">로딩 중...</p>
+        <LoadingState label="로딩 중" className="text-muted-foreground" />
       </div>
     );
   }

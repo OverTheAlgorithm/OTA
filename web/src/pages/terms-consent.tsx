@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import { LOGIN_REDIRECT_KEY } from "@/components/kakao-login-button";
+import { LoadingState } from "@/components/spinner";
 
 type ModalStep = "none" | "email-input" | "code-input" | "skip-nudge";
 
@@ -131,7 +132,7 @@ export function TermsConsentPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <p className="text-[#6b8db5]">불러오는 중...</p>
+        <LoadingState label="불러오는 중" className="text-[#6b8db5]" />
       </div>
     );
   }

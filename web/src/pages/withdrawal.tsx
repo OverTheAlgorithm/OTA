@@ -16,6 +16,7 @@ import {
   type LevelInfo,
 } from "@/lib/api";
 import { formatDateTime } from "@/lib/utils";
+import { LoadingState } from "@/components/spinner";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "대기",
@@ -193,7 +194,7 @@ export function WithdrawalPage() {
   if (authLoading || !user || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--color-bg)" }}>
-        <p className="text-[#6b8db5]">로딩 중...</p>
+        <LoadingState label="로딩 중" className="text-[#6b8db5]" />
       </div>
     );
   }
