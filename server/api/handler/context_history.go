@@ -85,11 +85,12 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 		Quiz:        nil,
 	}
 
-	// Bundle quiz data if user is logged in. The earn-gate is enforced at submit time,
-	// not here — the read path is intentionally open. Past attempts are hydrated via
-	// QuizForUser.PastAttempt so the frontend can render a static "already completed" card.
-	userID := c.GetString("userID")
-	if userID != "" && h.quizSvc != nil {
+	// Bundle quiz data for everyone (logged in OR not). The earn-gate is enforced
+	// at submit time, not here — the read path is intentionally open so non-logged-in
+	// users can see the quiz and be prompted to log in when they click an option.
+	// Past attempts are hydrated only for logged-in users via QuizForUser.PastAttempt.
+	if h.quizSvc != nil {
+		userID := c.GetString("userID")
 		quizForUser, err := h.quizSvc.GetQuizForUser(c.Request.Context(), userID, id)
 		if err != nil {
 			slog.Warn("get quiz for user error", "user_id", userID, "item_id", id, "error", err)

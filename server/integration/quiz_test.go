@@ -318,6 +318,47 @@ func TestQuiz_PastAttemptHydration_Wrong(t *testing.T) {
 	t.Log("PastAttemptHydration_Wrong passed: hydrated wrong attempt with 0 coins")
 }
 
+// TestQuiz_GetForAnonymousUser: 비로그인 (userID="") 호출 시 quiz가 정상 반환되고
+// PastAttempt는 nil인지 검증합니다. 비로그인 유저도 퀴즈 카드를 볼 수 있어야 하고
+// (옵션 클릭 시 로그인 모달로 유도), past attempt 조회는 스킵돼야 합니다.
+func TestQuiz_GetForAnonymousUser(t *testing.T) {
+	db := SetupTestDB(t)
+	defer db.Truncate(t, quizTables...)
+
+	ctx := context.Background()
+	_, _, itemID := createQuizTestData(t, db, 1103, "quiz-anon@example.com", "QuizAnonOwner")
+
+	quizRepo := storage.NewQuizRepository(db.Pool)
+	q := makeTestQuiz(itemID)
+	if err := quizRepo.SaveQuiz(ctx, q); err != nil {
+		t.Fatalf("SaveQuiz error: %v", err)
+	}
+
+	levelRepo := storage.NewLevelRepository(db.Pool)
+	levelCfg := level.NewLevelConfig(5000, 1000)
+	svc := quiz.NewService(quizRepo, levelRepo, levelCfg, 10)
+
+	// Empty userID = anonymous viewer.
+	got, err := svc.GetQuizForUser(ctx, "", itemID)
+	if err != nil {
+		t.Fatalf("GetQuizForUser error for anonymous: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected quiz for anonymous viewer, got nil")
+	}
+	if got.PastAttempt != nil {
+		t.Errorf("anonymous viewer should never have PastAttempt, got: %+v", got.PastAttempt)
+	}
+	if got.Question != q.Question {
+		t.Errorf("question mismatch: want %q, got %q", q.Question, got.Question)
+	}
+	if len(got.Options) != len(q.Options) {
+		t.Errorf("options length mismatch: want %d, got %d", len(q.Options), len(got.Options))
+	}
+
+	t.Log("GetForAnonymousUser passed: quiz returned, PastAttempt nil")
+}
+
 // TestQuiz_PastAttemptHydration_NoAttempt: attempt가 없을 때 PastAttempt가 nil인지 검증합니다.
 // 새 유저(IDLE 상태)가 퀴즈를 처음 볼 때의 정상 케이스.
 func TestQuiz_PastAttemptHydration_NoAttempt(t *testing.T) {

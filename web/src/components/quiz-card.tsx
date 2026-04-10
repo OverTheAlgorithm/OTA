@@ -277,7 +277,15 @@ export function QuizCard({
     if (stage === "idle") {
       setSelectedIndex(index);
       stageEnteredAtRef.current = Date.now();
-      setStage("selected_waiting_earn");
+      // If the earn already happened (user read the article first, then clicked
+      // the quiz), skip the "포인트 획득 대기중 / 완료" stages — those messages
+      // would be misleading after the fact. Go straight to submitting; the pulse
+      // animation on the selected option still gives clear "I picked this" feedback.
+      if (earnCommitted) {
+        setStage("submitting");
+      } else {
+        setStage("selected_waiting_earn");
+      }
       return;
     }
 

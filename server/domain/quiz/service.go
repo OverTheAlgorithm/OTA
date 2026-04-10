@@ -36,14 +36,16 @@ func NewService(repo Repository, levelRepo level.Repository, levelCfg level.Leve
 	}
 }
 
-// GetQuizForUser returns quiz data for a user.
+// GetQuizForUser returns quiz data for a user (or non-logged-in viewer when userID is empty).
 //
 // Earn-gate is intentionally NOT checked here — it is enforced authoritatively in
 // SubmitAnswer. Exposing the quiz before earn is safe because submission is the gated
 // operation, and the frontend hides quiz interaction until earn completes.
 //
-// If the user has already attempted the quiz, the returned QuizForUser includes a
-// non-nil PastAttempt so the frontend can hydrate a static "already completed" card.
+// When userID is non-empty and the user has already attempted the quiz, the returned
+// QuizForUser includes a non-nil PastAttempt so the frontend can hydrate a static
+// "already completed" card. For non-logged-in viewers (empty userID), PastAttempt is
+// always nil.
 //
 // Returns nil (no error) when no quiz exists for the article.
 // ErrNotEarned and ErrAlreadyAttempted are NOT returned from this function — they are
@@ -65,14 +67,16 @@ func (s *Service) GetQuizForUser(ctx context.Context, userID string, contextItem
 		Options:       quiz.Options,
 	}
 
-	// If the user has already attempted, hydrate PastAttempt so the frontend can
-	// render a static result card without re-submission.
-	attempt, err := s.repo.GetUserAttempt(ctx, userID, quiz.ID)
-	if err != nil {
-		return nil, fmt.Errorf("get quiz for user: check past attempt: %w", err)
-	}
-	if attempt != nil {
-		result.PastAttempt = attempt
+	// Past-attempt hydration only applies to logged-in users. Skip the DB round-trip
+	// for non-logged-in viewers.
+	if userID != "" {
+		attempt, err := s.repo.GetUserAttempt(ctx, userID, quiz.ID)
+		if err != nil {
+			return nil, fmt.Errorf("get quiz for user: check past attempt: %w", err)
+		}
+		if attempt != nil {
+			result.PastAttempt = attempt
+		}
 	}
 
 	return result, nil
