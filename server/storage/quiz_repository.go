@@ -77,17 +77,24 @@ func (r *QuizRepository) GetByContextItemID(ctx context.Context, contextItemID u
 	return &q, nil
 }
 
-// HasAttempted reports whether the user has already submitted an answer for this quiz.
-func (r *QuizRepository) HasAttempted(ctx context.Context, userID string, quizID uuid.UUID) (bool, error) {
-	var exists bool
+// GetUserAttempt returns the user's past attempt for the given quiz, or nil if none.
+// pgx.ErrNoRows is the normal "no attempt yet" case and is returned as (nil, nil).
+func (r *QuizRepository) GetUserAttempt(ctx context.Context, userID string, quizID uuid.UUID) (*quiz.PastAttempt, error) {
+	var pa quiz.PastAttempt
 	err := r.pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM quiz_results WHERE user_id = $1 AND quiz_id = $2)`,
+		`SELECT answered_index, is_correct, coins_earned, created_at
+		 FROM quiz_results
+		 WHERE user_id = $1 AND quiz_id = $2
+		 LIMIT 1`,
 		userID, quizID,
-	).Scan(&exists)
-	if err != nil {
-		return false, fmt.Errorf("has attempted: %w", err)
+	).Scan(&pa.SelectedIndex, &pa.IsCorrect, &pa.CoinsEarned, &pa.AttemptedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
 	}
-	return exists, nil
+	if err != nil {
+		return nil, fmt.Errorf("get user attempt: %w", err)
+	}
+	return &pa, nil
 }
 
 // GetQuizExistenceMap returns a map of context_item_id -> true for all items that have a quiz.

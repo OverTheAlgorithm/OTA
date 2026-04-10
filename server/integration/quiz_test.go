@@ -128,29 +128,55 @@ func TestQuiz_SaveAndRetrieve(t *testing.T) {
 	t.Log("SaveAndRetrieve passed: quiz saved and retrieved correctly")
 }
 
-// TestQuiz_EarnGateBlocks: coin_logs 없이 퀴즈 조회 시 ErrNotEarned 반환을 검증합니다.
-func TestQuiz_EarnGateBlocks(t *testing.T) {
+// TestQuiz_ReadPathOpenSubmitGated: READ 경로(GetQuizForUser)는 coin_logs 없이도 열려 있고,
+// SUBMIT 경로(SubmitAnswer)는 여전히 coin_logs를 검사한다는 invariant를 검증합니다.
+//
+// 이전 동작에서는 GetQuizForUser가 ErrNotEarned로 거부해 프론트가 stale null을 들고
+// "earn 후 카드 사라짐" 버그를 일으켰습니다. 이제 READ는 항상 열리고, 치팅 방지는
+// SubmitAnswer의 authoritative gate에만 의존합니다.
+func TestQuiz_ReadPathOpenSubmitGated(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, quizTables...)
 
 	ctx := context.Background()
 	userID, _, itemID := createQuizTestData(t, db, 1002, "quiz-nolearn@example.com", "QuizNoEarnUser")
 
+	// Save quiz so GetQuizForUser has something to return.
 	quizRepo := storage.NewQuizRepository(db.Pool)
+	q := makeTestQuiz(itemID)
+	if err := quizRepo.SaveQuiz(ctx, q); err != nil {
+		t.Fatalf("SaveQuiz error: %v", err)
+	}
+
 	levelRepo := storage.NewLevelRepository(db.Pool)
 	levelCfg := level.NewLevelConfig(5000, 1000)
 	svc := quiz.NewService(quizRepo, levelRepo, levelCfg, 10)
 
-	// No coin_logs entry -> earn gate should block
-	_, err := svc.GetQuizForUser(ctx, userID, itemID)
-	if err == nil {
-		t.Fatal("expected ErrNotEarned, got nil")
+	// READ: no coin_logs entry — but the read path is intentionally open.
+	got, err := svc.GetQuizForUser(ctx, userID, itemID)
+	if err != nil {
+		t.Fatalf("GetQuizForUser should not error without coin_logs, got: %v", err)
 	}
-	if err != quiz.ErrNotEarned {
-		t.Fatalf("expected ErrNotEarned, got: %v", err)
+	if got == nil {
+		t.Fatal("expected quiz to be returned without coin_logs, got nil")
+	}
+	if got.PastAttempt != nil {
+		t.Errorf("expected PastAttempt nil for fresh user, got: %+v", got.PastAttempt)
+	}
+	if got.Question != q.Question {
+		t.Errorf("question mismatch: want %q, got %q", q.Question, got.Question)
 	}
 
-	t.Log("EarnGateBlocks passed: quiz access blocked without coin_logs entry")
+	// SUBMIT: still gated — without a coin_logs entry, SubmitAnswer must reject.
+	_, err = svc.SubmitAnswer(ctx, userID, itemID, 2, "퀴즈 테스트 토픽")
+	if err == nil {
+		t.Fatal("SubmitAnswer should reject without coin_logs, got nil error")
+	}
+	if err != quiz.ErrNotEarned {
+		t.Fatalf("expected ErrNotEarned from SubmitAnswer, got: %v", err)
+	}
+
+	t.Log("ReadPathOpenSubmitGated passed: read open, submit still gated")
 }
 
 // TestQuiz_EarnGateAllows: coin_logs 존재 시 퀴즈 조회 성공을 검증합니다.
@@ -187,6 +213,145 @@ func TestQuiz_EarnGateAllows(t *testing.T) {
 	}
 
 	t.Log("EarnGateAllows passed: quiz accessible with coin_logs entry")
+}
+
+// TestQuiz_PastAttemptHydration_Correct: 정답 attempt가 있을 때 GetQuizForUser가
+// PastAttempt 필드를 채워서 반환하는지 검증합니다 (hydration UI용).
+func TestQuiz_PastAttemptHydration_Correct(t *testing.T) {
+	db := SetupTestDB(t)
+	defer db.Truncate(t, quizTables...)
+
+	ctx := context.Background()
+	userID, _, itemID := createQuizTestData(t, db, 1100, "quiz-hydrate-c@example.com", "QuizHydrateCorrect")
+
+	quizRepo := storage.NewQuizRepository(db.Pool)
+	q := makeTestQuiz(itemID)
+	if err := quizRepo.SaveQuiz(ctx, q); err != nil {
+		t.Fatalf("SaveQuiz error: %v", err)
+	}
+
+	// Insert a correct attempt directly (bypass SubmitAnswer for test isolation).
+	_, err := db.Pool.Exec(ctx, `
+		INSERT INTO quiz_results (user_id, quiz_id, context_item_id, answered_index, is_correct, coins_earned)
+		VALUES ($1, $2, $3, 2, true, 7)
+	`, userID, q.ID, itemID)
+	if err != nil {
+		t.Fatalf("insert quiz_results error: %v", err)
+	}
+
+	levelRepo := storage.NewLevelRepository(db.Pool)
+	levelCfg := level.NewLevelConfig(5000, 1000)
+	svc := quiz.NewService(quizRepo, levelRepo, levelCfg, 10)
+
+	got, err := svc.GetQuizForUser(ctx, userID, itemID)
+	if err != nil {
+		t.Fatalf("GetQuizForUser error: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected quiz, got nil")
+	}
+	if got.PastAttempt == nil {
+		t.Fatal("expected PastAttempt to be non-nil for hydration")
+	}
+	if got.PastAttempt.SelectedIndex != 2 {
+		t.Errorf("SelectedIndex: want 2, got %d", got.PastAttempt.SelectedIndex)
+	}
+	if !got.PastAttempt.IsCorrect {
+		t.Error("IsCorrect: want true, got false")
+	}
+	if got.PastAttempt.CoinsEarned != 7 {
+		t.Errorf("CoinsEarned: want 7, got %d", got.PastAttempt.CoinsEarned)
+	}
+	if got.PastAttempt.AttemptedAt.IsZero() {
+		t.Error("AttemptedAt should not be zero")
+	}
+
+	t.Logf("PastAttemptHydration_Correct passed: hydrated +%d coins, attempted_at=%s",
+		got.PastAttempt.CoinsEarned, got.PastAttempt.AttemptedAt.Format("2006-01-02T15:04:05Z"))
+}
+
+// TestQuiz_PastAttemptHydration_Wrong: 오답 attempt가 있을 때도 PastAttempt가 채워져
+// 프론트가 정적 오답 카드를 hydration할 수 있는지 검증합니다.
+func TestQuiz_PastAttemptHydration_Wrong(t *testing.T) {
+	db := SetupTestDB(t)
+	defer db.Truncate(t, quizTables...)
+
+	ctx := context.Background()
+	userID, _, itemID := createQuizTestData(t, db, 1101, "quiz-hydrate-w@example.com", "QuizHydrateWrong")
+
+	quizRepo := storage.NewQuizRepository(db.Pool)
+	q := makeTestQuiz(itemID)
+	if err := quizRepo.SaveQuiz(ctx, q); err != nil {
+		t.Fatalf("SaveQuiz error: %v", err)
+	}
+
+	// Insert a wrong attempt directly.
+	_, err := db.Pool.Exec(ctx, `
+		INSERT INTO quiz_results (user_id, quiz_id, context_item_id, answered_index, is_correct, coins_earned)
+		VALUES ($1, $2, $3, 0, false, 0)
+	`, userID, q.ID, itemID)
+	if err != nil {
+		t.Fatalf("insert quiz_results error: %v", err)
+	}
+
+	levelRepo := storage.NewLevelRepository(db.Pool)
+	levelCfg := level.NewLevelConfig(5000, 1000)
+	svc := quiz.NewService(quizRepo, levelRepo, levelCfg, 10)
+
+	got, err := svc.GetQuizForUser(ctx, userID, itemID)
+	if err != nil {
+		t.Fatalf("GetQuizForUser error: %v", err)
+	}
+	if got == nil || got.PastAttempt == nil {
+		t.Fatal("expected quiz with PastAttempt, got nil")
+	}
+	if got.PastAttempt.SelectedIndex != 0 {
+		t.Errorf("SelectedIndex: want 0, got %d", got.PastAttempt.SelectedIndex)
+	}
+	if got.PastAttempt.IsCorrect {
+		t.Error("IsCorrect: want false, got true")
+	}
+	if got.PastAttempt.CoinsEarned != 0 {
+		t.Errorf("CoinsEarned: want 0, got %d", got.PastAttempt.CoinsEarned)
+	}
+
+	t.Log("PastAttemptHydration_Wrong passed: hydrated wrong attempt with 0 coins")
+}
+
+// TestQuiz_PastAttemptHydration_NoAttempt: attempt가 없을 때 PastAttempt가 nil인지 검증합니다.
+// 새 유저(IDLE 상태)가 퀴즈를 처음 볼 때의 정상 케이스.
+func TestQuiz_PastAttemptHydration_NoAttempt(t *testing.T) {
+	db := SetupTestDB(t)
+	defer db.Truncate(t, quizTables...)
+
+	ctx := context.Background()
+	userID, _, itemID := createQuizTestData(t, db, 1102, "quiz-hydrate-n@example.com", "QuizHydrateNone")
+
+	quizRepo := storage.NewQuizRepository(db.Pool)
+	q := makeTestQuiz(itemID)
+	if err := quizRepo.SaveQuiz(ctx, q); err != nil {
+		t.Fatalf("SaveQuiz error: %v", err)
+	}
+
+	levelRepo := storage.NewLevelRepository(db.Pool)
+	levelCfg := level.NewLevelConfig(5000, 1000)
+	svc := quiz.NewService(quizRepo, levelRepo, levelCfg, 10)
+
+	got, err := svc.GetQuizForUser(ctx, userID, itemID)
+	if err != nil {
+		t.Fatalf("GetQuizForUser error: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected quiz, got nil")
+	}
+	if got.PastAttempt != nil {
+		t.Errorf("expected PastAttempt nil, got: %+v", got.PastAttempt)
+	}
+	if got.Question != q.Question {
+		t.Errorf("question mismatch: want %q, got %q", q.Question, got.Question)
+	}
+
+	t.Log("PastAttemptHydration_NoAttempt passed: nil PastAttempt for fresh user")
 }
 
 // TestQuiz_CorrectAnswerAwardsCoins: 정답 제출 시 코인 지급을 검증합니다.

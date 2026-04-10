@@ -36,25 +36,19 @@ func NewService(repo Repository, levelRepo level.Repository, levelCfg level.Leve
 	}
 }
 
-// GetQuizForUser returns quiz data for a user if all eligibility conditions are met:
-//  1. User has earned coins for the article (coin_logs entry exists)
-//  2. User has NOT already attempted the quiz
-//  3. A quiz exists for the article
+// GetQuizForUser returns quiz data for a user.
+//
+// Earn-gate is intentionally NOT checked here — it is enforced authoritatively in
+// SubmitAnswer. Exposing the quiz before earn is safe because submission is the gated
+// operation, and the frontend hides quiz interaction until earn completes.
+//
+// If the user has already attempted the quiz, the returned QuizForUser includes a
+// non-nil PastAttempt so the frontend can hydrate a static "already completed" card.
 //
 // Returns nil (no error) when no quiz exists for the article.
-// Returns ErrNotEarned if the user has not earned coins for the article.
-// Returns ErrAlreadyAttempted if the user already took the quiz.
+// ErrNotEarned and ErrAlreadyAttempted are NOT returned from this function — they are
+// only used by SubmitAnswer.
 func (s *Service) GetQuizForUser(ctx context.Context, userID string, contextItemID uuid.UUID) (*QuizForUser, error) {
-	// Check earn-gate: user must have a coin_logs entry for this article.
-	// Uses GetEarnedItemIDs (not HasEarned) because we don't have runID here.
-	earned, err := s.levelRepo.GetEarnedItemIDs(ctx, userID, []uuid.UUID{contextItemID})
-	if err != nil {
-		return nil, fmt.Errorf("get quiz for user: check earn gate: %w", err)
-	}
-	if len(earned) == 0 {
-		return nil, ErrNotEarned
-	}
-
 	// Fetch quiz (nil = no quiz for this article, not an error).
 	quiz, err := s.repo.GetByContextItemID(ctx, contextItemID)
 	if err != nil {
@@ -64,21 +58,24 @@ func (s *Service) GetQuizForUser(ctx context.Context, userID string, contextItem
 		return nil, nil
 	}
 
-	// Check if user already attempted.
-	attempted, err := s.repo.HasAttempted(ctx, userID, quiz.ID)
-	if err != nil {
-		return nil, fmt.Errorf("get quiz for user: check attempt: %w", err)
-	}
-	if attempted {
-		return nil, ErrAlreadyAttempted
-	}
-
-	return &QuizForUser{
+	result := &QuizForUser{
 		ID:            quiz.ID,
 		ContextItemID: quiz.ContextItemID,
 		Question:      quiz.Question,
 		Options:       quiz.Options,
-	}, nil
+	}
+
+	// If the user has already attempted, hydrate PastAttempt so the frontend can
+	// render a static result card without re-submission.
+	attempt, err := s.repo.GetUserAttempt(ctx, userID, quiz.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get quiz for user: check past attempt: %w", err)
+	}
+	if attempt != nil {
+		result.PastAttempt = attempt
+	}
+
+	return result, nil
 }
 
 // SubmitAnswer records the user's answer and awards bonus coins if correct.

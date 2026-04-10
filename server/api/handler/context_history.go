@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 
@@ -86,11 +85,13 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 		Quiz:        nil,
 	}
 
-	// Bundle quiz data if user is logged in and eligible.
+	// Bundle quiz data if user is logged in. The earn-gate is enforced at submit time,
+	// not here — the read path is intentionally open. Past attempts are hydrated via
+	// QuizForUser.PastAttempt so the frontend can render a static "already completed" card.
 	userID := c.GetString("userID")
 	if userID != "" && h.quizSvc != nil {
 		quizForUser, err := h.quizSvc.GetQuizForUser(c.Request.Context(), userID, id)
-		if err != nil && !errors.Is(err, quiz.ErrNotEarned) && !errors.Is(err, quiz.ErrAlreadyAttempted) {
+		if err != nil {
 			slog.Warn("get quiz for user error", "user_id", userID, "item_id", id, "error", err)
 		}
 		resp.Quiz = quizForUser
