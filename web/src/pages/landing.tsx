@@ -231,6 +231,12 @@ export function LandingPage() {
                 이용 방법
               </a>
               <a
+                href="/latest"
+                className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+              >
+                최신 소식 보기
+              </a>
+              <a
                 href="/allnews"
                 className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
               >
@@ -308,6 +314,13 @@ export function LandingPage() {
               onClick={() => setMenuOpen(false)}
             >
               이용 방법
+            </a>
+            <a
+              href="/latest"
+              className="text-base font-medium text-[#231815]"
+              onClick={() => setMenuOpen(false)}
+            >
+              최신 소식 보기
             </a>
             <a
               href="/allnews"
