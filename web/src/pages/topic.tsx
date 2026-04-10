@@ -19,7 +19,7 @@ import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { LoadingState } from "@/components/spinner";
-import { LoginPromptModal, isLoginPromptDismissed } from "@/components/login-prompt-modal";
+import { LoginPromptModal } from "@/components/login-prompt-modal";
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
 
@@ -232,7 +232,7 @@ function CoinTag({ state }: { state: CoinTagState }) {
 
 export function TopicPage() {
   const { id } = useParams<{ id: string }>();
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const goBack = () => (location.key === "default" || location.state?.fromLogin) ? navigate("/latest") : navigate(-1);
@@ -243,22 +243,13 @@ export function TopicPage() {
   const [error, setError] = useState<"not_found" | "server_error" | null>(null);
   const [loading, setLoading] = useState(true);
   const [loginOpen, setLoginOpen] = useState(false);
-  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
+  // loginPromptOpen auto-popup removed — replaced by inline login CTA card in the
+  // Level Card area. Inline CTA is non-intrusive (no full-screen overlay) and avoids
+  // Google's intrusive interstitial penalty for AdSense crawlers.
   // Quiz orchestration state
   const [earnCommitted, setEarnCommitted] = useState(false);
   const [quizStage, setQuizStage] = useState<QuizStage>("idle");
   const [quizLoginPromptOpen, setQuizLoginPromptOpen] = useState(false);
-
-  // Show login prompt modal for non-logged-in users (unless dismissed for a day)
-  // Wait for auth to finish loading to avoid flash, and close when user becomes available
-  useEffect(() => {
-    if (authLoading) return;
-    if (user) {
-      setLoginPromptOpen(false);
-    } else if (!isLoginPromptDismissed()) {
-      setLoginPromptOpen(true);
-    }
-  }, [user, authLoading]);
   const [showCountdown, setShowCountdown] = useState<{ seconds: number; topicId: string } | null>(null);
 
   // Scroll to top on mount
@@ -551,9 +542,27 @@ export function TopicPage() {
       {/* ── Content ── */}
       <main className="flex-1">
         <div className="max-w-[900px] mx-auto px-6 py-8">
-          {/* Level Card */}
+          {/* Level Card (logged-in) / Login CTA (non-logged-in) */}
           <div className="mb-8">
-            <UserLevelCard refreshKey={levelRefreshKey} />
+            {user ? (
+              <UserLevelCard refreshKey={levelRefreshKey} />
+            ) : (
+              <div className="relative rounded-[22px] bg-white border-[2px] border-[#231815] px-6 py-5 flex items-center gap-5">
+                <img
+                  src="/wl-point.png"
+                  alt="포인트"
+                  className="flex-shrink-0 w-[90px] h-[90px] md:w-[108px] md:h-[108px] object-contain"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-base md:text-lg font-bold text-[#231815] leading-snug">
+                    로그인하면 기사를 읽고<br />포인트를 획득할 수 있어요!
+                  </p>
+                  <div className="mt-3">
+                    <KakaoLoginButton redirectPath={`/topic/${id}`} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Back Button */}
@@ -767,14 +776,6 @@ export function TopicPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* ── Login Prompt Modal (non-logged-in users, page-level dismissable) ── */}
-      {loginPromptOpen && (
-        <LoginPromptModal
-          redirectPath={`/topic/${id}`}
-          onClose={() => setLoginPromptOpen(false)}
-        />
       )}
 
       {/* ── Quiz-submit Login Prompt (triggered when a non-logged-in user
