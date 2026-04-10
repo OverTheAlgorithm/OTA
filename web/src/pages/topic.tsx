@@ -553,8 +553,8 @@ export function TopicPage() {
                   alt="포인트"
                   className="flex-shrink-0 w-[90px] h-[90px] md:w-[108px] md:h-[108px] object-contain"
                 />
-                <div className="flex-1 min-w-0">
-                  <p className="text-base md:text-lg font-bold text-[#231815] leading-snug">
+                <div className="flex-1 min-w-0 flex flex-col items-center">
+                  <p className="text-base md:text-lg font-bold text-[#231815] leading-snug text-center">
                     로그인하면 기사를 읽고<br />포인트를 획득할 수 있어요!
                   </p>
                   <div className="mt-3">
