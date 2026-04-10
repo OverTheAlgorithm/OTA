@@ -41,11 +41,13 @@ func TestCoinEarning_FirstEarn(t *testing.T) {
 		t.Fatalf("failed to create run: %v", err)
 	}
 
-	// 3. context_item 생성 (선호 카테고리 'top')
+	// 3. context_item 생성 (priority='top' → 항상 preferred)
+	// migration 000023에서 category='top'/'brief' → priority 컬럼으로 이관됨.
+	// 테스트도 새 스키마를 반영해 priority='top', category='general'로 삽입한다.
 	var itemID uuid.UUID
 	err = db.Pool.QueryRow(ctx, `
-		INSERT INTO context_items (collection_run_id, category, rank, topic, summary, brain_category, sources)
-		VALUES ($1, 'top', 1, '오늘의 이슈', '요약입니다.', 'must_know', '[]')
+		INSERT INTO context_items (collection_run_id, category, priority, rank, topic, summary, brain_category, sources)
+		VALUES ($1, 'general', 'top', 1, '오늘의 이슈', '요약입니다.', 'must_know', '[]')
 		RETURNING id
 	`, runID).Scan(&itemID)
 	if err != nil {
@@ -66,10 +68,10 @@ func TestCoinEarning_FirstEarn(t *testing.T) {
 		t.Fatal("expected run to be created today")
 	}
 
-	// 선호 카테고리 여부: 'top'은 항상 preferred
-	preferred := level.IsPreferredCategory("top", nil)
+	// priority='top' 인 아이템은 구독 여부와 관계없이 항상 preferred.
+	preferred := level.IsPreferredTopic("top", "general", nil)
 	if !preferred {
-		t.Fatal("expected 'top' to be preferred")
+		t.Fatal("expected priority='top' to be preferred")
 	}
 
 	result, err := svc.EarnCoin(ctx, userID, runID, itemID, preferred)
