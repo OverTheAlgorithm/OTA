@@ -69,10 +69,24 @@ export interface SendBriefingResult {
   errors: Record<string, string>;
 }
 
+export interface PastQuizAttempt {
+  selected_index: number;
+  is_correct: boolean;
+  coins_earned: number;
+  attempted_at: string;
+}
+
 export interface QuizForUser {
   id: string;
   question: string;
   options: string[];
+  /**
+   * Non-null when the user has already submitted an answer for this quiz.
+   * Used to hydrate a static "already completed" card without re-submission.
+   * The correct answer index is intentionally omitted — only the user's
+   * chosen option and whether it was correct.
+   */
+  past_attempt?: PastQuizAttempt | null;
 }
 
 export interface QuizSubmitResult {

@@ -10,7 +10,7 @@ import {
   type TopicDetail,
   type BrainCategory,
 } from "@/lib/api";
-import { QuizCard } from "@/components/quiz-card";
+import { QuizCard, type QuizStage } from "@/components/quiz-card";
 import { useAuth } from "@/contexts/auth-context";
 import { detectAdBlock } from "@/lib/adblock";
 import { formatDate } from "@/lib/utils";
@@ -244,6 +244,10 @@ export function TopicPage() {
   const [loading, setLoading] = useState(true);
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
+  // Quiz orchestration state
+  const [earnCommitted, setEarnCommitted] = useState(false);
+  const [quizStage, setQuizStage] = useState<QuizStage>("idle");
+  const [quizLoginPromptOpen, setQuizLoginPromptOpen] = useState(false);
 
   // Show login prompt modal for non-logged-in users (unless dismissed for a day)
   // Wait for auth to finish loading to avoid flash, and close when user becomes available
@@ -289,8 +293,12 @@ export function TopicPage() {
     };
   }, []);
 
-  // Block navigation while coin earning is in progress
-  const isEarning = showCountdown !== null || coinTag?.kind === "loading";
+  // Block navigation while coin earning OR quiz submission is in progress.
+  // Quiz busy = submitting (API round-trip) or evaluating (D-stage display).
+  // We do NOT block during selected_waiting_earn (the user can still navigate
+  // away during the dwell countdown — the existing earn logic handles that).
+  const quizBusy = quizStage === "submitting" || quizStage === "evaluating";
+  const isEarning = showCountdown !== null || coinTag?.kind === "loading" || quizBusy;
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   const pendingNavRef = useRef<string | null>(null);
@@ -349,6 +357,19 @@ export function TopicPage() {
   const dwellSecondsRef = useRef(0);
   const topicCategoryRef = useRef("");
 
+  // Stable callbacks for QuizCard — passing inline arrows would change identity
+  // every render and force the QuizCard's onStageChange/onCoinsEarned effects to
+  // re-run on every parent render.
+  const handleQuizCoinsEarned = useCallback(() => {
+    setLevelRefreshKey((k) => k + 1);
+  }, []);
+  const handleQuizRequestLogin = useCallback(() => {
+    setQuizLoginPromptOpen(true);
+  }, []);
+  const handleQuizStageChange = useCallback((s: QuizStage) => {
+    setQuizStage(s);
+  }, []);
+
   const handleCountdownComplete = useCallback((topicId: string, turnstileToken: string) => {
     // Guard against double-fire (rAF + useEffect race)
     if (earnCalledRef.current) return;
@@ -367,12 +388,23 @@ export function TopicPage() {
             leveledUp: result.leveled_up,
             newLevel: result.new_level,
           });
+          // Signal QuizCard that the coin_logs entry now exists, so SubmitAnswer
+          // will pass the server-side earn-gate and the quiz state machine can
+          // advance past SELECTED_WAITING_EARN.
+          setEarnCommitted(true);
           gtmPush("coin_earn", { topic_id: topicId, coins: result.coins_earned, category: topicCategoryRef.current });
           setLevelRefreshKey((k) => k + 1);
           setTimeout(() => setCoinTag({ kind: "duplicate" }), 3000);
         } else {
           const reason = result.reason === "EXPIRED" ? "expired" : "duplicate";
           setCoinTag(reason === "expired" ? { kind: "expired" } : { kind: "duplicate" });
+          // Duplicate means a coin_logs entry already exists from a prior session —
+          // the submit gate will accept it. Expired means it does not, so we leave
+          // earnCommitted false (and the quiz card is hidden anyway via the render
+          // gate below for "expired" / "daily_limit").
+          if (reason === "duplicate") {
+            setEarnCommitted(true);
+          }
           gtmPush("coin_earn_fail", { topic_id: topicId, reason, category: topicCategoryRef.current });
         }
       })
@@ -420,6 +452,8 @@ export function TopicPage() {
               break;
             case "DUPLICATE":
               setCoinTag({ kind: "duplicate" });
+              // Past coin_logs entry exists — submit gate will accept. Allow quiz flow.
+              setEarnCommitted(true);
               gtmPush("coin_earn_fail", { topic_id: id, reason: "duplicate", category: topicCategoryRef.current });
               break;
             case "DAILY_LIMIT":
@@ -634,16 +668,22 @@ export function TopicPage() {
               </p>
             )}
 
-            {/* Quiz Card — shown for logged-in users when has_quiz, not daily_limit, not expired */}
-            {user && topic.has_quiz &&
+            {/* Quiz Card — visible to everyone when has_quiz. Hidden only when the
+                logged-in user is at daily_limit or earn period expired (no submission
+                possible regardless). Non-logged-in users see the card and clicking an
+                option triggers the quiz_submit login modal. */}
+            {topic.has_quiz &&
               coinTag?.kind !== "daily_limit" &&
               coinTag?.kind !== "expired" && (
                 <QuizCard
                   quiz={topic.quiz}
-                  hasQuiz={topic.has_quiz}
-                  earnDone={coinTag?.kind === "success" || coinTag?.kind === "duplicate"}
+                  isLoggedIn={!!user}
+                  earnCommitted={earnCommitted}
                   contextItemId={topic.id}
-                  onCoinsEarned={() => setLevelRefreshKey((k) => k + 1)}
+                  topicId={topic.id}
+                  onCoinsEarned={handleQuizCoinsEarned}
+                  onRequestLogin={handleQuizRequestLogin}
+                  onStageChange={handleQuizStageChange}
                 />
               )}
 
@@ -729,11 +769,22 @@ export function TopicPage() {
         </div>
       )}
 
-      {/* ── Login Prompt Modal (non-logged-in users) ── */}
+      {/* ── Login Prompt Modal (non-logged-in users, page-level dismissable) ── */}
       {loginPromptOpen && (
         <LoginPromptModal
           redirectPath={`/topic/${id}`}
           onClose={() => setLoginPromptOpen(false)}
+        />
+      )}
+
+      {/* ── Quiz-submit Login Prompt (triggered when a non-logged-in user
+            clicks a quiz option). Uses the quiz_submit variant which hides
+            the "dismiss for one day" button to keep the flow focused. ── */}
+      {quizLoginPromptOpen && (
+        <LoginPromptModal
+          redirectPath={`/topic/${id}`}
+          variant="quiz_submit"
+          onClose={() => setQuizLoginPromptOpen(false)}
         />
       )}
 

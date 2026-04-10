@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 
 const DISMISS_KEY = "wl_login_prompt_dismiss";
@@ -13,16 +14,52 @@ function dismissForOneDay() {
   localStorage.setItem(DISMISS_KEY, String(Date.now() + oneDayMs));
 }
 
+type LoginPromptVariant = "default" | "quiz_submit";
+
 interface LoginPromptModalProps {
   redirectPath: string;
   onClose: () => void;
+  /**
+   * "default": generic "log in to earn points" prompt with one-day dismiss option.
+   * "quiz_submit": quiz-specific copy ("log in and submit your answer"); the
+   *   one-day dismiss is hidden so the flow stays focused on submission.
+   */
+  variant?: LoginPromptVariant;
 }
 
-export function LoginPromptModal({ redirectPath, onClose }: LoginPromptModalProps) {
+const COPY: Record<LoginPromptVariant, { headline: ReactNode }> = {
+  default: {
+    headline: (
+      <>
+        로그인하고 기사를 읽으면
+        <br />
+        포인트를 획득할 수 있어요!
+      </>
+    ),
+  },
+  quiz_submit: {
+    headline: (
+      <>
+        로그인하고 정답을 제출해
+        <br />
+        포인트를 받아보세요!
+      </>
+    ),
+  },
+};
+
+export function LoginPromptModal({
+  redirectPath,
+  onClose,
+  variant = "default",
+}: LoginPromptModalProps) {
   const handleDismissOneDay = () => {
     dismissForOneDay();
     onClose();
   };
+
+  const { headline } = COPY[variant];
+  const showDismiss = variant === "default";
 
   return (
     <div
@@ -46,21 +83,21 @@ export function LoginPromptModal({ redirectPath, onClose }: LoginPromptModalProp
         {/* Guide text */}
         <img src="/wl-logo-square.png" alt="WizLetter" className="w-14 h-14 rounded-xl object-contain" />
         <div className="text-center">
-          <h2 className="text-lg font-bold text-[#231815]">
-            로그인하고 기사를 읽으면<br />포인트를 획득할 수 있어요!
-          </h2>
+          <h2 className="text-lg font-bold text-[#231815]">{headline}</h2>
         </div>
 
         {/* Kakao login */}
         <KakaoLoginButton redirectPath={redirectPath} />
 
-        {/* Dismiss for one day */}
-        <button
-          onClick={handleDismissOneDay}
-          className="text-xs text-[#231815]/40 hover:text-[#231815]/60 transition-colors"
-        >
-          하루 동안 보지 않기
-        </button>
+        {/* Dismiss for one day (hidden in quiz_submit variant) */}
+        {showDismiss && (
+          <button
+            onClick={handleDismissOneDay}
+            className="text-xs text-[#231815]/40 hover:text-[#231815]/60 transition-colors"
+          >
+            하루 동안 보지 않기
+          </button>
+        )}
       </div>
     </div>
   );

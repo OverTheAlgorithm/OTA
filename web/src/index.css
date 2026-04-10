@@ -59,3 +59,62 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ── Quiz card paced-reveal animations ──────────────────────────────────────
+   Used by web/src/components/quiz-card.tsx for stage transitions.
+   - shake:    once on wrong answer reveal
+   - pulse:    looping during SUBMITTING stage
+   - wobble:   looping during EVALUATING stage
+   - coin-pop: once on EARN_CONFIRMED + RESULT_CORRECT coin reveal
+   All transforms only — no layout thrashing. Respects prefers-reduced-motion.
+*/
+@keyframes wl-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(3px); }
+}
+
+@keyframes wl-pulse-soft {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.45); }
+  50%      { transform: scale(1.012); box-shadow: 0 0 0 8px rgba(245, 166, 35, 0); }
+}
+
+@keyframes wl-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(-1.4deg); }
+  75%      { transform: rotate(1.4deg); }
+}
+
+@keyframes wl-coin-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.wl-anim-shake {
+  animation: wl-shake 0.42s ease-in-out 1;
+  will-change: transform;
+}
+.wl-anim-pulse-soft {
+  animation: wl-pulse-soft 1.2s ease-in-out infinite;
+  will-change: transform;
+}
+.wl-anim-wobble {
+  animation: wl-wobble 0.8s ease-in-out infinite;
+  will-change: transform;
+}
+.wl-anim-coin-pop {
+  animation: wl-coin-pop 0.6s ease-out 1;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wl-anim-shake,
+  .wl-anim-pulse-soft,
+  .wl-anim-wobble,
+  .wl-anim-coin-pop {
+    animation: none !important;
+  }
+}
