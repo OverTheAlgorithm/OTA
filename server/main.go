@@ -283,7 +283,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer sched.Stop()
-	slog.Info("scheduler started", "schedule", "collection 4-6AM delivery 7AM retry 7:30-8:30AM KST")
+	slog.Info("scheduler started", "schedule", "collection 4-6AM delivery 9:30AM retry 10-11AM KST")
 
 	// Terms of service
 	termsRepo := storage.NewTermsRepository(pool)

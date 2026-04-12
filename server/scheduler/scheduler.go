@@ -36,8 +36,8 @@ func New(collectorService *collector.Service, deliveryService *delivery.Service,
 // Schedule (all times KST = UTC+9):
 //
 //	Collection: 4 AM, 5 AM, 6 AM    (multiple attempts to ensure data ready)
-//	Delivery:   7:00 AM, 7:15 AM    (primary + fallback)
-//	Retry:      7:30 AM, 8:00 AM, 8:30 AM (30min intervals, max 3 retries)
+//	Delivery:   9:30 AM, 9:45 AM    (primary + fallback)
+//	Retry:      10:00 AM, 10:30 AM, 11:00 AM (30min intervals, max 3 retries)
 func (s *Scheduler) Start() error {
 	// Collection: 4 AM, 5 AM, 6 AM KST → 19:00, 20:00, 21:00 UTC
 	collectionSchedules := []string{"0 19 * * *", "0 20 * * *", "0 21 * * *"}
@@ -47,16 +47,16 @@ func (s *Scheduler) Start() error {
 		}
 	}
 
-	// Delivery: 7:00 AM, 7:15 AM KST → 22:00, 22:15 UTC
-	deliverySchedules := []string{"0 22 * * *", "15 22 * * *"}
+	// Delivery: 9:30 AM, 9:45 AM KST → 00:30, 00:45 UTC
+	deliverySchedules := []string{"30 0 * * *", "45 0 * * *"}
 	for _, schedule := range deliverySchedules {
 		if _, err := s.cron.AddFunc(schedule, s.deliver); err != nil {
 			return fmt.Errorf("failed to schedule delivery (%s): %w", schedule, err)
 		}
 	}
 
-	// Retry: 7:30 AM, 8:00 AM, 8:30 AM KST → 22:30, 23:00, 23:30 UTC
-	retrySchedules := []string{"30 22 * * *", "0 23 * * *", "30 23 * * *"}
+	// Retry: 10:00 AM, 10:30 AM, 11:00 AM KST → 01:00, 01:30, 02:00 UTC
+	retrySchedules := []string{"0 1 * * *", "30 1 * * *", "0 2 * * *"}
 	for _, schedule := range retrySchedules {
 		if _, err := s.cron.AddFunc(schedule, s.retryFailed); err != nil {
 			return fmt.Errorf("failed to schedule retry (%s): %w", schedule, err)
