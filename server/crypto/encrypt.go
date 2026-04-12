@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 )
 
 // Encrypt encrypts plaintext using AES-256-GCM with the provided 32-byte key.
@@ -52,6 +53,11 @@ func Decrypt(key, ciphertext string) (string, error) {
 		return ciphertext, nil
 	}
 
+	if ciphertext == "" {
+		slog.Warn("WARN: Account number not exists")
+		return "", nil
+	}
+
 	keyBytes, err := hex.DecodeString(key)
 	if err != nil {
 		return "", fmt.Errorf("invalid encryption key: %w", err)
@@ -78,7 +84,9 @@ func Decrypt(key, ciphertext string) (string, error) {
 
 	nonceSize := gcm.NonceSize()
 	if len(data) < nonceSize {
-		return "", errors.New("ciphertext too short")
+		// Too short to be encrypted — likely a legacy plaintext account number
+		// that happens to be valid hex (e.g. all-digit values like "1234567890")
+		return ciphertext, nil
 	}
 
 	nonce, ciphertextBytes := data[:nonceSize], data[nonceSize:]
