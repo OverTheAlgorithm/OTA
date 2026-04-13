@@ -21,6 +21,8 @@ export type {
   SendBriefingResult,
   QuizForUser,
   QuizSubmitResult,
+  PollForUser,
+  PollTally,
   TopicDetail,
   TopicEarnResult,
   InitEarnResult,
@@ -94,6 +96,11 @@ export const {
   getCoinHistory,
   // Quiz
   submitQuizAnswer,
+  // Polls
+  getPoll,
+  submitPollVote,
+  adminUpdatePoll,
+  adminDeletePoll,
   // Admin
   triggerCollection,
   sendTestEmail,

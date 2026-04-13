@@ -55,6 +55,12 @@ export const API_PATHS = {
   // Quiz
   QUIZ_SUBMIT: (contextItemId: string) => `${API_PREFIX}/quiz/${encodeURIComponent(contextItemId)}`,
 
+  // Polls (public)
+  POLLS_GET: (contextItemId: string) => `${API_PREFIX}/polls/${encodeURIComponent(contextItemId)}`,
+  POLLS_VOTE: (contextItemId: string) => `${API_PREFIX}/polls/${encodeURIComponent(contextItemId)}/vote`,
+  // Polls (admin)
+  ADMIN_POLL: (contextItemId: string) => `${API_PREFIX}/admin/polls/context/${encodeURIComponent(contextItemId)}`,
+
   // Admin
   ADMIN_COLLECT: `${API_PREFIX}/admin/collect`,
   ADMIN_DELIVERY_SEND_TEST: `${API_PREFIX}/admin/delivery/send-test`,

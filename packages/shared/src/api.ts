@@ -25,6 +25,7 @@ import type {
   CoinTransaction,
   EarnStatusItem,
   QuizSubmitResult,
+  PollForUser,
   AdminUserSearchResult,
   AdjustCoinsResult,
   TestEmailResult,
@@ -469,6 +470,63 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     return body.data;
   }
 
+  // ── Polls ──────────────────────────────────────────────────────────────
+
+  async function getPoll(contextItemId: string): Promise<PollForUser | null> {
+    const res = await apiFetch(API_PATHS.POLLS_GET(contextItemId));
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("poll_fetch_failed");
+    const body: ApiResponse<PollForUser> = await res.json();
+    return body.data;
+  }
+
+  async function submitPollVote(
+    contextItemId: string,
+    optionIndex: number
+  ): Promise<PollForUser> {
+    const res = await apiFetch(API_PATHS.POLLS_VOTE(contextItemId), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ option_index: optionIndex }),
+    });
+    if (res.status === 409) {
+      // Server-authoritative poll is embedded under "data" so we can sync optimistic state.
+      const body = await res.json().catch(() => null);
+      if (body?.data) return body.data as PollForUser;
+      throw new Error("already voted");
+    }
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "poll_vote_failed" }));
+      throw new Error(err.error || "poll_vote_failed");
+    }
+    const body: ApiResponse<PollForUser> = await res.json();
+    return body.data;
+  }
+
+  async function adminUpdatePoll(
+    contextItemId: string,
+    question: string,
+    options: string[]
+  ): Promise<void> {
+    const res = await apiFetch(API_PATHS.ADMIN_POLL(contextItemId), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, options }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "admin_poll_update_failed" }));
+      throw new Error(err.error || "admin_poll_update_failed");
+    }
+  }
+
+  async function adminDeletePoll(contextItemId: string): Promise<void> {
+    const res = await apiFetch(API_PATHS.ADMIN_POLL(contextItemId), { method: "DELETE" });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "admin_poll_delete_failed" }));
+      throw new Error(err.error || "admin_poll_delete_failed");
+    }
+  }
+
   // ── Admin ──────────────────────────────────────────────────────────────
 
   async function triggerCollection(): Promise<void> {
@@ -811,6 +869,11 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     getCoinHistory,
     // Quiz
     submitQuizAnswer,
+    // Polls
+    getPoll,
+    submitPollVote,
+    adminUpdatePoll,
+    adminDeletePoll,
     // Admin
     triggerCollection,
     sendTestEmail,

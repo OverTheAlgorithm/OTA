@@ -95,6 +95,23 @@ export interface QuizSubmitResult {
   total_coins: number;
 }
 
+export interface PollTally {
+  option_index: number;
+  count: number;
+}
+
+export interface PollForUser {
+  id: string;
+  context_item_id: string;
+  question: string;
+  options: string[];
+  /** Length == options.length; zeros are padded server-side. Index by option_index. */
+  tallies: PollTally[];
+  total_votes: number;
+  /** null for non-logged-in viewers and users who have not voted yet. */
+  user_vote_index: number | null;
+}
+
 export interface TopicDetail {
   id: string;
   topic: string;
@@ -108,6 +125,7 @@ export interface TopicDetail {
   image_url: string | null;
   has_quiz: boolean;
   quiz: QuizForUser | null;
+  poll: PollForUser | null;
 }
 
 export interface TopicEarnResult {
