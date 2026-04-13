@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"ota/domain/collector"
+	"ota/domain/poll"
 	"ota/domain/quiz"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,7 @@ type ContextHistoryHandler struct {
 	categoryRepo   collector.CategoryRepository
 	brainCatRepo   collector.BrainCategoryRepository
 	quizSvc        *quiz.Service
+	pollSvc        *poll.Service
 	authMW         gin.HandlerFunc
 	optionalAuthMW gin.HandlerFunc
 }
@@ -38,11 +40,18 @@ func (h *ContextHistoryHandler) WithQuizService(quizSvc *quiz.Service, optionalA
 	return h
 }
 
+// WithPollService sets the poll service for bundling poll data with topic detail responses.
+func (h *ContextHistoryHandler) WithPollService(pollSvc *poll.Service) *ContextHistoryHandler {
+	h.pollSvc = pollSvc
+	return h
+}
+
 // topicResponse composes TopicDetail with quiz data at the handler level to avoid circular imports.
 type topicResponse struct {
 	collector.TopicDetail
 	HasQuiz bool              `json:"has_quiz"`
 	Quiz    *quiz.QuizForUser `json:"quiz"`
+	Poll    *poll.PollForUser `json:"poll"`
 }
 
 func (h *ContextHistoryHandler) GetHistory(c *gin.Context) {
@@ -96,6 +105,15 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 			slog.Warn("get quiz for user error", "user_id", userID, "item_id", id, "error", err)
 		}
 		resp.Quiz = quizForUser
+	}
+
+	if h.pollSvc != nil {
+		userID := c.GetString("userID")
+		p, err := h.pollSvc.GetForUser(c.Request.Context(), userID, id)
+		if err != nil {
+			slog.Warn("get poll for user error", "user_id", userID, "item_id", id, "error", err)
+		}
+		resp.Poll = p
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": resp})
