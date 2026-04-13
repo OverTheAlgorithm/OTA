@@ -11,6 +11,7 @@ import {
   type BrainCategory,
 } from "@/lib/api";
 import { QuizCard, type QuizStage } from "@/components/quiz-card";
+import { PollCard } from "@/components/poll-card";
 import { useAuth } from "@/contexts/auth-context";
 import { detectAdBlock } from "@/lib/adblock";
 import { formatDate } from "@/lib/utils";
@@ -695,6 +696,16 @@ export function TopicPage() {
                   onStageChange={handleQuizStageChange}
                 />
               )}
+
+            {/* Opinion Poll — rendered below quiz (if present), else directly below body. */}
+            {topic.poll && (
+              <PollCard
+                poll={topic.poll}
+                isLoggedIn={!!user}
+                isAdmin={user?.role === "admin"}
+                onRequestLogin={handleQuizRequestLogin}
+              />
+            )}
 
             {/* Sources */}
             {topic.sources && topic.sources.length > 0 && (
