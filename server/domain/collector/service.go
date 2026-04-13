@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"ota/domain/poll"
 	"ota/domain/quiz"
 )
 
@@ -24,6 +25,11 @@ type QuizSaver interface {
 	SaveQuizBatch(ctx context.Context, quizzes []quiz.Quiz) error
 }
 
+// PollSaver is a minimal interface for saving polls produced inline by Phase 2.
+type PollSaver interface {
+	SavePollBatch(ctx context.Context, polls []poll.Poll) error
+}
+
 type Service struct {
 	ai             AIClient
 	fallbackAI     AIClient // optional: used when primary fails with 5xx after all retries
@@ -33,6 +39,7 @@ type Service struct {
 	brainCatRepo   BrainCategoryRepository
 	catRepo        CategoryRepository // optional: loads categories from DB for AI prompts
 	quizRepo       QuizSaver          // optional: saves quizzes from collection pipeline
+	pollRepo       PollSaver          // optional: saves polls from Phase 2 output
 	checkpointRepo CheckpointRepository // optional: enables checkpoint/resume
 	urlDecoder     URLDecoder
 	articleFetcher ArticleFetcher
@@ -79,6 +86,13 @@ func (s *Service) WithCategoryRepo(catRepo CategoryRepository) *Service {
 // If not set, Stage 7 is skipped silently.
 func (s *Service) WithQuizRepo(repo QuizSaver) *Service {
 	s.quizRepo = repo
+	return s
+}
+
+// WithPollRepo sets the poll repository used to persist polls emitted by Phase 2.
+// If not set, inline poll payloads from the AI are ignored.
+func (s *Service) WithPollRepo(repo PollSaver) *Service {
+	s.pollRepo = repo
 	return s
 }
 
@@ -379,7 +393,7 @@ func (s *Service) runPipelineTail(
 ) (CollectionResult, error) {
 	// Stage 4: Phase 2 AI — per-topic detail writing (parallel with semaphore).
 	slog.Info("collection run stage 4: Phase 2 AI detail writing", "run_id", run.ID)
-	items, phase2RawResponses := s.runPhase2(ctx, run.ID, topics, articleMap, brainCategories)
+	items, pollsByItem, phase2RawResponses := s.runPhase2(ctx, run.ID, topics, articleMap, brainCategories)
 	if len(items) == 0 {
 		return failRun(fmt.Errorf("Phase 2 AI: all topics failed"), &phase1RawJSON)
 	}
@@ -397,6 +411,11 @@ func (s *Service) runPipelineTail(
 	}
 	s.clearCheckpoint(ctx, run.ID)
 	slog.Info("collection run stage 5 done", "run_id", run.ID, "items_saved", len(items))
+
+	// Persist opinion polls emitted inline by Phase 2 (best-effort).
+	if s.pollRepo != nil && len(pollsByItem) > 0 {
+		s.savePollsFromPhase2(ctx, run.ID, items, pollsByItem)
+	}
 
 	// Stage 6: Generate thumbnail images (best-effort, does NOT affect run status).
 	items = s.generateImages(ctx, run.ID, items)
@@ -615,10 +634,11 @@ func (s *Service) runPhase2(
 	topics []Phase1Topic,
 	articleMap map[int][]FetchedArticle,
 	brainCategories []BrainCategory,
-) ([]ContextItem, []string) {
+) ([]ContextItem, map[uuid.UUID]PollData, []string) {
 	type phase2Output struct {
 		index int
 		item  ContextItem
+		poll  *PollData
 		raw   string
 		err   error
 	}
@@ -668,7 +688,7 @@ func (s *Service) runPhase2(
 				Sources:         t.Sources,
 			}
 
-			results <- phase2Output{index: idx, item: item, raw: resp.RawJSON}
+			results <- phase2Output{index: idx, item: item, poll: p2Result.Poll, raw: resp.RawJSON}
 		}(i, topic)
 	}
 
@@ -676,6 +696,7 @@ func (s *Service) runPhase2(
 	close(results)
 
 	var items []ContextItem
+	polls := make(map[uuid.UUID]PollData)
 	rawResponses := make([]string, 0, len(topics))
 	for out := range results {
 		if out.err != nil {
@@ -685,10 +706,13 @@ func (s *Service) runPhase2(
 			continue
 		}
 		items = append(items, out.item)
+		if out.poll != nil {
+			polls[out.item.ID] = *out.poll
+		}
 		rawResponses = append(rawResponses, out.raw)
 	}
 
-	return items, rawResponses
+	return items, polls, rawResponses
 }
 
 func parsePhase2Response(outputText string) (Phase2Result, error) {
@@ -940,5 +964,53 @@ func (s *Service) generateQuizzes(ctx context.Context, runID uuid.UUID, items []
 	}
 
 	slog.Info("collection run stage 7 done", "run_id", runID, "saved", len(quizzes), "total", len(items))
+}
+
+// savePollsFromPhase2 persists polls emitted inline by Phase 2. Best-effort.
+// Invalid payloads (empty strings, wrong option count) are logged and skipped.
+func (s *Service) savePollsFromPhase2(ctx context.Context, runID uuid.UUID, items []ContextItem, pollsByItem map[uuid.UUID]PollData) {
+	polls := make([]poll.Poll, 0, len(pollsByItem))
+	skippedInvalid := 0
+	for _, it := range items {
+		pd, ok := pollsByItem[it.ID]
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(pd.Question) == "" || len(pd.Options) < 2 || len(pd.Options) > 4 {
+			slog.Warn("poll validation failed",
+				"run_id", runID, "item_id", it.ID, "options", len(pd.Options))
+			skippedInvalid++
+			continue
+		}
+		hasEmpty := false
+		for _, o := range pd.Options {
+			if strings.TrimSpace(o) == "" {
+				hasEmpty = true
+				break
+			}
+		}
+		if hasEmpty {
+			skippedInvalid++
+			continue
+		}
+		polls = append(polls, poll.Poll{
+			ID:            uuid.New(),
+			ContextItemID: it.ID,
+			Question:      pd.Question,
+			Options:       pd.Options,
+		})
+	}
+	if len(polls) == 0 {
+		slog.Info("polls stage: nothing to save",
+			"run_id", runID, "skipped_invalid", skippedInvalid, "phase2_poll_payloads", len(pollsByItem))
+		return
+	}
+	if err := s.pollRepo.SavePollBatch(ctx, polls); err != nil {
+		slog.Warn("polls stage: save failed",
+			"run_id", runID, "count", len(polls), "error", err)
+		return
+	}
+	slog.Info("polls stage: saved",
+		"run_id", runID, "saved", len(polls), "skipped_invalid", skippedInvalid, "total_items", len(items))
 }
 
