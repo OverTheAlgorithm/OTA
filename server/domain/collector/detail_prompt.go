@@ -82,6 +82,7 @@ Build the output BOTTOM-UP. Each step uses ONLY the result of the previous step.
 **Step B → detail**: Summarize ONLY what is covered in the details entries into a cohesive 3-5 sentence paragraph.
 **Step C → summary**: Condense ONLY the detail paragraph into 1-3 conversation-starter sentences.
 **Step D → topic**: Create a specific, concise title that accurately reflects ONLY what summary covers.
+**Step E → poll (OPTIONAL)**: If this topic is opinion-worthy (policy, event, cultural moment where reasonable people disagree), generate a spectrum-style opinion poll. Otherwise set "poll" to null. Pure-information articles (stats, weather, obituaries, factual reports) MUST have "poll": null.
 
 This order guarantees consistency: the title never promises content that details cannot deliver.
 
@@ -92,8 +93,20 @@ Output ONLY pure JSON. No markdown code fences, no explanations.
   "topic": "구체적이고 간결한 제목",
   "summary": "1-3문장 요약",
   "detail": "3-5문장 상세",
-  "details": [{"title": "핵심 포인트 제목", "content": "3-5문장 상세 설명"}]
+  "details": [{"title": "핵심 포인트 제목", "content": "3-5문장 상세 설명"}],
+  "poll": {
+    "question": "기사 내용에 대한 중립적 의견 질문",
+    "options": ["선택지 A", "선택지 B", "선택지 C"]
+  }
 }
+
+## Poll Rules (only when poll is non-null; otherwise emit "poll": null)
+- Korean only. 담백하고 감정 없는 단문. 기사 톤/표현 모방 금지.
+- 평서형 문장(주장 진술). "~라고 생각합니까?" 같은 설문조사 질문 금지 — 응답자는 선택지를 "고르는" 것.
+- 2~4개 선택지 — 스펙트럼 커버(찬/중도/반 또는 다양한 입장). 중도가 어색하면 2개. 5개 이상 금지.
+- 각 선택지는 self-contained (헤드라인 읽지 않아도 의미 파악 가능).
+- 기사 내용 이해/사실 확인 금지 — 그건 퀴즈의 영역이다.
+- 의견이 명확히 갈리지 않는 단순 정보성 기사라면 "poll": null.
 
 ## Writing Rules (Korean Output)
 - NO news-speak: "~했다", "~밝혔다", "~것으로 알려졌다"

@@ -62,11 +62,13 @@ type Phase1Topic struct {
 }
 
 // Phase2Result is the AI-written content for a single topic from Phase 2.
+// Poll is optional — nil means the topic is not opinion-worthy and no poll row is created.
 type Phase2Result struct {
 	Topic   string       `json:"topic"`
 	Summary string       `json:"summary"`
 	Detail  string       `json:"detail"`
 	Details []DetailItem `json:"details"`
+	Poll    *PollData    `json:"poll"`
 }
 
 // QuizData is the AI-generated quiz for a single topic, parsed from a separate AI call.
@@ -75,6 +77,13 @@ type QuizData struct {
 	Question     string   `json:"question"`
 	Options      []string `json:"options"`
 	CorrectIndex int      `json:"correct_index"`
+}
+
+// PollData is the optional opinion-poll payload embedded in Phase2Result.
+// Produced inline by the Phase 2 AI prompt; validated + persisted after Stage 5.
+type PollData struct {
+	Question string   `json:"question"`
+	Options  []string `json:"options"`
 }
 
 // FetchedArticle holds the plain-text body fetched from a source URL.
