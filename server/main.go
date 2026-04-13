@@ -26,6 +26,7 @@ import (
 	"ota/domain/collector"
 	"ota/domain/delivery"
 	"ota/domain/level"
+	"ota/domain/poll"
 	"ota/domain/push"
 	"ota/domain/quiz"
 	"ota/domain/terms"
@@ -336,11 +337,17 @@ func main() {
 	quizService := quiz.NewService(quizRepo, levelRepo, levelCfg, cfg.QuizMaxBonusCoins)
 	collectorService.WithQuizRepo(quizRepo)
 
+	// Polls
+	pollRepo := storage.NewPollRepository(pool)
+	pollService := poll.NewService(pollRepo)
+	collectorService.WithPollRepo(pollRepo)
+
 	// Context history
 	historyRepo := storage.NewHistoryRepository(pool)
 	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
 	contextHistoryHandler.WithCategoryRepo(categoryRepo, brainCategoryRepo)
 	contextHistoryHandler.WithQuizService(quizService, api.OptionalAuthMiddleware(jwtManager))
+	contextHistoryHandler.WithPollService(pollService)
 
 	// Level
 	earnMinDuration := time.Duration(cfg.EarnMinDurationSec) * time.Second
@@ -358,6 +365,8 @@ func main() {
 	levelHandler.WithQuizStatusGetter(quizRepo)
 
 	quizHandler := handler.NewQuizHandler(quizService, historyRepo, api.AuthMiddleware(jwtManager))
+	pollHandler := handler.NewPollHandler(pollService, api.AuthMiddleware(jwtManager), api.OptionalAuthMiddleware(jwtManager))
+	adminPollHandler := handler.NewAdminPollHandler(pollService)
 
 	// Push notifications
 	pushRepo := storage.NewPushRepository(pool)
@@ -485,6 +494,16 @@ func main() {
 			GroupName:   "quiz",
 			Handler:     quizHandler,
 			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "polls",
+			Handler:     pollHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "admin/polls",
+			Handler:     adminPollHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
 		},
 		{
 			GroupName:   "mobile/push-token",
