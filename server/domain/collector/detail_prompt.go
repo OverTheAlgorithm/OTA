@@ -82,7 +82,7 @@ Build the output BOTTOM-UP. Each step uses ONLY the result of the previous step.
 **Step B → detail**: Summarize ONLY what is covered in the details entries into a cohesive 3-5 sentence paragraph.
 **Step C → summary**: Condense ONLY the detail paragraph into 1-3 conversation-starter sentences.
 **Step D → topic**: Create a specific, concise title that accurately reflects ONLY what summary covers.
-**Step E → poll (OPTIONAL)**: If this topic is opinion-worthy (policy, event, cultural moment where reasonable people disagree), generate a spectrum-style opinion poll. Otherwise set "poll" to null. Pure-information articles (stats, weather, obituaries, factual reports) MUST have "poll": null.
+**Step E → poll (ALMOST ALWAYS null)**: Generate a poll ONLY when the topic contains a genuine societal conflict where real opposing camps exist (policy debate, ethical dilemma, institutional change with clear winners/losers). The vast majority of articles — 80~90% — should have "poll": null. If you are not confident that reasonable people would hold fundamentally incompatible positions on this topic, set "poll": null.
 
 This order guarantees consistency: the title never promises content that details cannot deliver.
 
@@ -100,13 +100,29 @@ Output ONLY pure JSON. No markdown code fences, no explanations.
   }
 }
 
-## Poll Rules (only when poll is non-null; otherwise emit "poll": null)
+## Poll Eligibility — 투표 생성 판단 기준 (CRITICAL)
+대부분의 기사는 투표가 필요 없다. 아래 조건을 모두 충족할 때만 poll을 생성하라:
+1. 사회적으로 실제 진영이 나뉘는 갈등이 존재한다 (정책 찬반, 윤리적 딜레마, 제도 변화의 수혜자/피해자 대립 등)
+2. 각 입장이 나름의 논리와 근거를 갖고 있어 어느 쪽이 옳다고 단정할 수 없다
+3. 선택지가 각 입장의 핵심 논리를 담은 구체적 주장문으로 표현 가능하다
+
+### poll을 만들면 안 되는 경우 (반드시 "poll": null)
+- 단순 사실/사건 보도 (사고, 재해, 부고, 날씨, 통계 발표)
+- 인물의 성과/기록/수상 — "본받을만하다" 같은 감상은 투표 선택지가 아니다
+- 감동/미담/휴먼스토리
+- 신제품/서비스 출시, 기술 발표
+- 연예/스포츠 결과 보도
+- 갈등 없이 한쪽 방향으로만 의견이 수렴되는 주제
+- 확신이 없으면 만들지 마라. 애매하면 null이다.
+
+### poll 선택지 규칙 (poll이 non-null일 때만 적용)
 - Korean only. 담백하고 감정 없는 단문. 기사 톤/표현 모방 금지.
-- 평서형 문장(주장 진술). "~라고 생각합니까?" 같은 설문조사 질문 금지 — 응답자는 선택지를 "고르는" 것.
-- 2~4개 선택지 — 스펙트럼 커버(찬/중도/반 또는 다양한 입장). 중도가 어색하면 2개. 5개 이상 금지.
+- 각 선택지는 해당 입장의 핵심 논리를 담은 평서형 주장문이어야 한다. 단순 "찬성"/"반대" 라벨 금지.
+  예) "이란의 핵 위협을 제거하기 전까지 불가피한 희생을 감수해야 한다" (O)
+  예) "군사 작전에 찬성한다" (X — 논리가 없는 빈 라벨)
+- 2~4개 선택지. 중도가 어색하면 2개. 5개 이상 금지.
 - 각 선택지는 self-contained (헤드라인 읽지 않아도 의미 파악 가능).
 - 기사 내용 이해/사실 확인 금지 — 그건 퀴즈의 영역이다.
-- 의견이 명확히 갈리지 않는 단순 정보성 기사라면 "poll": null.
 
 ## Writing Rules (Korean Output)
 - NO news-speak: "~했다", "~밝혔다", "~것으로 알려졌다"
