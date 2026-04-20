@@ -3,8 +3,6 @@ import { Link } from "react-router-dom";
 
 const CONSENT_KEY = "wl_cookie_consent";
 const GTM_ID = "GTM-5QJFSN7C";
-const ADSENSE_CLIENT = "ca-pub-8601715660780205";
-
 function loadGTM() {
   if (document.querySelector(`script[src*="googletagmanager.com/gtm.js"]`)) return;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,18 +15,8 @@ function loadGTM() {
   document.head.appendChild(s);
 }
 
-function loadAdSense() {
-  if (document.querySelector(`script[src*="adsbygoogle.js"]`)) return;
-  const s = document.createElement("script");
-  s.async = true;
-  s.crossOrigin = "anonymous";
-  s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`;
-  document.head.appendChild(s);
-}
-
 function loadTrackingScripts() {
   loadGTM();
-  loadAdSense();
 }
 
 export function CookieConsent() {
