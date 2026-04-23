@@ -62,11 +62,17 @@
   - **외부 동작 변화 없음**: 이메일/카카오톡 링크 클릭(외부 GET)은 쿠키 전송됨. 사이트 내 모든 기능 정상.
 - **미해결 (2단계 — 선택)**: Origin+Referer 둘 다 없는 경우의 미들웨어 통과 로직. Lax로 쿠키 자체가 안 붙으므로 실질 위험은 제거됨. 추후 미들웨어 정리 시 함께 처리 가능.
 
-### C3. SSRF — Collector article fetcher에 URL 허용리스트 없음
-- **파일**: `server/domain/collector/article_fetcher.go:56-85`, `server/domain/collector/source_validator.go:158-201`
-- **문제**: AI가 뱉는 URL에 `http.Get` 무제한. RFC1918/loopback/link-local 거름망 없음. 리다이렉트 홉별 재검증 없음.
-- **공격 시나리오**: 프롬프트 인젝션 또는 소스 포이즈닝으로 `http://169.254.169.254/latest/meta-data/iam/security-credentials/` (Oracle Cloud IMDS) 호출 → DB/로그에 크리덴셜 유출. `http://localhost:5432` 같은 내부 포트 스캔도 가능.
-- **Fix**: `net.LookupIP` 후 `IsPrivate/IsLoopback/IsLinkLocal/IsUnspecified` 거부. custom `DialContext`로 리다이렉트 홉마다 재검증. scheme은 `http/https`만 허용.
+### C3. SSRF — Collector article fetcher에 URL 허용리스트 없음 [FIXED 2026-04-24]
+- **파일**: `server/domain/collector/article_fetcher.go`, `server/domain/collector/source_validator.go`, `server/domain/collector/safe_transport.go` (신규)
+- **문제**: AI가 뱉는 URL에 `http.Get` 무제한. RFC1918/loopback/link-local 거름망 없음.
+- **해결**:
+  - `safe_transport.go` 신규 생성. `newSafeTransport()`가 custom `DialContext`를 가진 `http.Transport` 반환.
+  - DNS 해석 후 IP가 사설 대역(`127/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `0/8`, `::1`, `fc00::/7`, `fe80::/10`)이면 연결 거부.
+  - `169.254.169.254` (클라우드 메타데이터) 명시적 차단.
+  - `safeRedirectPolicy`로 리다이렉트 시 scheme 재검증 + 최대 5홉 제한. DialContext가 매 연결마다 IP 재검증.
+  - `article_fetcher.go`: `NewHTTPArticleFetcher`에서 safe transport 적용.
+  - `source_validator.go`: `NewSourceValidator`에서 safe transport 적용. 테스트용 `newSourceValidatorWithTransport` 추가.
+  - **외부 동작 변화 없음**: 정상적인 외부 URL 접근은 그대로. 내부 네트워크 접근만 차단.
 
 ### C4. Turnstile 프로덕션 fallback이 테스트 키 → CAPTCHA 완전 스킵 [FIXED 2026-04-23]
 - **파일**: `server/config/config.go:113`, `server/api/handler/level_handler.go:479-488`
@@ -112,11 +118,14 @@
 - **원래 주장**: `CanRunToday`가 `status='running'`을 보지 않아 병렬 파이프라인 시작 가능.
 - **검증 결과**: **거짓**. `collector_repo.go:103-118`의 `CanRunToday` 쿼리가 `WHERE ... AND (status = 'running' OR status = 'success')`로 running 상태도 체크함. 또한 `checkpoint_repo.go:77-92`의 `CreateRunIfIdle`도 `INSERT ... WHERE NOT EXISTS (... status = 'running')`으로 원자적 보호. `FailStaleRuns`는 boot 시 실행(비정상 종료 대응)으로 적절.
 
-### C9. 관리자 `/admin/collect` 중복 실행 가드 없음 + graceful shutdown 붕괴
-- **파일**: `server/api/handler/admin.go:59-85`
-- **문제**: 백그라운드 goroutine을 `context.Background()`로 detached하게 돌림. dedup 키 없음. 202만 반환.
-- **결과**: 두 번 클릭하면 동시 collection 2개 돌아감. 배포 중 SIGTERM 시 좀비 goroutine 발생.
-- **Fix**: `sync.Mutex + running bool` 또는 Redis `collect:running` 키로 가드. 409 반환. `shutdownCtx` 주입 + WaitGroup.
+### C9. 관리자 `/admin/collect` 중복 실행 가드 없음 + graceful shutdown 붕괴 [PARTIALLY FIXED 2026-04-24]
+- **파일**: `server/api/handler/admin.go:34-35, 64-82`
+- **문제**: dedup 키 없음. 두 번 클릭하면 동시 collection 2개.
+- **해결 (중복 실행 가드)**:
+  - `AdminHandler`에 `collectingMu sync.Mutex` + `collecting bool` 플래그 추가.
+  - `TriggerCollection`에서 lock 획득 → 이미 실행 중이면 409 Conflict 반환.
+  - goroutine 완료 시 `defer`로 플래그 리셋.
+- **미해결 (graceful shutdown)**: `context.Background()` 사용은 별도 이슈(H9). 스케줄러의 `collect()`는 이미 `shutdownCtx` 사용 중.
 
 ### C10. 출금 요청 멱등성 없음 ~~+ row-level lock 없음~~ [FIXED 2026-04-23]
 - **파일**: `server/api/handler/withdrawal_handler.go:89-108`, `packages/shared/src/api.ts:388-393`
@@ -265,25 +274,31 @@
 - **원래 주장**: DB 레코드 없으면 500 반환.
 - **검증 결과**: **거짓**. 실제로 `http.StatusNotFound` (404) 반환. 단, DB 인프라 에러(connection timeout 등)도 404로 반환하는 것은 별도 이슈 (500이어야 할 케이스를 404로 처리).
 
-#### M3. `BANK_ACCOUNT_ENCRYPTION_KEY` 프로덕션 검증 없음
-- **파일**: `server/config/config.go:145`, `server/storage/withdrawal_repository.go:47-51`
+#### M3. `BANK_ACCOUNT_ENCRYPTION_KEY` 프로덕션 검증 없음 [FIXED 2026-04-24]
+- **파일**: `server/config/config.go:181-183`
 - **문제**: 빈 키면 계좌번호 평문 저장. 프로덕션 가드 없음.
-- **Fix**: `AppEnv=production` + key 비어있으면 startup fail.
+- **해결**: C4/H3과 동일 패턴. `AppEnv=production` + `BankAccountEncryptionKey` 비어있으면 startup 실패. 에러 메시지에 "평문 저장" 위험 명시. 개발 환경은 기존대로 빈 키 허용.
+- **외부 동작 변화 없음**: 프로덕션에 키가 설정되어 있으면 영향 0.
 
 #### M4. RateLimit fail-open
 - **파일**: `server/api/middleware.go:244-249`
 - **문제**: Redis 장애 시 전체 통과. Redis DoS로 rate limit 무력화 가능.
 - **Fix**: 최소한 admin/withdrawal 엔드포인트는 fail-closed. 또는 in-memory fallback.
 
-#### M5. Email 템플릿 XSS 가능성
-- **파일**: `server/platform/email/*`
-- **문제**: grep 결과 `html/template` 사용 없음. 닉네임/email 보간 경로 검증 필요.
-- **Fix**: 항상 `html/template`. user input은 escape.
+#### M5. Email 템플릿 XSS 가능성 [FIXED 2026-04-24]
+- **파일**: `server/domain/delivery/formatter.go:196-202, 230-233`
+- **문제**: `fmt.Sprintf`로 외부 데이터를 HTML에 직접 보간. XSS 가능.
+- **해결**: `html.EscapeString()`으로 외부 데이터 이스케이프:
+  - `renderNewsCard`: `item.Topic`, `item.Summary`, `catLabel` 이스케이프 후 HTML 보간.
+  - `renderBrainCategoryTab`: brain category `emoji`, `label` 이스케이프.
+  - URL(`href`, `imageURL`)과 plain text body는 이스케이프하지 않음 (XSS 벡터 아님).
+- **외부 동작 변화 없음**: 정상 텍스트는 동일 표시. `<script>` 등 포함 시 이스케이프 처리.
 
-#### M6. `withdrawal_handler.go:63`이 `err.Error()`를 그대로 클라이언트에 노출
-- **파일**: `server/api/handler/withdrawal_handler.go:63`
+#### M6. `withdrawal_handler.go:63`이 `err.Error()`를 그대로 클라이언트에 노출 [FIXED 2026-04-24]
+- **파일**: `server/api/handler/withdrawal_handler.go:81`
 - **문제**: 내부 에러 메시지(예: "encrypt account number: ...") leak.
-- **Fix**: 상세 로그 + 제네릭 400 반환.
+- **해결**: `err.Error()` 대신 제네릭 메시지(`"계좌 저장에 실패했습니다"`) 반환. 상세 에러는 `slog.Error`로 서버 로그에만 기록.
+- **외부 동작 변화**: 에러 응답 메시지가 내부 구현 상세 대신 사용자 친화적 메시지로 변경.
 
 #### M7. SMTP in-function retry 없음
 - **파일**: `server/platform/email/sender.go`
@@ -519,13 +534,13 @@ CTO가 물을 질문들:
 ### CRITICAL
 - [x] C1. SetTrustedProxies [FIXED 2026-04-23 — TrustedPlatform + X-Real-Client-IP 방식]
 - [x] C2. CSRF bypass [PARTIALLY FIXED 2026-04-23 — SameSite=Lax로 핵심 벡터 차단]
-- [ ] C3. SSRF allowlist
+- [x] C3. SSRF allowlist [FIXED 2026-04-24]
 - [x] C4. Turnstile production guard [FIXED 2026-04-23]
 - [x] C5. ~~Kakao email overwrite~~ [FALSE — email은 ON CONFLICT에서 갱신 안 됨]
 - [x] C6. CompleteSignup transaction [FIXED 2026-04-23]
 - [x] C7. EarnCoin race condition [FIXED 2026-04-23]
 - [x] C8. ~~Scheduler overlap~~ [FALSE — CanRunToday가 running 상태도 체크함]
-- [ ] C9. Admin collect guard
+- [x] C9. Admin collect guard [PARTIALLY FIXED 2026-04-24 — dedup 가드 추가, shutdown은 H9에서]
 - [x] C10. Withdrawal idempotency [FIXED 2026-04-23 — Redis SETNX + Idempotency-Key 헤더]
 
 ### HIGH
@@ -549,7 +564,10 @@ CTO가 물을 질문들:
 - [ ] H18. kakao_id drop
 
 ### MEDIUM
-- [ ] M1~M21 (21개)
+- [x] M3. Bank encryption key production guard [FIXED 2026-04-24]
+- [x] M5. Email template XSS [FIXED 2026-04-24]
+- [x] M6. err.Error() client exposure [FIXED 2026-04-24]
+- [ ] M1, M2(FALSE), M4, M7~M21 (나머지)
 
 ### LOW
 - [ ] L1~L16 (16개)

@@ -11,6 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// newTestSourceValidator returns a SourceValidator that uses the default
+// transport, allowing connections to httptest servers on loopback.
+func newTestSourceValidator() *SourceValidator {
+	return newSourceValidatorWithTransport(http.DefaultTransport)
+}
+
 func makeItem(sources ...string) ContextItem {
 	return ContextItem{
 		ID:       uuid.New(),
@@ -28,7 +34,7 @@ func TestValidateSources_AllValid(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v := NewSourceValidator()
+	v := newTestSourceValidator()
 	items := []ContextItem{makeItem(srv.URL + "/article1", srv.URL + "/article2")}
 
 	invalid := v.ValidateSources(context.Background(), items)
@@ -44,7 +50,7 @@ func TestValidateSources_HTTP404(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v := NewSourceValidator()
+	v := newTestSourceValidator()
 	items := []ContextItem{makeItem(srv.URL + "/missing")}
 
 	invalid := v.ValidateSources(context.Background(), items)
@@ -64,7 +70,7 @@ func TestValidateSources_SoftNotFoundKorean(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v := NewSourceValidator()
+	v := newTestSourceValidator()
 	items := []ContextItem{makeItem(srv.URL + "/soft-404")}
 
 	invalid := v.ValidateSources(context.Background(), items)
@@ -84,7 +90,7 @@ func TestValidateSources_SoftNotFoundEnglish(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v := NewSourceValidator()
+	v := newTestSourceValidator()
 	items := []ContextItem{makeItem(srv.URL + "/not-here")}
 
 	invalid := v.ValidateSources(context.Background(), items)
@@ -100,7 +106,7 @@ func TestValidateSources_Timeout(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v := NewSourceValidator()
+	v := newTestSourceValidator()
 	// Override with a shorter timeout for the test
 	v.client.Timeout = 500 * time.Millisecond
 	items := []ContextItem{makeItem(srv.URL + "/slow")}
@@ -113,7 +119,7 @@ func TestValidateSources_Timeout(t *testing.T) {
 }
 
 func TestValidateSources_InvalidScheme(t *testing.T) {
-	v := NewSourceValidator()
+	v := newTestSourceValidator()
 	items := []ContextItem{makeItem("ftp://example.com/file")}
 
 	invalid := v.ValidateSources(context.Background(), items)
@@ -127,7 +133,7 @@ func TestValidateSources_InvalidScheme(t *testing.T) {
 }
 
 func TestValidateSources_EmptySources(t *testing.T) {
-	v := NewSourceValidator()
+	v := newTestSourceValidator()
 	items := []ContextItem{makeItem()}
 
 	invalid := v.ValidateSources(context.Background(), items)
@@ -148,7 +154,7 @@ func TestValidateSources_MixedResults(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v := NewSourceValidator()
+	v := newTestSourceValidator()
 	items := []ContextItem{
 		makeItem(srv.URL+"/good", srv.URL+"/bad"),
 		makeItem(srv.URL + "/good"),
@@ -180,7 +186,7 @@ func TestValidateSources_MultipleNotFoundPatterns(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			v := NewSourceValidator()
+			v := newTestSourceValidator()
 			items := []ContextItem{makeItem(srv.URL + "/page")}
 
 			invalid := v.ValidateSources(context.Background(), items)
@@ -205,7 +211,7 @@ func TestValidateSources_BlockedPortalURLs(t *testing.T) {
 
 	for _, u := range blockedURLs {
 		t.Run(u, func(t *testing.T) {
-			v := NewSourceValidator()
+			v := newTestSourceValidator()
 			items := []ContextItem{makeItem(u)}
 
 			invalid := v.ValidateSources(context.Background(), items)
@@ -226,7 +232,7 @@ func TestValidateSources_AllowedSpecificURLs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v := NewSourceValidator()
+	v := newTestSourceValidator()
 	items := []ContextItem{makeItem(srv.URL + "/article/12345")}
 
 	invalid := v.ValidateSources(context.Background(), items)

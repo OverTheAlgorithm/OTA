@@ -64,13 +64,13 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 		t.Errorf("unexpected message: %v", response["message"])
 	}
 
-	// Second call should also return 202 immediately
+	// Second call while first is still running should return 409 (dedup guard)
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest("POST", "/api/v1/admin/collect", nil)
 	router.ServeHTTP(w2, req2)
 
-	if w2.Code != http.StatusAccepted {
-		t.Errorf("expected second call to return 202, got %d", w2.Code)
+	if w2.Code != http.StatusConflict {
+		t.Errorf("expected second call to return 409 (collection in progress), got %d", w2.Code)
 	}
 }
 

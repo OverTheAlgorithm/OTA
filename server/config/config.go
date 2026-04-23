@@ -178,6 +178,10 @@ func Load() (Config, error) {
 		return cfg, fmt.Errorf("TURNSTILE_SECRET_KEY must be a valid production key (test/dummy keys are not allowed in production)")
 	}
 
+	if cfg.AppEnv == "production" && cfg.BankAccountEncryptionKey == "" {
+		return cfg, fmt.Errorf("BANK_ACCOUNT_ENCRYPTION_KEY is required in production (empty key stores bank accounts in plaintext)")
+	}
+
 	if cfg.WithdrawalUnitAmount <= 0 {
 		return cfg, fmt.Errorf("WITHDRAWAL_UNIT_AMOUNT must be greater than 0")
 	}

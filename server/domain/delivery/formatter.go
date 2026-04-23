@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"fmt"
+	"html"
 	"strings"
 	"time"
 
@@ -199,7 +200,7 @@ func renderBrainCategoryTab(emoji, label string) string {
           </td></tr>
         </table>
       </td></tr>
-`, emoji, label)
+`, html.EscapeString(emoji), html.EscapeString(label))
 }
 
 // renderNewsCards renders a list of news item cards.
@@ -226,6 +227,10 @@ func renderNewsCard(item collector.ContextItem, frontendURL string, preferred bo
 	if len([]rune(summary)) > 120 {
 		summary = string([]rune(summary)[:117]) + "..."
 	}
+	// Escape external data before interpolating into HTML
+	escapedTopic := html.EscapeString(item.Topic)
+	escapedSummary := html.EscapeString(summary)
+	escapedCatLabel := html.EscapeString(catLabel)
 
 	// Determine image URL: server image or default
 	imageURL := fmt.Sprintf("%s/wizletter_default.png", frontendURL)
@@ -259,7 +264,7 @@ func renderNewsCard(item collector.ContextItem, frontendURL string, preferred bo
           </tr>
         </table>
         </a>
-      </td></tr>`, href, imageURL, date, coinPill, catLabel, item.Topic, summary)
+      </td></tr>`, href, imageURL, date, coinPill, escapedCatLabel, escapedTopic, escapedSummary)
 }
 
 // renderCoinPill renders the "+N포인트" or "획득!" pill button.

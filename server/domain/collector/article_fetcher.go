@@ -23,8 +23,13 @@ const (
 )
 
 // NewHTTPArticleFetcher returns an ArticleFetcher backed by real HTTP calls.
+// Uses a safe transport that blocks requests to private/internal IP ranges.
 func NewHTTPArticleFetcher() ArticleFetcher {
-	client := &http.Client{Timeout: fetchTimeout}
+	client := &http.Client{
+		Timeout:       fetchTimeout,
+		Transport:     newSafeTransport(),
+		CheckRedirect: safeRedirectPolicy,
+	}
 	return func(ctx context.Context, urls []string) []FetchedArticle {
 		return fetchArticles(ctx, client, urls)
 	}

@@ -25,15 +25,17 @@ type SourceValidator struct {
 }
 
 func NewSourceValidator() *SourceValidator {
+	return newSourceValidatorWithTransport(newSafeTransport())
+}
+
+// newSourceValidatorWithTransport creates a SourceValidator using the provided
+// transport. Intended for tests that need to reach httptest servers on loopback.
+func newSourceValidatorWithTransport(transport http.RoundTripper) *SourceValidator {
 	return &SourceValidator{
 		client: &http.Client{
-			Timeout: 10 * time.Second,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 5 {
-					return fmt.Errorf("too many redirects")
-				}
-				return nil
-			},
+			Timeout:       10 * time.Second,
+			Transport:     transport,
+			CheckRedirect: safeRedirectPolicy,
 		},
 	}
 }

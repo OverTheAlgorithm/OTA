@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,9 @@ type AdminHandler struct {
 	levelService         *level.Service
 	mockItemCreator      MockItemCreator
 	deliveryService      *delivery.Service
+
+	collectingMu sync.Mutex
+	collecting   bool
 }
 
 func NewAdminHandler(collectorService *collector.Service, slackWebhookURL string, brainCatHandler *BrainCategoryHandler) *AdminHandler {
@@ -56,11 +60,27 @@ func (h *AdminHandler) WithDeliveryService(svc *delivery.Service) *AdminHandler 
 
 // TriggerCollection returns 202 immediately and runs collection in the background.
 // The result (or error) is posted to the configured Slack webhook when done.
+// A second concurrent call returns 409 Conflict while a run is already in progress.
 func (h *AdminHandler) TriggerCollection(c *gin.Context) {
+	h.collectingMu.Lock()
+	if h.collecting {
+		h.collectingMu.Unlock()
+		c.JSON(http.StatusConflict, gin.H{"error": "collection already in progress"})
+		return
+	}
+	h.collecting = true
+	h.collectingMu.Unlock()
+
 	slog.Info("manual collection triggered (async)")
 	c.JSON(http.StatusAccepted, gin.H{"message": "collection started"})
 
 	go func() {
+		defer func() {
+			h.collectingMu.Lock()
+			h.collecting = false
+			h.collectingMu.Unlock()
+		}()
+
 		ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 		defer cancel()
 

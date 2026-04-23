@@ -78,7 +78,8 @@ func (h *WithdrawalHandler) SaveBankAccount(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": ve.Error()})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		slog.Error("save bank account error (non-validation)", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "계좌 저장에 실패했습니다"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": "ok"})
