@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"ota/domain/apperr"
 	"ota/domain/withdrawal"
@@ -13,13 +15,29 @@ import (
 	"github.com/google/uuid"
 )
 
+// IdempotencyStore deduplicates requests using a distributed key-value store.
+// SetNX sets key only if it doesn't exist and returns true when the key was newly
+// created (i.e., the request is not a duplicate).
+type IdempotencyStore interface {
+	SetNX(ctx context.Context, key string, value string, ttl time.Duration) (bool, error)
+}
+
+const idempotencyTTL = 24 * time.Hour
+
 type WithdrawalHandler struct {
-	service *withdrawal.Service
-	authMW  gin.HandlerFunc
+	service     *withdrawal.Service
+	authMW      gin.HandlerFunc
+	idempotency IdempotencyStore
 }
 
 func NewWithdrawalHandler(service *withdrawal.Service, authMW gin.HandlerFunc) *WithdrawalHandler {
 	return &WithdrawalHandler{service: service, authMW: authMW}
+}
+
+// WithIdempotencyStore sets the idempotency store used to deduplicate withdrawal requests.
+func (h *WithdrawalHandler) WithIdempotencyStore(store IdempotencyStore) *WithdrawalHandler {
+	h.idempotency = store
+	return h
 }
 
 // ── Bank Account ────────────────────────────────────────────────────────────
@@ -69,6 +87,26 @@ func (h *WithdrawalHandler) SaveBankAccount(c *gin.Context) {
 // ── User Withdrawal ─────────────────────────────────────────────────────────
 
 func (h *WithdrawalHandler) RequestWithdrawal(c *gin.Context) {
+	idempotencyKey := c.GetHeader("Idempotency-Key")
+	if idempotencyKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Idempotency-Key header is required"})
+		return
+	}
+
+	if h.idempotency != nil {
+		redisKey := "idempotency:" + idempotencyKey
+		isNew, err := h.idempotency.SetNX(c.Request.Context(), redisKey, "1", idempotencyTTL)
+		if err != nil {
+			slog.Error("idempotency check failed", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			return
+		}
+		if !isNew {
+			c.JSON(http.StatusConflict, gin.H{"error": "duplicate request"})
+			return
+		}
+	}
+
 	userID := c.GetString("userID")
 	var req struct {
 		Amount int `json:"amount" binding:"required"`

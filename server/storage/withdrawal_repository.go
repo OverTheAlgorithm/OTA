@@ -528,6 +528,60 @@ func (r *WithdrawalRepository) RejectWithdrawalAtomic(ctx context.Context, withd
 	return amount, userID, nil
 }
 
+// ApproveWithdrawalAtomic locks the withdrawal row, verifies the withdrawal is
+// still pending, and inserts an approved transition with a note — all in a
+// single transaction.
+func (r *WithdrawalRepository) ApproveWithdrawalAtomic(ctx context.Context, withdrawalID uuid.UUID, actorID, note string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Lock withdrawal row
+	var userID string
+	err = tx.QueryRow(ctx,
+		`SELECT user_id FROM withdrawals WHERE id = $1 FOR UPDATE`,
+		withdrawalID,
+	).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("withdrawal not found")
+	}
+	if err != nil {
+		return fmt.Errorf("lock withdrawal: %w", err)
+	}
+
+	// Verify current status is pending
+	var currentStatus string
+	err = tx.QueryRow(ctx,
+		`SELECT status FROM withdrawal_transitions WHERE withdrawal_id = $1 ORDER BY created_at DESC LIMIT 1`,
+		withdrawalID,
+	).Scan(&currentStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("no transitions found")
+	}
+	if err != nil {
+		return fmt.Errorf("check status: %w", err)
+	}
+	if currentStatus != withdrawal.StatusPending {
+		return apperr.NewConflictError(fmt.Sprintf("can only approve pending withdrawals (current: %s)", currentStatus))
+	}
+
+	// Insert approved transition
+	_, err = tx.Exec(ctx,
+		`INSERT INTO withdrawal_transitions (withdrawal_id, status, note, actor_id) VALUES ($1, $2, $3, $4)`,
+		withdrawalID, withdrawal.StatusApproved, note, actorID,
+	)
+	if err != nil {
+		return fmt.Errorf("insert approved transition: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
 // ── Transitions ─────────────────────────────────────────────────────────────
 
 func (r *WithdrawalRepository) AddTransition(ctx context.Context, withdrawalID uuid.UUID, status, note, actorID string) error {

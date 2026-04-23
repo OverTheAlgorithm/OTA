@@ -319,7 +319,8 @@ func main() {
 	}
 	authHandler := handler.NewAuthHandler(kakaoClient, jwtManager, stateStore, userRepo, deliveryService, levelRepo, cfg.SignupBonusCoins, cfg.FrontendURL, signupCache, termsService).
 		WithWithdrawalChecker(withdrawalRepo).
-		WithRefreshTokenStore(refreshTokenRepo)
+		WithRefreshTokenStore(refreshTokenRepo).
+		WithSignupTransactor(userRepo)
 	termsHandler := handler.NewTermsHandler(termsService)
 	termsAdminHandler := handler.NewTermsAdminHandler(termsService)
 	brainCategoryHandler := handler.NewBrainCategoryHandler(brainCategoryRepo)
@@ -389,11 +390,17 @@ func main() {
 	pushAdminHandler := handler.NewPushAdminHandler(scheduledPushSvc, pushScheduler)
 
 	withdrawalHandler := handler.NewWithdrawalHandler(withdrawalService, api.AuthMiddleware(jwtManager))
+	if idempotencyCache, err := cache.NewRedisCache(redisCfg, ""); err != nil {
+		slog.Warn("redis unavailable for idempotency store, duplicate withdrawal requests will not be rejected", "error", err)
+	} else {
+		withdrawalHandler = withdrawalHandler.WithIdempotencyStore(idempotencyCache)
+		slog.Info("withdrawal idempotency store connected to redis")
+	}
 	withdrawalAdminHandler := handler.NewWithdrawalAdminHandler(withdrawalService)
 
 	mypageHandler := handler.NewMypageHandler(levelService, api.AuthMiddleware(jwtManager))
 
-	adminCoinHandler := handler.NewAdminCoinHandler(userRepo, levelService)
+	adminCoinHandler := handler.NewAdminCoinHandler(userRepo, levelService, cfg.CoinCap)
 
 	adminHandler := handler.NewAdminHandler(collectorService, cfg.SlackWebhookURL, brainCategoryHandler).
 		WithLevelService(levelService).

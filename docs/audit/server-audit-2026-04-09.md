@@ -83,18 +83,29 @@
 - **원래 주장**: 기존 유저 경로에서 `UpsertByKakaoID`가 Kakao가 준 `Account.Email`로 DB users 레코드를 덮어씀.
 - **검증 결과**: **거짓**. `user_repo.go:22-29`의 SQL `ON CONFLICT (kakao_id) DO UPDATE SET`에서 `nickname`, `profile_image`, `updated_at`만 갱신. email 컬럼은 업데이트 대상에 포함되지 않음. 이미 의도대로 구현되어 있음.
 
-### C6. CompleteSignup이 트랜잭션이 아님 → 반쪽 가입 상태 발생
-- **파일**: `server/api/handler/auth.go:340-375`
+### C6. CompleteSignup이 트랜잭션이 아님 → 반쪽 가입 상태 발생 [FIXED 2026-04-23]
+- **파일**: `server/api/handler/auth.go:340-375`, `server/storage/user_repo.go`
 - **문제**: `UpsertByKakaoID` → `SaveConsents` → `AddPoints` → `InsertCoinEvent` 네 번의 쓰기가 트랜잭션 밖에서 순차 실행.
-- **결과**: 2단계 실패 시 약관 미동의 유저가 DB에 남음(개인정보보호법/GDPR 위반). 3-4단계 실패 시 `user_points`와 `coin_events` 영구 드리프트. `InsertCoinEvent` 에러는 `_ =`로 아예 discard.
-- **Fix**: `UserService.CompleteSignup`이 단일 pgx 트랜잭션을 열고 repos에 `WithTx(tx pgx.Tx)` 변형을 넘기도록. Atomic commit.
+- **해결**:
+  - `storage/user_repo.go`에 `CompleteSignupTx` 메서드 추가. `pool.Begin()` 단일 트랜잭션 내에서 4개 작업(유저 생성, 약관 동의, 보너스 코인, 코인 이벤트) 원자적 실행.
+  - `InsertCoinEvent` 에러를 더 이상 discard하지 않음 — 실패 시 전체 롤백.
+  - `auth.go`에 `SignupTransactor` 인터페이스 추가. `signupTransactor`가 설정되면 트랜잭션 경로, 아니면 기존 경로(테스트 호환).
+  - `main.go`에서 `userRepo`를 `WithSignupTransactor`로 주입.
+  - **외부 동작 변화 없음**: 정상 가입 흐름 동일. 부분 실패 시 롤백으로 데이터 일관성 보장.
 
-### C7. `EarnCoin` 일일한도/COIN_CAP 검증이 트랜잭션 밖 → 경쟁 조건으로 한도 초과
-- **파일**: `server/domain/level/service.go:106-163`, `server/storage/level_repository.go:40-97`
-- **문제**: `GetTodayEarnedCoins` + cap 검증이 tx 밖에서 일어난 후 별도 tx로 `EarnCoin` 수행. `coin_logs`의 UNIQUE(user_id, run_id, context_item_id)는 **같은** 토픽만 막음.
-- **공격 시나리오**: 두 브라우저 탭에서 **서로 다른** 토픽에 대해 동시에 `/level/earn` 호출 → 둘 다 검증 통과 → 일일 한도 2배 적립. `COIN_CAP=5000`도 깨짐.
-- **영향**: `MIN_WITHDRAWAL_AMOUNT=3000` 실제 출금 시스템과 연결된 돈 문제.
-- **Fix**: cap + daily-limit 체크를 `LevelRepository.EarnCoin` 트랜잭션 안으로 이동. `SELECT ... FOR UPDATE` on `user_points`. 또는 `UPDATE ... WHERE today_earned + $1 <= limit` 조건부 업데이트.
+### C7. `EarnCoin` 일일한도/COIN_CAP 검증이 트랜잭션 밖 → 경쟁 조건으로 한도 초과 [FIXED 2026-04-23]
+- **파일**: `server/domain/level/service.go:106-169`, `server/storage/level_repository.go:40-142`
+- **문제**: `GetTodayEarnedCoins` + cap 검증이 tx 밖에서 일어난 후 별도 tx로 `EarnCoin` 수행.
+- **해결**:
+  - `level_repository.go`의 `EarnCoin`을 재작성. 단일 트랜잭션 내에서:
+    1. `SELECT ... FROM user_points WHERE user_id = $1 FOR UPDATE` (행 잠금으로 동시 요청 직렬화)
+    2. COIN_CAP 체크 (잠긴 잔액 기준)
+    3. 일일 한도 체크 (`SUM(coins_earned)` 같은 tx 내)
+    4. `INSERT coin_log` + `UPSERT user_points`
+  - `ErrCoinCapReached`, `ErrDailyLimitReached` 센티넬 에러 추가 (`model.go`).
+  - `service.go`에서 racy pre-check 제거. 서비스는 dailyLimit 계산 후 repo에 전달, repo의 센티넬 에러를 `EarnResult` reason으로 매핑.
+  - `EarnCoin` 인터페이스에 `dailyLimit int` 파라미터 추가. 모든 mock 업데이트 완료.
+  - **외부 동작 변화 없음**: 동시 요청 시 두 번째 탭이 첫 번째 완료까지 DB 레벨에서 대기 → 한도 정확히 적용.
 
 ### ~~C8. Collector 스케줄러 오버랩 — 이전 run이 돌고있는데 다음 cron 시작~~ [FALSE]
 - **파일**: `server/scheduler/scheduler.go:43-48, 75-89`, `server/storage/collector_repo.go:103-118`
@@ -107,12 +118,18 @@
 - **결과**: 두 번 클릭하면 동시 collection 2개 돌아감. 배포 중 SIGTERM 시 좀비 goroutine 발생.
 - **Fix**: `sync.Mutex + running bool` 또는 Redis `collect:running` 키로 가드. 409 반환. `shutdownCtx` 주입 + WaitGroup.
 
-### C10. 출금 요청 멱등성 없음 ~~+ row-level lock 없음~~ [PARTIALLY TRUE]
-- **파일**: `server/api/handler/withdrawal_handler.go:71-101`, `server/domain/withdrawal/service.go:149-152`, `server/storage/withdrawal_repository.go:80-142`
-- **멱등성 키 미지원**: **사실**. `Idempotency-Key` 헤더 미지원. 네트워크 재시도 시 중복 출금 요청 생성 가능.
-- **~~row-level lock 없음~~**: **거짓**. `withdrawal_repository.go:90`에서 `SELECT points FROM user_points WHERE user_id = $1 FOR UPDATE` 사용. 단일 트랜잭션 내 잔액 체크 + 차감 + 출금 생성 원자적 수행. 잔액 이중 차감(double-spend)은 방지됨.
-- **실제 위험**: 멱등성 키 부재로 중복 pending 레코드 생성 가능하나, 재정적 무결성(잔액)은 `FOR UPDATE`로 보호됨. 심각도 하향 권장 (CRITICAL → HIGH).
-- **Fix**: `Idempotency-Key` 헤더 + `withdrawal_idempotency` 테이블(TTL).
+### C10. 출금 요청 멱등성 없음 ~~+ row-level lock 없음~~ [FIXED 2026-04-23]
+- **파일**: `server/api/handler/withdrawal_handler.go:89-108`, `packages/shared/src/api.ts:388-393`
+- **멱등성 키 미지원**: **사실이었음** (수정 완료).
+- **~~row-level lock 없음~~**: **거짓**. `FOR UPDATE` 이미 존재 (검증 시 확인됨).
+- **해결**:
+  - `withdrawal_handler.go`에 `IdempotencyStore` 인터페이스 추가. `Idempotency-Key` 헤더 필수.
+  - Redis `SETNX` (TTL 24시간)로 중복 감지. 키 존재 시 409 Conflict 반환.
+  - Redis 실패 시 fail-closed (500) — 출금은 돈 문제이므로 불확실하면 차단.
+  - `packages/shared/src/api.ts`의 `requestWithdrawal`에서 `crypto.randomUUID()` 생성 + `Idempotency-Key` 헤더 전송.
+  - CORS `AllowHeaders`에 `Idempotency-Key` 추가 (`middleware.go`).
+  - `main.go`에서 Redis 기반 `IdempotencyStore` 주입 (Redis 불가 시 graceful 경고).
+  - **외부 동작 변화**: 출금 요청 시 `Idempotency-Key` 헤더 필수. 중복 요청은 409 반환.
 
 ---
 
@@ -139,15 +156,25 @@
   - 개발 환경은 기존대로 짧은 시크릿 허용.
   - **외부 동작 변화 없음**: 프로덕션에 32자 이상 시크릿이 설정되어 있으면 영향 0.
 
-#### H4. Withdrawal approval에 `FOR UPDATE` 없음
-- **파일**: `server/domain/withdrawal/service.go:192-207`
+#### H4. Withdrawal approval에 `FOR UPDATE` 없음 [FIXED 2026-04-23]
+- **파일**: `server/domain/withdrawal/service.go:191-203`, `server/storage/withdrawal_repository.go:530-583`
 - **문제**: 관리자 동시 승인 시 approved 트랜지션 2개 생성 → 다운스트림 payout 잡이 2번 송금할 수 있음.
-- **Fix**: 트랜잭션에 `SELECT ... FROM withdrawals WHERE id=$1 FOR UPDATE` + latest transition FOR UPDATE 후 insert.
+- **해결**:
+  - `withdrawal_repository.go`에 `ApproveWithdrawalAtomic` 추가. `RejectWithdrawalAtomic`/`CancelWithdrawalAtomic`과 동일한 패턴:
+    1. BEGIN TX → `SELECT ... FROM withdrawals WHERE id = $1 FOR UPDATE` (행 잠금)
+    2. 최신 상태 확인 (pending이 아니면 `ConflictError` 반환)
+    3. approved 트랜지션 INSERT → COMMIT
+  - `service.go`의 `ApproveWithdrawal`이 새 원자적 메서드 호출.
+  - **외부 동작 변화 없음**: 동시 승인 시 두 번째 요청이 409 Conflict 반환.
 
-#### H5. 어드민 `NewCoins`에 상한 없음
-- **파일**: `server/api/handler/admin_coin_handler.go:75-78`
-- **문제**: `min=0`만 있음. 악의적/실수 관리자가 `new_coins=2147483647` 설정 가능. `SetCoins`는 `COIN_CAP` 미적용.
-- **Fix**: `max=<COIN_CAP>` 검증.
+#### H5. 어드민 `NewCoins`에 상한 없음 [FIXED 2026-04-23]
+- **파일**: `server/api/handler/admin_coin_handler.go:16-24, 93-96`
+- **문제**: `min=0`만 있음. 악의적/실수 관리자가 `new_coins=2147483647` 설정 가능.
+- **해결**:
+  - `AdminCoinHandler` 구조체에 `coinCap int` 필드 추가. `NewAdminCoinHandler`에서 `cfg.CoinCap` 주입.
+  - `AdjustCoins` 핸들러에서 `req.NewCoins > h.coinCap` 검증. 초과 시 400 + COIN_CAP 값 포함 에러 메시지.
+  - 하한(0)은 기존 binding tag `min=0`으로 유지.
+  - **외부 동작 변화**: COIN_CAP 초과 값 설정 시 400 반환 (기존에는 무제한 허용).
 
 #### H6. CORS 서브도메인 와일드카드 + credentials
 - **파일**: `server/api/middleware.go:104-117`
@@ -495,18 +522,18 @@ CTO가 물을 질문들:
 - [ ] C3. SSRF allowlist
 - [x] C4. Turnstile production guard [FIXED 2026-04-23]
 - [x] C5. ~~Kakao email overwrite~~ [FALSE — email은 ON CONFLICT에서 갱신 안 됨]
-- [ ] C6. CompleteSignup transaction
-- [ ] C7. EarnCoin race condition
+- [x] C6. CompleteSignup transaction [FIXED 2026-04-23]
+- [x] C7. EarnCoin race condition [FIXED 2026-04-23]
 - [x] C8. ~~Scheduler overlap~~ [FALSE — CanRunToday가 running 상태도 체크함]
 - [ ] C9. Admin collect guard
-- [ ] C10. Withdrawal idempotency [PARTIALLY TRUE — 멱등성 키 없음은 사실, FOR UPDATE는 있음. HIGH로 하향 권장]
+- [x] C10. Withdrawal idempotency [FIXED 2026-04-23 — Redis SETNX + Idempotency-Key 헤더]
 
 ### HIGH
 - [ ] H1. Refresh token family
 - [ ] H2. Access token invalidation
 - [x] H3. JWT_SECRET length [FIXED 2026-04-23]
-- [ ] H4. Withdrawal approval lock
-- [ ] H5. Admin coin max
+- [x] H4. Withdrawal approval lock [FIXED 2026-04-23]
+- [x] H5. Admin coin max [FIXED 2026-04-23]
 - [ ] H6. CORS allowlist
 - [ ] H7. Image path validation
 - [ ] H8. PII logging

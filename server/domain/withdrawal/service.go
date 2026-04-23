@@ -195,15 +195,12 @@ func (s *Service) ApproveWithdrawal(ctx context.Context, adminID string, withdra
 		return apperr.NewValidationError("note", "is required")
 	}
 
-	status, err := s.repo.GetLatestStatus(ctx, withdrawalID)
-	if err != nil {
-		return fmt.Errorf("get status: %w", err)
-	}
-	if status != StatusPending {
-		return apperr.NewConflictError(fmt.Sprintf("can only approve pending withdrawals (current: %s)", status))
+	// Atomically: lock row, verify pending, insert approved transition
+	if err := s.repo.ApproveWithdrawalAtomic(ctx, withdrawalID, adminID, note); err != nil {
+		return fmt.Errorf("approve withdrawal: %w", err)
 	}
 
-	return s.repo.AddTransition(ctx, withdrawalID, StatusApproved, note, adminID)
+	return nil
 }
 
 // RejectWithdrawal rejects a pending withdrawal (admin action) and restores coins atomically.

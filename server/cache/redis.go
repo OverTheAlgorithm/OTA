@@ -91,6 +91,12 @@ func (r *RedisCache) Ping(ctx context.Context) error {
 	return r.client.Ping(ctx).Err()
 }
 
+// SetNX sets key to value with the given TTL only if the key does not already
+// exist. Returns true if the key was set (new), false if it already existed.
+func (r *RedisCache) SetNX(ctx context.Context, key string, value string, ttl time.Duration) (bool, error) {
+	return r.client.SetNX(ctx, r.prefixed(key), value, ttl).Result()
+}
+
 // GetTyped retrieves a value from any Cache and deserialises it into T.
 // Works transparently for both OtterCache (native type assertion) and
 // RedisCache (JSON unmarshal from raw bytes).

@@ -10,6 +10,16 @@ import (
 	"ota/domain/user"
 )
 
+// CompleteSignupParams holds all data needed to atomically complete a signup.
+type CompleteSignupParams struct {
+	KakaoID         int64
+	Email           string
+	Nickname        string
+	ProfileImageURL string
+	AgreedTermIDs   []string
+	SignupBonus     int // 0 means no bonus
+}
+
 type UserRepository struct {
 	pool *pgxpool.Pool
 }
@@ -108,4 +118,75 @@ func (r *UserRepository) DeleteByID(ctx context.Context, userID string) error {
 		return fmt.Errorf("user not found: %s", userID)
 	}
 	return nil
+}
+
+// CompleteSignupTx atomically:
+//  1. Upserts the user row
+//  2. Inserts user_term_consent rows for each agreed term ID
+//  3. (If SignupBonus > 0) Upserts user_points with the bonus amount
+//  4. (If SignupBonus > 0) Inserts a coin_event audit record
+//
+// All four operations run in a single transaction. On any error the
+// transaction is rolled back and no partial data is written.
+func (r *UserRepository) CompleteSignupTx(ctx context.Context, p CompleteSignupParams) (user.User, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return user.User{}, fmt.Errorf("complete signup begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// 1. Upsert user
+	var u user.User
+	err = tx.QueryRow(ctx, `
+		INSERT INTO users (kakao_id, email, nickname, profile_image)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (kakao_id) DO UPDATE SET
+			nickname      = EXCLUDED.nickname,
+			profile_image = EXCLUDED.profile_image,
+			updated_at    = NOW()
+		RETURNING id, kakao_id, email, email_verified, nickname, profile_image, role, created_at, updated_at`,
+		p.KakaoID, p.Email, p.Nickname, p.ProfileImageURL,
+	).Scan(&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return user.User{}, fmt.Errorf("complete signup upsert user: %w", err)
+	}
+
+	// 2. Insert term consents
+	for _, termID := range p.AgreedTermIDs {
+		_, err = tx.Exec(ctx,
+			`INSERT INTO user_term_consents (user_id, term_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			u.ID, termID,
+		)
+		if err != nil {
+			return user.User{}, fmt.Errorf("complete signup insert consent for term %s: %w", termID, err)
+		}
+	}
+
+	// 3 & 4. Signup bonus (skipped when zero)
+	if p.SignupBonus > 0 {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO user_points (user_id, points, updated_at)
+			VALUES ($1, $2, NOW())
+			ON CONFLICT (user_id) DO UPDATE SET
+				points     = user_points.points + $2,
+				updated_at = NOW()`,
+			u.ID, p.SignupBonus,
+		)
+		if err != nil {
+			return user.User{}, fmt.Errorf("complete signup add points: %w", err)
+		}
+
+		_, err = tx.Exec(ctx,
+			`INSERT INTO coin_events (user_id, amount, type, memo, actor_id) VALUES ($1, $2, $3, $4, NULL)`,
+			u.ID, p.SignupBonus, "signup_bonus", "가입 보너스",
+		)
+		if err != nil {
+			return user.User{}, fmt.Errorf("complete signup coin event: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return user.User{}, fmt.Errorf("complete signup commit: %w", err)
+	}
+	return u, nil
 }

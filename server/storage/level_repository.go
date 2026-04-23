@@ -37,14 +37,61 @@ func (r *LevelRepository) GetUserCoins(ctx context.Context, userID string) (leve
 	return uc, nil
 }
 
-func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, coins int, coinCap int) (bool, int, error) {
+func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, coins int, coinCap int, dailyLimit int) (bool, int, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return false, 0, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	// 1. Insert coin_log — UNIQUE(user_id, run_id, context_item_id) prevents duplicates within same run
+	// 1. Lock user_points row to serialize concurrent earn attempts for the same user.
+	// COALESCE handles new users who have no row yet (balance treated as 0).
+	var currentCoins int
+	err = tx.QueryRow(ctx,
+		`SELECT COALESCE(points, 0) FROM user_points WHERE user_id = $1 FOR UPDATE`,
+		userID,
+	).Scan(&currentCoins)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// No row yet — insert a placeholder so subsequent FOR UPDATE works, then re-read.
+		_, err = tx.Exec(ctx,
+			`INSERT INTO user_points (user_id, points, updated_at) VALUES ($1, 0, NOW()) ON CONFLICT (user_id) DO NOTHING`,
+			userID,
+		)
+		if err != nil {
+			return false, 0, fmt.Errorf("insert user_points placeholder: %w", err)
+		}
+		err = tx.QueryRow(ctx,
+			`SELECT COALESCE(points, 0) FROM user_points WHERE user_id = $1 FOR UPDATE`,
+			userID,
+		).Scan(&currentCoins)
+	}
+	if err != nil {
+		return false, 0, fmt.Errorf("lock user_points: %w", err)
+	}
+
+	// 2. Check coin cap atomically inside the transaction.
+	if coinCap > 0 && currentCoins >= coinCap {
+		return false, 0, level.ErrCoinCapReached
+	}
+
+	// 3. Check daily limit atomically inside the transaction (0 = unlimited).
+	if dailyLimit > 0 {
+		var todayEarned int
+		err = tx.QueryRow(ctx, `
+			SELECT COALESCE(SUM(coins_earned), 0)
+			FROM coin_logs
+			WHERE user_id = $1
+			  AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul'
+		`, userID).Scan(&todayEarned)
+		if err != nil {
+			return false, 0, fmt.Errorf("get today earned coins: %w", err)
+		}
+		if todayEarned >= dailyLimit {
+			return false, 0, level.ErrDailyLimitReached
+		}
+	}
+
+	// 4. Insert coin_log — UNIQUE(user_id, run_id, context_item_id) prevents duplicates within same run.
 	_, err = tx.Exec(ctx,
 		`INSERT INTO coin_logs (user_id, run_id, context_item_id, coins_earned) VALUES ($1, $2, $3, $4)`,
 		userID, runID, contextItemID, coins,
@@ -57,7 +104,7 @@ func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, co
 		return false, 0, fmt.Errorf("insert coin log: %w", err)
 	}
 
-	// 2. Upsert user_points and add earned coins, capped at coinCap via LEAST.
+	// 5. Upsert user_points and add earned coins, capped at coinCap via LEAST.
 	// When coinCap <= 0, no cap is applied: use a sentinel value large enough to never trigger.
 	effectiveCap := coinCap
 	if effectiveCap <= 0 {
@@ -68,8 +115,6 @@ func (r *LevelRepository) EarnCoin(ctx context.Context, userID string, runID, co
 		"coins", coins,
 		"coin_cap", coinCap,
 		"effective_cap", effectiveCap,
-		"coins_type", fmt.Sprintf("%T", coins),
-		"effective_cap_type", fmt.Sprintf("%T", effectiveCap),
 	)
 	var newTotal int
 	err = tx.QueryRow(ctx, `

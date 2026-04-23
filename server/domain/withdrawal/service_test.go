@@ -56,6 +56,9 @@ func (m *mockRepoForService) CancelWithdrawalAtomic(_ context.Context, _ uuid.UU
 func (m *mockRepoForService) RejectWithdrawalAtomic(_ context.Context, _ uuid.UUID, _, _ string) (int, string, error) {
 	return 0, "", nil
 }
+func (m *mockRepoForService) ApproveWithdrawalAtomic(_ context.Context, _ uuid.UUID, _, _ string) error {
+	return nil
+}
 func (m *mockRepoForService) GetWithdrawalOwner(_ context.Context, _ uuid.UUID) (string, error) {
 	return "", nil
 }

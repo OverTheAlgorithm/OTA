@@ -1,6 +1,7 @@
 package level
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -81,6 +82,13 @@ const (
 	ReasonDuplicate  = "DUPLICATE"
 	ReasonDailyLimit = "DAILY_LIMIT"
 	ReasonCoinCap    = "COIN_CAP"
+)
+
+// Sentinel errors returned by Repository.EarnCoin for limit violations.
+// These are not transient failures — callers should check with errors.Is.
+var (
+	ErrDailyLimitReached = errors.New("daily coin limit reached")
+	ErrCoinCapReached    = errors.New("coin cap reached")
 )
 
 type UserCoins struct {

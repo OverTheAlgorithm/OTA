@@ -2,6 +2,7 @@ package level
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -103,36 +104,35 @@ func (s *Service) GetEarnedItemIDs(ctx context.Context, userID string, itemIDs [
 }
 
 // EarnCoin awards coins for visiting a topic.
+// Daily-limit and coin-cap checks are performed atomically inside the repository
+// transaction to prevent race conditions when multiple tabs earn simultaneously.
 func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextItemID uuid.UUID, preferred bool) (EarnResult, error) {
 	coins := CalcCoins(preferred)
 
+	// Read current coins once to compute level-based daily limit and for response metadata.
+	// The authoritative enforcement happens inside the repo transaction.
 	before, err := s.repo.GetUserCoins(ctx, userID)
 	if err != nil {
 		return EarnResult{}, fmt.Errorf("get coins before earn: %w", err)
 	}
 
-	// Check coin cap: if user is already at or above the cap, no more earning.
-	if s.levelCfg.CoinCap > 0 && before.Coins >= s.levelCfg.CoinCap {
-		info := s.calcInfo(before.Coins)
-		return EarnResult{
-			Earned:     false,
-			Reason:     ReasonCoinCap,
-			Level:      info.Level,
-			TotalCoins: info.TotalCoins,
-			DailyLimit: info.DailyLimit,
-		}, nil
-	}
+	lv := s.levelCfg.CalcLevel(before.Coins)
+	dailyLimit := CalcDailyLimit(lv, s.baseDailyLimit, s.extraLimitPerLevel)
+	oldLevel := lv
 
-	// Check level-based daily coin limit (0 = unlimited)
-	if s.baseDailyLimit > 0 {
-		lv := s.levelCfg.CalcLevel(before.Coins)
-		limit := CalcDailyLimit(lv, s.baseDailyLimit, s.extraLimitPerLevel)
-
-		todayEarned, err := s.repo.GetTodayEarnedCoins(ctx, userID)
-		if err != nil {
-			return EarnResult{}, fmt.Errorf("get today earned coins: %w", err)
+	earned, newTotal, err := s.repo.EarnCoin(ctx, userID, runID, contextItemID, coins, s.levelCfg.CoinCap, dailyLimit)
+	if err != nil {
+		if errors.Is(err, ErrCoinCapReached) {
+			info := s.calcInfo(before.Coins)
+			return EarnResult{
+				Earned:     false,
+				Reason:     ReasonCoinCap,
+				Level:      info.Level,
+				TotalCoins: info.TotalCoins,
+				DailyLimit: info.DailyLimit,
+			}, nil
 		}
-		if todayEarned >= limit {
+		if errors.Is(err, ErrDailyLimitReached) {
 			info := s.calcInfo(before.Coins)
 			return EarnResult{
 				Earned:     false,
@@ -142,12 +142,6 @@ func (s *Service) EarnCoin(ctx context.Context, userID string, runID, contextIte
 				DailyLimit: info.DailyLimit,
 			}, nil
 		}
-	}
-
-	oldLevel := s.levelCfg.CalcLevel(before.Coins)
-
-	earned, newTotal, err := s.repo.EarnCoin(ctx, userID, runID, contextItemID, coins, s.levelCfg.CoinCap)
-	if err != nil {
 		return EarnResult{}, fmt.Errorf("earn coin: %w", err)
 	}
 

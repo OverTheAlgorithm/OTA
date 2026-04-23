@@ -38,6 +38,10 @@ type Repository interface {
 	// inserts a rejected transition with a note, and restores coins — all in one transaction.
 	RejectWithdrawalAtomic(ctx context.Context, withdrawalID uuid.UUID, actorID, note string) (int, string, error)
 
+	// ApproveWithdrawalAtomic atomically verifies the withdrawal is pending,
+	// and inserts an approved transition with a note — all in one transaction.
+	ApproveWithdrawalAtomic(ctx context.Context, withdrawalID uuid.UUID, actorID, note string) error
+
 	// Ownership
 	GetWithdrawalOwner(ctx context.Context, withdrawalID uuid.UUID) (string, error)
 

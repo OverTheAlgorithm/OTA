@@ -116,7 +116,7 @@ func CORSMiddleware(frontendURL string) gin.HandlerFunc {
 			return false
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Content-Type", "Authorization", "Idempotency-Key"},
 		AllowCredentials: true,
 		MaxAge:           3600,
 	})

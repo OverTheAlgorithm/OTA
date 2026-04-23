@@ -68,7 +68,7 @@ func (m *mockLevelRepo) GetUserCoins(_ context.Context, userID string) (level.Us
 	return level.UserCoins{UserID: userID, Coins: m.coins}, nil
 }
 
-func (m *mockLevelRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, coins int, _ int) (bool, int, error) {
+func (m *mockLevelRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, coins int, _ int, _ int) (bool, int, error) {
 	if m.earnErr != nil {
 		return false, 0, m.earnErr
 	}

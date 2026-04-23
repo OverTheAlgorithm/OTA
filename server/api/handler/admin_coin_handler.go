@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -15,10 +16,11 @@ import (
 type AdminCoinHandler struct {
 	userRepo     user.Repository
 	levelService *level.Service
+	coinCap      int
 }
 
-func NewAdminCoinHandler(userRepo user.Repository, levelService *level.Service) *AdminCoinHandler {
-	return &AdminCoinHandler{userRepo: userRepo, levelService: levelService}
+func NewAdminCoinHandler(userRepo user.Repository, levelService *level.Service, coinCap int) *AdminCoinHandler {
+	return &AdminCoinHandler{userRepo: userRepo, levelService: levelService, coinCap: coinCap}
 }
 
 // SearchUser handles GET /api/v1/admin/coins/search?type=id|email&q=...
@@ -85,6 +87,11 @@ func (h *AdminCoinHandler) AdjustCoins(c *gin.Context) {
 	var req adjustCoinsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id, new_coins(>=0), memo는 필수입니다"})
+		return
+	}
+
+	if req.NewCoins > h.coinCap {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("new_coins는 COIN_CAP(%d)을 초과할 수 없습니다", h.coinCap)})
 		return
 	}
 

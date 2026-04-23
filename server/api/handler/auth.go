@@ -73,6 +73,14 @@ type SignupBonusGranter interface {
 	InsertCoinEvent(ctx context.Context, userID string, amount int, eventType, memo, actorID string) error
 }
 
+// SignupTransactor performs the entire CompleteSignup flow atomically in a
+// single database transaction: create user + save consents + grant bonus coins
+// + audit coin event. When set on AuthHandler it replaces the non-transactional
+// four-step path.
+type SignupTransactor interface {
+	CompleteSignupTx(ctx context.Context, p storage.CompleteSignupParams) (user.User, error)
+}
+
 // WithdrawalChecker checks for pending withdrawals before account deletion.
 type WithdrawalChecker interface {
 	HasPendingWithdrawals(ctx context.Context, userID string) (bool, error)
@@ -87,18 +95,19 @@ type RefreshTokenStore interface {
 }
 
 type AuthHandler struct {
-	kakao             *kakao.Client
-	jwt               *auth.JWTManager
-	states            auth.StateStorer
-	userRepo          user.Repository
-	welcomeDeliverer  delivery.WelcomeDeliverer
-	bonusGranter      SignupBonusGranter
-	signupBonus       int
-	frontendURL       string
-	signupCache       cache.Cache
-	termsService      *terms.Service
-	withdrawalChecker WithdrawalChecker
-	refreshTokenStore RefreshTokenStore
+	kakao              *kakao.Client
+	jwt                *auth.JWTManager
+	states             auth.StateStorer
+	userRepo           user.Repository
+	welcomeDeliverer   delivery.WelcomeDeliverer
+	bonusGranter       SignupBonusGranter
+	signupBonus        int
+	frontendURL        string
+	signupCache        cache.Cache
+	termsService       *terms.Service
+	withdrawalChecker  WithdrawalChecker
+	refreshTokenStore  RefreshTokenStore
+	signupTransactor   SignupTransactor
 }
 
 func NewAuthHandler(
@@ -134,6 +143,11 @@ func (h *AuthHandler) WithWithdrawalChecker(wc WithdrawalChecker) *AuthHandler {
 
 func (h *AuthHandler) WithRefreshTokenStore(store RefreshTokenStore) *AuthHandler {
 	h.refreshTokenStore = store
+	return h
+}
+
+func (h *AuthHandler) WithSignupTransactor(t SignupTransactor) *AuthHandler {
+	h.signupTransactor = t
 	return h
 }
 
@@ -337,40 +351,70 @@ func (h *AuthHandler) CompleteSignup(c *gin.Context) {
 		return
 	}
 
-	u, err := h.userRepo.UpsertByKakaoID(
-		c.Request.Context(),
-		pending.KakaoID,
-		pending.Email,
-		pending.Nickname,
-		pending.ProfileImageURL,
+	var (
+		u   user.User
+		err error
 	)
-	if err != nil {
-		slog.Error("[CompleteSignup] failed to create user",
-			"kakao_id", pending.KakaoID,
-			"email", pending.Email,
-			"nickname", pending.Nickname,
-			"error", err,
-		)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "signup failed"})
-		return
-	}
-
-	if err := h.termsService.SaveConsents(c.Request.Context(), u.ID, req.AgreedTermIDs); err != nil {
-		slog.Error("[CompleteSignup] failed to save consents — aborting signup",
-			"user_id", u.ID,
-			"agreed_term_ids", req.AgreedTermIDs,
-			"error", err,
-		)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "signup failed"})
-		return
-	}
-
-	if h.signupBonus > 0 && h.bonusGranter != nil {
-		if err := h.bonusGranter.AddPoints(c.Request.Context(), u.ID, h.signupBonus); err != nil {
-			slog.Warn("[CompleteSignup] signup bonus grant failed", "user_id", u.ID, "error", err)
-		} else {
-			_ = h.bonusGranter.InsertCoinEvent(c.Request.Context(), u.ID, h.signupBonus, "signup_bonus", "가입 보너스", "")
+	if h.signupTransactor != nil {
+		u, err = h.signupTransactor.CompleteSignupTx(c.Request.Context(), storage.CompleteSignupParams{
+			KakaoID:         pending.KakaoID,
+			Email:           pending.Email,
+			Nickname:        pending.Nickname,
+			ProfileImageURL: pending.ProfileImageURL,
+			AgreedTermIDs:   req.AgreedTermIDs,
+			SignupBonus:     h.signupBonus,
+		})
+		if err != nil {
+			slog.Error("[CompleteSignup] transactional signup failed",
+				"kakao_id", pending.KakaoID,
+				"email", pending.Email,
+				"error", err,
+			)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "signup failed"})
+			return
+		}
+		if h.signupBonus > 0 {
 			slog.Info("[CompleteSignup] signup bonus granted", "coins", h.signupBonus, "user_id", u.ID)
+		}
+	} else {
+		// Fallback: non-transactional path (used in tests without a real DB pool).
+		u, err = h.userRepo.UpsertByKakaoID(
+			c.Request.Context(),
+			pending.KakaoID,
+			pending.Email,
+			pending.Nickname,
+			pending.ProfileImageURL,
+		)
+		if err != nil {
+			slog.Error("[CompleteSignup] failed to create user",
+				"kakao_id", pending.KakaoID,
+				"email", pending.Email,
+				"nickname", pending.Nickname,
+				"error", err,
+			)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "signup failed"})
+			return
+		}
+
+		if err := h.termsService.SaveConsents(c.Request.Context(), u.ID, req.AgreedTermIDs); err != nil {
+			slog.Error("[CompleteSignup] failed to save consents — aborting signup",
+				"user_id", u.ID,
+				"agreed_term_ids", req.AgreedTermIDs,
+				"error", err,
+			)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "signup failed"})
+			return
+		}
+
+		if h.signupBonus > 0 && h.bonusGranter != nil {
+			if err := h.bonusGranter.AddPoints(c.Request.Context(), u.ID, h.signupBonus); err != nil {
+				slog.Warn("[CompleteSignup] signup bonus grant failed", "user_id", u.ID, "error", err)
+			} else {
+				if err := h.bonusGranter.InsertCoinEvent(c.Request.Context(), u.ID, h.signupBonus, "signup_bonus", "가입 보너스", ""); err != nil {
+					slog.Warn("[CompleteSignup] signup bonus coin event failed", "user_id", u.ID, "error", err)
+				}
+				slog.Info("[CompleteSignup] signup bonus granted", "coins", h.signupBonus, "user_id", u.ID)
+			}
 		}
 	}
 

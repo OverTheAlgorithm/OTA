@@ -22,8 +22,18 @@ func (m *mockRepo) GetUserCoins(_ context.Context, _ string) (UserCoins, error) 
 	return m.coins, nil
 }
 
-func (m *mockRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, _ int, _ int) (bool, int, error) {
-	return m.earnResult, m.earnTotal, m.earnErr
+func (m *mockRepo) EarnCoin(_ context.Context, _ string, _, _ uuid.UUID, coins int, coinCap int, dailyLimit int) (bool, int, error) {
+	if m.earnErr != nil {
+		return false, 0, m.earnErr
+	}
+	// Simulate the atomic checks the real repo performs inside the transaction.
+	if coinCap > 0 && m.coins.Coins >= coinCap {
+		return false, 0, ErrCoinCapReached
+	}
+	if dailyLimit > 0 && m.todayEarned >= dailyLimit {
+		return false, 0, ErrDailyLimitReached
+	}
+	return m.earnResult, m.earnTotal, nil
 }
 
 func (m *mockRepo) SetCoins(_ context.Context, _ string, _ int, _ string) error {

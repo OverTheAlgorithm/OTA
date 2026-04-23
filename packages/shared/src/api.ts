@@ -386,9 +386,10 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
   }
 
   async function requestWithdrawal(amount: number): Promise<WithdrawalDetail> {
+    const idempotencyKey = crypto.randomUUID();
     const res = await apiFetch(API_PATHS.WITHDRAWAL_REQUEST, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
       body: JSON.stringify({ amount }),
     });
     if (!res.ok) {
