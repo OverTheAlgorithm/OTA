@@ -153,7 +153,7 @@ func (h *AuthHandler) setAuthCookies(w http.ResponseWriter, userID, role string)
 		Path:     "/",
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	if h.refreshTokenStore == nil {
@@ -177,7 +177,7 @@ func (h *AuthHandler) setAuthCookies(w http.ResponseWriter, userID, role string)
 		Path:     "/api/v1/auth",
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	return nil
@@ -192,7 +192,7 @@ func clearAuthCookies(w http.ResponseWriter) {
 		Path:     "/",
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     refreshCookieName,
@@ -201,7 +201,7 @@ func clearAuthCookies(w http.ResponseWriter) {
 		Path:     "/api/v1/auth",
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 }
 

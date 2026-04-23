@@ -51,11 +51,16 @@
   - **외부 동작 변화 없음**: 정상 사용자는 기존과 동일하게 동작. X-Forwarded-For 조작을 통한 rate limit 우회만 차단됨.
   - **배포 시 주의**: Caddy 재시작 필요 (Caddyfile 변경 반영). `docker compose up --build -d`로 자동 반영됨.
 
-### C2. CSRF 미들웨어 우회 가능
-- **파일**: `server/api/middleware.go:200-228`
+### C2. CSRF 미들웨어 우회 가능 [PARTIALLY FIXED 2026-04-23]
+- **파일**: `server/api/middleware.go:200-228`, `server/api/handler/auth.go:156,180,195,204`
 - **문제**: Origin **과** Referer **둘 다** 없으면 "non-browser client"로 간주하고 통과. 쿠키는 `SameSite=None`.
 - **공격 시나리오**: `Referrer-Policy: no-referrer` 헤더를 단 악성 페이지에서 `/auth/delete-account`나 `/withdrawal/request`로 크로스 오리진 POST. 쿠키 자동 첨부, CSRF 통과.
-- **Fix**: 인증 쿠키가 존재하는데 Origin/Referer가 둘 다 없으면 거부. 또는 `SameSite=Lax`로 변경.
+- **해결 (1단계 — SameSite=Lax)**:
+  - `auth.go`의 모든 쿠키 설정(setAuthCookies, clearAuthCookies) 4곳에서 `SameSite=None` → `SameSite=Lax`로 변경.
+  - **근거**: 프론트엔드(`wizletter.mindhacker.club`)의 모든 API 호출은 Vercel rewrite(`vercel.json`)를 통해 same-origin으로 프록시됨. 브라우저는 `server.mindhacker.club`에 직접 통신하지 않음. 쿠키는 `wizletter.mindhacker.club`에 설정되므로 `SameSite=Lax`로 충분.
+  - `SameSite=Lax` 효과: 외부 사이트의 POST/DELETE 요청에 쿠키 미첨부 → CSRF의 핵심 공격 벡터 차단.
+  - **외부 동작 변화 없음**: 이메일/카카오톡 링크 클릭(외부 GET)은 쿠키 전송됨. 사이트 내 모든 기능 정상.
+- **미해결 (2단계 — 선택)**: Origin+Referer 둘 다 없는 경우의 미들웨어 통과 로직. Lax로 쿠키 자체가 안 붙으므로 실질 위험은 제거됨. 추후 미들웨어 정리 시 함께 처리 가능.
 
 ### C3. SSRF — Collector article fetcher에 URL 허용리스트 없음
 - **파일**: `server/domain/collector/article_fetcher.go:56-85`, `server/domain/collector/source_validator.go:158-201`
@@ -486,7 +491,7 @@ CTO가 물을 질문들:
 
 ### CRITICAL
 - [x] C1. SetTrustedProxies [FIXED 2026-04-23 — TrustedPlatform + X-Real-Client-IP 방식]
-- [ ] C2. CSRF bypass
+- [x] C2. CSRF bypass [PARTIALLY FIXED 2026-04-23 — SameSite=Lax로 핵심 벡터 차단]
 - [ ] C3. SSRF allowlist
 - [x] C4. Turnstile production guard [FIXED 2026-04-23]
 - [x] C5. ~~Kakao email overwrite~~ [FALSE — email은 ON CONFLICT에서 갱신 안 됨]
