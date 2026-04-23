@@ -38,11 +38,18 @@
 
 ## CRITICAL — 즉시 수정(돈/데이터/보안 직결)
 
-### C1. `SetTrustedProxies` 미설정 → Rate limit 완전 우회
-- **파일**: `server/main.go:519-522` (호출 없음), `server/api/middleware.go:268-283`
+### C1. `SetTrustedProxies` 미설정 → Rate limit 완전 우회 [FIXED 2026-04-23]
+- **파일**: `server/api/router.go:20`, `server/api/middleware.go:268-283`
 - **문제**: Gin은 기본적으로 모든 프록시를 신뢰 → `c.ClientIP()`가 `X-Forwarded-For` 첫값을 그대로 사용.
 - **공격 시나리오**: `X-Forwarded-For: <랜덤IP>` 헤더 조작만으로 모든 레이트 리밋 무력화. Turnstile의 `remoteip` 검증도 무력화.
-- **Fix**: `r.SetTrustedProxies([]string{"127.0.0.1"})` 한 줄 추가. Caddy가 로컬 프록시이므로 localhost만.
+- **해결**:
+  - 감사 문서 제안(`SetTrustedProxies(["127.0.0.1"])`)은 Docker Compose 환경에서 부적절 — Caddy 컨테이너 IP가 동적이라 관리 부담이 큼.
+  - 대신 **TrustedPlatform + 커스텀 헤더** 방식 채택:
+    1. `Caddyfile`: `header_up X-Real-Client-IP {remote_host}` 추가. Caddy가 실제 클라이언트 IP를 커스텀 헤더에 **덮어쓰기**(append 아닌 overwrite)로 설정. 공격자가 같은 이름의 헤더를 보내도 Caddy가 실제 IP로 교체.
+    2. `server/api/router.go`: `r.SetTrustedProxies(nil)` (X-Forwarded-For 완전 무시) + `r.TrustedPlatform = "X-Real-Client-IP"` (커스텀 헤더에서 IP 읽기).
+  - `c.ClientIP()` 호출 시 X-Real-Client-IP 헤더 값을 사용 → rate limit, Turnstile remoteip 모두 실제 클라이언트 IP 기반으로 동작.
+  - **외부 동작 변화 없음**: 정상 사용자는 기존과 동일하게 동작. X-Forwarded-For 조작을 통한 rate limit 우회만 차단됨.
+  - **배포 시 주의**: Caddy 재시작 필요 (Caddyfile 변경 반영). `docker compose up --build -d`로 자동 반영됨.
 
 ### C2. CSRF 미들웨어 우회 가능
 - **파일**: `server/api/middleware.go:200-228`
@@ -478,7 +485,7 @@ CTO가 물을 질문들:
 다른 세션에서 이 보고서를 이어받을 때, 아래 체크박스로 진행 상황 추적.
 
 ### CRITICAL
-- [ ] C1. SetTrustedProxies
+- [x] C1. SetTrustedProxies [FIXED 2026-04-23 — TrustedPlatform + X-Real-Client-IP 방식]
 - [ ] C2. CSRF bypass
 - [ ] C3. SSRF allowlist
 - [x] C4. Turnstile production guard [FIXED 2026-04-23]

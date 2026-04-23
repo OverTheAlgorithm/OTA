@@ -18,6 +18,13 @@ type RouteRegistrar interface {
 
 func NewRouter(apiPrefix, version string, frontendURL string, jwtManager *auth.JWTManager, ratePerMin int, rateLimitStore limiter.Store, modules []RouteModule) *gin.Engine {
 	r := gin.New()
+
+	// C1 fix: Trust only the X-Real-Client-IP header set by Caddy reverse proxy.
+	// Caddy overwrites this header with the actual client IP ({remote_host}),
+	// so attacker-supplied values are discarded. X-Forwarded-For is ignored entirely.
+	_ = r.SetTrustedProxies(nil)
+	r.TrustedPlatform = "X-Real-Client-IP"
+
 	r.Use(gin.Recovery())
 	r.Use(RequestIDMiddleware())
 	r.Use(LoggerMiddleware(jwtManager))
