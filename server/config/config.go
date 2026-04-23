@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -155,6 +156,9 @@ func Load() (Config, error) {
 	if cfg.JWTSecret == "" {
 		return cfg, fmt.Errorf("JWT_SECRET is required")
 	}
+	if cfg.AppEnv == "production" && len(cfg.JWTSecret) < 32 {
+		return cfg, fmt.Errorf("JWT_SECRET must be at least 32 characters in production (got %d)", len(cfg.JWTSecret))
+	}
 	switch cfg.AIProvider {
 	case "gemini":
 		if cfg.GeminiAPIKey == "" {
@@ -166,6 +170,12 @@ func Load() (Config, error) {
 		}
 	default:
 		return cfg, fmt.Errorf("unsupported AI_PROVIDER: %s (must be \"gemini\" or \"openai\")", cfg.AIProvider)
+	}
+
+	if cfg.AppEnv == "production" && (cfg.TurnstileSecretKey == "" ||
+		cfg.TurnstileSecretKey == "dummy-secret-key" ||
+		strings.HasPrefix(cfg.TurnstileSecretKey, "1x000000000000000000000000000000")) {
+		return cfg, fmt.Errorf("TURNSTILE_SECRET_KEY must be a valid production key (test/dummy keys are not allowed in production)")
 	}
 
 	if cfg.WithdrawalUnitAmount <= 0 {
