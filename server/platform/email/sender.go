@@ -89,7 +89,12 @@ func buildMIMEMessage(from string, to string, subject string, textBody string, h
 
 	msg.WriteString(fmt.Sprintf("From: %s\r\n", from))
 	msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	// RFC 2047-encode the Subject so non-ASCII bytes (Korean, emoji) survive
+	// strict clients like Samsung Email on Galaxy. Lenient clients (Gmail, iPhone Mail)
+	// would tolerate raw UTF-8 here, but Samsung Email falls back to a default
+	// header charset and renders mojibake. mime.QEncoding leaves pure-ASCII strings
+	// unchanged, so plain English subjects remain readable in the raw MIME.
+	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", mime.QEncoding.Encode("utf-8", subject)))
 	msg.WriteString("MIME-Version: 1.0\r\n")
 	msg.WriteString("Content-Type: multipart/alternative; boundary=\"boundary123\"\r\n")
 	msg.WriteString("\r\n")
