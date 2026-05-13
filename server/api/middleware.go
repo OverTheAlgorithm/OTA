@@ -170,19 +170,36 @@ func OptionalAuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 	}
 }
 
-// AdminMiddleware must run after AuthMiddleware (requires userID in context).
-// Always checks DB so that role changes take effect immediately without re-login.
-func AdminMiddleware(userRepo user.Repository) gin.HandlerFunc {
+// RequireRoleMiddleware enforces that the authenticated user holds a role at
+// least as privileged as minRole. It must run after AuthMiddleware (which sets
+// userID in the Gin context). The user's role is re-read from the database on
+// every request so revocations take effect immediately without re-login.
+//
+// On success it stores the resolved user role under the "role" context key so
+// downstream handlers can branch on it without an extra lookup.
+func RequireRoleMiddleware(userRepo user.Repository, minRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetString("userID")
 		u, err := userRepo.FindByID(c.Request.Context(), userID)
-		if err != nil || u.Role != "admin" {
+		if err != nil || !user.HasRoleAtLeast(u.Role, minRole) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
-
+		c.Set("role", u.Role)
 		c.Next()
 	}
+}
+
+// AdminMiddleware is a thin alias for RequireRoleMiddleware with the admin
+// floor. It exists for callers that pre-date the role hierarchy and to make
+// route registration self-documenting.
+func AdminMiddleware(userRepo user.Repository) gin.HandlerFunc {
+	return RequireRoleMiddleware(userRepo, user.RoleAdmin)
+}
+
+// EditorMiddleware allows requests from editors or admins.
+func EditorMiddleware(userRepo user.Repository) gin.HandlerFunc {
+	return RequireRoleMiddleware(userRepo, user.RoleEditor)
 }
 
 // CSRFMiddleware validates the Origin or Referer header for state-mutating

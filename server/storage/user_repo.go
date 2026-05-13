@@ -108,6 +108,23 @@ func (r *UserRepository) UpdateEmail(ctx context.Context, userID string, email s
 	return nil
 }
 
+// UpdateRole changes the role of a single user. It is called from the admin
+// role-management UI and the wrapping handler is responsible for writing an
+// audit log record alongside the update.
+func (r *UserRepository) UpdateRole(ctx context.Context, userID, newRole string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE users SET role = $2, updated_at = NOW() WHERE id = $1`,
+		userID, newRole,
+	)
+	if err != nil {
+		return fmt.Errorf("update role: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user not found: %s", userID)
+	}
+	return nil
+}
+
 func (r *UserRepository) DeleteByID(ctx context.Context, userID string) error {
 	query := `DELETE FROM users WHERE id = $1`
 	tag, err := r.pool.Exec(ctx, query, userID)

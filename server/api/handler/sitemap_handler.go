@@ -16,9 +16,16 @@ type TopicEntry struct {
 	CreatedAt time.Time
 }
 
+// EditorPostEntry holds the data needed to render an editor_pick sitemap URL.
+type EditorPostEntry struct {
+	ID        string
+	UpdatedAt time.Time
+}
+
 // SitemapRepository is the data access interface for sitemap generation.
 type SitemapRepository interface {
 	GetAllTopicIDs(ctx context.Context) ([]TopicEntry, error)
+	GetAllEditorPostEntries(ctx context.Context) ([]EditorPostEntry, error)
 }
 
 // SitemapHandler generates dynamic sitemap.xml.
@@ -63,6 +70,7 @@ var staticPages = []staticPage{
 	{"/", "daily", "1.0"},
 	{"/latest", "daily", "0.9"},
 	{"/allnews", "daily", "0.8"},
+	{"/editor-picks", "daily", "0.8"},
 	{"/privacy-policy", "monthly", "0.3"},
 	{"/terms-of-service", "monthly", "0.3"},
 	{"/cookie-policy", "monthly", "0.3"},
@@ -80,8 +88,15 @@ func (h *SitemapHandler) GetSitemap(c *gin.Context) {
 		return
 	}
 
+	editorPosts, err := h.repo.GetAllEditorPostEntries(ctx)
+	if err != nil {
+		slog.Error("sitemap: failed to query editor post IDs", "error", err)
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
 	today := time.Now().UTC().Format("2006-01-02")
-	urls := make([]xmlURL, 0, len(staticPages)+len(topics))
+	urls := make([]xmlURL, 0, len(staticPages)+len(topics)+len(editorPosts))
 
 	for _, p := range staticPages {
 		urls = append(urls, xmlURL{
@@ -96,6 +111,15 @@ func (h *SitemapHandler) GetSitemap(c *gin.Context) {
 		urls = append(urls, xmlURL{
 			Loc:        h.frontendURL + "/topic/" + t.ID,
 			LastMod:    t.CreatedAt.UTC().Format("2006-01-02"),
+			ChangeFreq: "weekly",
+			Priority:   "0.7",
+		})
+	}
+
+	for _, e := range editorPosts {
+		urls = append(urls, xmlURL{
+			Loc:        h.frontendURL + "/editor-picks/" + e.ID,
+			LastMod:    e.UpdatedAt.UTC().Format("2006-01-02"),
 			ChangeFreq: "weekly",
 			Priority:   "0.7",
 		})

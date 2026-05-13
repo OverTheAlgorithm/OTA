@@ -17,12 +17,18 @@ import (
 // ─── Mock ───────────────────────────────────────────────────────────────────
 
 type mockSitemapRepoForHandler struct {
-	topics []handler.TopicEntry
-	err    error
+	topics      []handler.TopicEntry
+	editorPosts []handler.EditorPostEntry
+	err         error
+	editorErr   error
 }
 
 func (m *mockSitemapRepoForHandler) GetAllTopicIDs(_ context.Context) ([]handler.TopicEntry, error) {
 	return m.topics, m.err
+}
+
+func (m *mockSitemapRepoForHandler) GetAllEditorPostEntries(_ context.Context) ([]handler.EditorPostEntry, error) {
+	return m.editorPosts, m.editorErr
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -148,9 +154,44 @@ func TestSitemapHandler_ValidXML(t *testing.T) {
 		t.Fatalf("response is not valid XML: %v", err)
 	}
 
-	// 7 static + 1 topic
-	if len(urlSet.URLs) != 8 {
-		t.Fatalf("expected 8 URL entries, got %d", len(urlSet.URLs))
+	// 8 static (including /editor-picks) + 1 topic
+	if len(urlSet.URLs) != 9 {
+		t.Fatalf("expected 9 URL entries, got %d", len(urlSet.URLs))
+	}
+}
+
+func TestSitemapHandler_IncludesEditorPicks(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	fixedTime := time.Date(2026, 5, 13, 9, 0, 0, 0, time.UTC)
+	repo := &mockSitemapRepoForHandler{
+		editorPosts: []handler.EditorPostEntry{
+			{ID: "ep-1", UpdatedAt: fixedTime},
+			{ID: "ep-2", UpdatedAt: fixedTime.Add(-24 * time.Hour)},
+		},
+	}
+	h := handler.NewSitemapHandler(repo, "https://wizletter.mindhacker.club")
+	r := gin.New()
+	group := r.Group("/api/v1")
+	h.RegisterRoutes(group)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sitemap.xml", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	for _, want := range []string{
+		"https://wizletter.mindhacker.club/editor-picks/ep-1",
+		"https://wizletter.mindhacker.club/editor-picks/ep-2",
+		"https://wizletter.mindhacker.club/editor-picks", // static list page
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("expected sitemap to contain %s", want)
+		}
 	}
 }
 

@@ -46,3 +46,36 @@ func (r *SitemapRepository) GetAllTopicRows(ctx context.Context) ([]SitemapTopic
 
 	return entries, nil
 }
+
+// SitemapEditorPostRow holds the data needed to render an editor_pick entry.
+type SitemapEditorPostRow struct {
+	ID        string
+	UpdatedAt time.Time
+}
+
+// GetAllEditorPostRows returns published editor posts ordered newest first.
+func (r *SitemapRepository) GetAllEditorPostRows(ctx context.Context) ([]SitemapEditorPostRow, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id::text, updated_at FROM editor_posts
+		 WHERE status = 'published' AND published_at IS NOT NULL
+		 ORDER BY published_at DESC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("sitemap: query editor_post IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []SitemapEditorPostRow
+	for rows.Next() {
+		var e SitemapEditorPostRow
+		if err := rows.Scan(&e.ID, &e.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("sitemap: scan editor_post row: %w", err)
+		}
+		entries = append(entries, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sitemap: editor_post rows error: %w", err)
+	}
+
+	return entries, nil
+}

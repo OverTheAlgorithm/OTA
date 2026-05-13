@@ -25,6 +25,7 @@ import (
 	"ota/config"
 	"ota/domain/collector"
 	"ota/domain/delivery"
+	"ota/domain/editor"
 	"ota/domain/level"
 	"ota/domain/poll"
 	"ota/domain/push"
@@ -55,6 +56,18 @@ func (a *sitemapRepoAdapter) GetAllTopicIDs(ctx context.Context) ([]handler.Topi
 	entries := make([]handler.TopicEntry, len(rows))
 	for i, r := range rows {
 		entries[i] = handler.TopicEntry{ID: r.ID, CreatedAt: r.CreatedAt}
+	}
+	return entries, nil
+}
+
+func (a *sitemapRepoAdapter) GetAllEditorPostEntries(ctx context.Context) ([]handler.EditorPostEntry, error) {
+	rows, err := a.repo.GetAllEditorPostRows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]handler.EditorPostEntry, len(rows))
+	for i, r := range rows {
+		entries[i] = handler.EditorPostEntry{ID: r.ID, UpdatedAt: r.UpdatedAt}
 	}
 	return entries, nil
 }
@@ -402,6 +415,15 @@ func main() {
 
 	adminCoinHandler := handler.NewAdminCoinHandler(userRepo, levelService, cfg.CoinCap)
 
+	// Editor + role management
+	editorRepo := storage.NewEditorRepository(pool)
+	editorService := editor.NewService(editorRepo)
+	editorUploadHandler := handler.NewEditorUploadHandler(imageBaseDir, "/api/v1/images")
+	editorHandler := handler.NewEditorHandler(editorService).WithUploadHandler(editorUploadHandler)
+	editorPickHandler := handler.NewEditorPickHandler(editorRepo)
+	roleChangeRepo := storage.NewRoleChangeRepository(pool)
+	adminUserHandler := handler.NewAdminUserHandler(userRepo, roleChangeRepo)
+
 	adminHandler := handler.NewAdminHandler(collectorService, cfg.SlackWebhookURL, brainCategoryHandler).
 		WithLevelService(levelService).
 		WithMockItemCreator(levelRepo).
@@ -526,6 +548,21 @@ func main() {
 			GroupName:   "adblock",
 			Handler:     adblockHandler,
 			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager)},
+		},
+		{
+			GroupName:   "editor",
+			Handler:     editorHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.EditorMiddleware(userRepo)},
+		},
+		{
+			GroupName:   "editor-picks",
+			Handler:     editorPickHandler,
+			Middlewares: []gin.HandlerFunc{},
+		},
+		{
+			GroupName:   "admin/users",
+			Handler:     adminUserHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
 		},
 		{
 			GroupName:   "",
