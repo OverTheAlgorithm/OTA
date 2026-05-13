@@ -84,4 +84,18 @@ export const API_PATHS = {
   ADMIN_PUSH: `${API_PREFIX}/admin/push`,
   ADMIN_PUSH_ITEM: (id: string) => `${API_PREFIX}/admin/push/${id}`,
   ADMIN_PUSH_SEND: (id: string) => `${API_PREFIX}/admin/push/${id}/send`,
+
+  // Editor (authoring)
+  EDITOR_POSTS: `${API_PREFIX}/editor/posts`,
+  EDITOR_POST: (id: string) => `${API_PREFIX}/editor/posts/${id}`,
+  EDITOR_UPLOAD_IMAGE: `${API_PREFIX}/editor/upload-image`,
+
+  // Editor Picks (public)
+  EDITOR_PICKS: `${API_PREFIX}/editor-picks`,
+  EDITOR_PICK: (id: string) => `${API_PREFIX}/editor-picks/${id}`,
+
+  // Admin Users (role management)
+  ADMIN_USERS_SEARCH: `${API_PREFIX}/admin/users/search`,
+  ADMIN_USERS_ROLE: `${API_PREFIX}/admin/users/role`,
+  ADMIN_USERS_ROLE_HISTORY: (id: string) => `${API_PREFIX}/admin/users/${id}/role-history`,
 } as const;

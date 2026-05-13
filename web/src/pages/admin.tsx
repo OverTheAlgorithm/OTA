@@ -331,6 +331,20 @@ export function AdminPage() {
           </div>
         </div>
 
+        <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
+          <h2 className="text-lg font-semibold">사용자 권한 관리</h2>
+          <p className="text-sm text-[#6b8db5]">
+            사용자에게 에디터 또는 관리자 권한을 부여하거나 해제할 수 있습니다. 모든 변경은 감사 로그에 기록됩니다.
+          </p>
+          <Link
+            to="/admin/users"
+            className="inline-block px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors"
+            style={{ background: "var(--color-button-primary)", color: "white" }}
+          >
+            권한 관리
+          </Link>
+        </section>
+
         <section className="rounded-2xl border border-[#ff5442]/20 bg-[#ff5442]/5 p-6 space-y-4">
           <h2 className="text-lg font-semibold text-[#ff5442]">포인트 수정</h2>
           <p className="text-sm text-[#6b8db5]">

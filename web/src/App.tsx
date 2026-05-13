@@ -21,6 +21,11 @@ import { TermsOfServicePage } from "@/pages/terms-of-service";
 import { AboutPage } from "@/pages/about";
 import { LatestPage } from "@/pages/latest";
 import { NotFoundPage } from "@/pages/not-found";
+import { EditorPicksPage } from "@/pages/editor-picks";
+import { EditorPickDetailPage } from "@/pages/editor-pick-detail";
+import { EditorNewPage } from "@/pages/editor-new";
+import { EditorEditPage } from "@/pages/editor-edit";
+import { AdminUsersPage } from "@/pages/admin-users";
 
 function LoginRedirect() {
   const [searchParams] = useSearchParams();
@@ -45,6 +50,11 @@ function App() {
           <Route path="/admin/terms" element={<ErrorBoundary><AdminTermsPage /></ErrorBoundary>} />
           <Route path="/admin/coins" element={<ErrorBoundary><AdminCoinsPage /></ErrorBoundary>} />
           <Route path="/admin/push" element={<ErrorBoundary><AdminPushPage /></ErrorBoundary>} />
+          <Route path="/admin/users" element={<ErrorBoundary><AdminUsersPage /></ErrorBoundary>} />
+          <Route path="/editor-picks" element={<ErrorBoundary><EditorPicksPage /></ErrorBoundary>} />
+          <Route path="/editor-picks/:id" element={<ErrorBoundary><EditorPickDetailPage /></ErrorBoundary>} />
+          <Route path="/editor/new" element={<ErrorBoundary><EditorNewPage /></ErrorBoundary>} />
+          <Route path="/editor/edit/:id" element={<ErrorBoundary><EditorEditPage /></ErrorBoundary>} />
           <Route path="/terms-consent" element={<ErrorBoundary><TermsConsentPage /></ErrorBoundary>} />
           <Route path="/mypage" element={<ErrorBoundary><MypagePage /></ErrorBoundary>} />
           <Route path="/withdrawal" element={<ErrorBoundary><WithdrawalPage /></ErrorBoundary>} />

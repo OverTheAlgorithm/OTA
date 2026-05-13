@@ -10,6 +10,7 @@ const api = createApiClient(API_BASE, webAdapter);
 
 export type {
   User,
+  UserRole,
   ApiResponse,
   ApiError,
   DetailItem,
@@ -47,7 +48,17 @@ export type {
   ScheduledPush,
   CreateScheduledPushRequest,
   UpdateScheduledPushRequest,
+  EditorPost,
+  EditorPostStatus,
+  EditorPickCard,
+  EditorPickDetail,
+  EditorPickPage,
+  UploadedImage,
+  RoleChangeLog,
+  UpdateRoleResult,
 } from "@wizletter/shared";
+
+export { hasRoleAtLeast } from "@wizletter/shared";
 
 // ── Re-export API functions (preserves existing import pattern) ──────────────
 
@@ -128,6 +139,20 @@ export const {
   registerPushTokenPublic,
   registerPushToken,
   unlinkPushToken,
+  // Editor (authoring)
+  createEditorPost,
+  listMyEditorPosts,
+  getEditorPost,
+  updateEditorPost,
+  deleteEditorPost,
+  uploadEditorImage,
+  // Editor Picks (public)
+  listEditorPicks,
+  getEditorPick,
+  // Admin Users (role management)
+  adminSearchUserByRole,
+  adminUpdateUserRole,
+  adminGetRoleHistory,
 } = api;
 
 // ── Web-specific exports ────────────────────────────────────────────────────

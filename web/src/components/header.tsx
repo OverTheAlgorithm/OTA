@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
+import { hasRoleAtLeast } from "@/lib/api";
 import { LoginModal } from "./login-modal";
 import { SubscriptionNudgeBanner } from "./subscription-nudge-banner";
 
@@ -10,6 +11,9 @@ export function Header() {
   const location = useLocation();
   const [loginOpen, setLoginOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const isLanding = location.pathname === "/";
+  const isEditorOrAdmin = !!user && hasRoleAtLeast(user.role, "editor");
 
   const handleLogout = async () => {
     await logout();
@@ -41,12 +45,28 @@ export function Header() {
             >
               모든 소식 보기
             </Link>
+            {!isLanding && (
+              <Link
+                to="/editor-picks"
+                className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+              >
+                에디터 픽
+              </Link>
+            )}
           </nav>
 
           {/* Right actions (desktop) + hamburger (mobile) */}
           <div className="flex items-center gap-3">
             {/* Desktop actions */}
             <div className="hidden md:flex items-center gap-3">
+              {isEditorOrAdmin && (
+                <Link
+                  to="/editor/new"
+                  className="inline-flex items-center justify-center px-4 h-9 rounded-full bg-[#f0c14b] border-[2px] border-[#231815] text-sm font-medium text-[#231815] hover:opacity-80 transition-opacity"
+                >
+                  발행하기
+                </Link>
+              )}
               {user ? (
                 <>
                   {user.role === "admin" && (
@@ -110,6 +130,24 @@ export function Header() {
             >
               모든 소식 보기
             </Link>
+            {!isLanding && (
+              <Link
+                to="/editor-picks"
+                className="block text-base font-medium text-[#231815]"
+                onClick={() => setMenuOpen(false)}
+              >
+                에디터 픽
+              </Link>
+            )}
+            {isEditorOrAdmin && (
+              <Link
+                to="/editor/new"
+                className="block text-base font-bold text-[#231815]"
+                onClick={() => setMenuOpen(false)}
+              >
+                ✍ 발행하기
+              </Link>
+            )}
             {user ? (
               <>
                 {user.role === "admin" && (

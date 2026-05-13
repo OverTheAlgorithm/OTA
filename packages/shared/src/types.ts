@@ -1,5 +1,21 @@
 // Extracted from: web/src/lib/api.ts
 
+// Role identifiers. Kept in sync with server/domain/user/model.go.
+export type UserRole = "user" | "editor" | "admin";
+
+// roleRank determines the precedence used by hasRoleAtLeast. The server has
+// the canonical implementation; this mirror is for client-side gating only.
+const ROLE_RANK: Record<string, number> = {
+  user: 0,
+  editor: 1,
+  admin: 2,
+};
+
+export function hasRoleAtLeast(role: string | undefined | null, min: UserRole): boolean {
+  if (!role) return false;
+  return (ROLE_RANK[role] ?? 0) >= ROLE_RANK[min];
+}
+
 export interface User {
   id: string;
   kakao_id: number;
@@ -7,9 +23,78 @@ export interface User {
   email_verified: boolean;
   nickname?: string;
   profile_image?: string;
-  role: string;
+  role: UserRole | string;
   created_at: string;
   updated_at: string;
+}
+
+// ── Editor posts ───────────────────────────────────────────────────────────
+
+export type EditorPostStatus = "draft" | "published";
+
+export interface EditorPost {
+  id: string;
+  author_id: string;
+  title: string;
+  content_html: string;
+  content_text: string;
+  first_image_url?: string | null;
+  status: EditorPostStatus;
+  published_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EditorPickCard {
+  id: string;
+  title: string;
+  excerpt: string;
+  first_image_url?: string | null;
+  author_id: string;
+  author_name?: string;
+  published_at: string;
+}
+
+export interface EditorPickDetail {
+  id: string;
+  title: string;
+  content_html: string;
+  first_image_url?: string | null;
+  author_id: string;
+  author_name?: string;
+  published_at: string;
+  updated_at: string;
+}
+
+export interface EditorPickPage {
+  items: EditorPickCard[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface UploadedImage {
+  url: string;
+}
+
+// ── Admin users ────────────────────────────────────────────────────────────
+
+export interface RoleChangeLog {
+  id: string;
+  user_id: string;
+  before_role: string;
+  after_role: string;
+  actor_id?: string | null;
+  memo: string;
+  created_at: string;
+}
+
+export interface UpdateRoleResult {
+  user_id: string;
+  before_role: string;
+  after_role: string;
+  unchanged?: boolean;
+  log?: RoleChangeLog;
 }
 
 export interface ApiResponse<T> {

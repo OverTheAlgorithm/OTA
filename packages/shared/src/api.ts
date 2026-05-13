@@ -32,6 +32,14 @@ import type {
   BrainCategory,
   FilterOptions,
   FilterType,
+  EditorPost,
+  EditorPostStatus,
+  EditorPickDetail,
+  EditorPickPage,
+  UploadedImage,
+  RoleChangeLog,
+  UpdateRoleResult,
+  UserRole,
 } from "./types";
 import type {
   ScheduledPush,
@@ -825,6 +833,143 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     }
   }
 
+  // ── Editor (authoring) ─────────────────────────────────────────────────
+
+  interface EditorPostPayload {
+    title: string;
+    content_html: string;
+    status: EditorPostStatus;
+  }
+
+  async function createEditorPost(payload: EditorPostPayload): Promise<EditorPost> {
+    const res = await apiFetch(API_PATHS.EDITOR_POSTS, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "글 저장에 실패했습니다" }));
+      throw new Error(err.error || "글 저장에 실패했습니다");
+    }
+    const body: ApiResponse<EditorPost> = await res.json();
+    return body.data;
+  }
+
+  async function listMyEditorPosts(): Promise<EditorPost[]> {
+    const res = await apiFetch(API_PATHS.EDITOR_POSTS);
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "목록을 불러올 수 없습니다" }));
+      throw new Error(err.error || "목록을 불러올 수 없습니다");
+    }
+    const body: ApiResponse<EditorPost[]> = await res.json();
+    return body.data ?? [];
+  }
+
+  async function getEditorPost(id: string): Promise<EditorPost> {
+    const res = await apiFetch(API_PATHS.EDITOR_POST(id));
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "글을 불러올 수 없습니다" }));
+      throw new Error(err.error || "글을 불러올 수 없습니다");
+    }
+    const body: ApiResponse<EditorPost> = await res.json();
+    return body.data;
+  }
+
+  async function updateEditorPost(id: string, payload: EditorPostPayload): Promise<EditorPost> {
+    const res = await apiFetch(API_PATHS.EDITOR_POST(id), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "글 수정에 실패했습니다" }));
+      throw new Error(err.error || "글 수정에 실패했습니다");
+    }
+    const body: ApiResponse<EditorPost> = await res.json();
+    return body.data;
+  }
+
+  async function deleteEditorPost(id: string): Promise<void> {
+    const res = await apiFetch(API_PATHS.EDITOR_POST(id), { method: "DELETE" });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "글 삭제에 실패했습니다" }));
+      throw new Error(err.error || "글 삭제에 실패했습니다");
+    }
+  }
+
+  async function uploadEditorImage(file: File): Promise<UploadedImage> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await apiFetch(API_PATHS.EDITOR_UPLOAD_IMAGE, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "이미지 업로드 실패" }));
+      throw new Error(err.error || "이미지 업로드 실패");
+    }
+    const body: ApiResponse<UploadedImage> = await res.json();
+    return body.data;
+  }
+
+  // ── Editor Picks (public) ──────────────────────────────────────────────
+
+  async function listEditorPicks(limit = 10, offset = 0): Promise<EditorPickPage> {
+    const res = await publicFetch(`${API_PATHS.EDITOR_PICKS}?limit=${limit}&offset=${offset}`);
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "목록을 불러올 수 없습니다" }));
+      throw new Error(err.error || "목록을 불러올 수 없습니다");
+    }
+    const body: ApiResponse<EditorPickPage> = await res.json();
+    return body.data;
+  }
+
+  async function getEditorPick(id: string): Promise<EditorPickDetail> {
+    const res = await publicFetch(API_PATHS.EDITOR_PICK(id));
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "글을 불러올 수 없습니다" }));
+      throw new Error(err.error || "글을 불러올 수 없습니다");
+    }
+    const body: ApiResponse<EditorPickDetail> = await res.json();
+    return body.data;
+  }
+
+  // ── Admin Users ────────────────────────────────────────────────────────
+
+  async function adminSearchUserByRole(type: "id" | "email", q: string): Promise<User> {
+    const res = await apiFetch(`${API_PATHS.ADMIN_USERS_SEARCH}?type=${type}&q=${encodeURIComponent(q)}`);
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "유저 검색 실패" }));
+      throw new Error(err.error || "유저 검색 실패");
+    }
+    const body: ApiResponse<User> = await res.json();
+    return body.data;
+  }
+
+  async function adminUpdateUserRole(userId: string, newRole: UserRole, memo: string): Promise<UpdateRoleResult> {
+    const res = await apiFetch(API_PATHS.ADMIN_USERS_ROLE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, new_role: newRole, memo }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "권한 변경 실패" }));
+      throw new Error(err.error || "권한 변경 실패");
+    }
+    const body: ApiResponse<UpdateRoleResult> = await res.json();
+    return body.data;
+  }
+
+  async function adminGetRoleHistory(userId: string, limit = 50, offset = 0): Promise<RoleChangeLog[]> {
+    const res = await apiFetch(`${API_PATHS.ADMIN_USERS_ROLE_HISTORY(userId)}?limit=${limit}&offset=${offset}`);
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "이력 조회 실패" }));
+      throw new Error(err.error || "이력 조회 실패");
+    }
+    const body: ApiResponse<RoleChangeLog[]> = await res.json();
+    return body.data ?? [];
+  }
+
   return {
     // Auth
     fetchMe,
@@ -902,6 +1047,20 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     registerPushTokenPublic,
     registerPushToken,
     unlinkPushToken,
+    // Editor (authoring)
+    createEditorPost,
+    listMyEditorPosts,
+    getEditorPost,
+    updateEditorPost,
+    deleteEditorPost,
+    uploadEditorImage,
+    // Editor Picks (public)
+    listEditorPicks,
+    getEditorPick,
+    // Admin Users
+    adminSearchUserByRole,
+    adminUpdateUserRole,
+    adminGetRoleHistory,
   };
 }
 
