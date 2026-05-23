@@ -178,14 +178,16 @@ export function EditorEditPage() {
             >
               취소
             </button>
-            <button
-              type="button"
-              onClick={() => handleSave("draft")}
-              disabled={saving}
-              className="px-5 h-10 rounded-full border-2 border-[#231815] text-sm font-medium bg-white text-[#231815] hover:bg-[#231815]/5 disabled:opacity-50"
-            >
-              {saving ? "저장 중..." : "임시 저장"}
-            </button>
+            {post.status === "draft" && (
+              <button
+                type="button"
+                onClick={() => handleSave("draft")}
+                disabled={saving}
+                className="px-5 h-10 rounded-full border-2 border-[#231815] text-sm font-medium bg-white text-[#231815] hover:bg-[#231815]/5 disabled:opacity-50"
+              >
+                {saving ? "저장 중..." : "임시 저장"}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => handleSave("published")}

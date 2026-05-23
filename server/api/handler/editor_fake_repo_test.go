@@ -62,6 +62,17 @@ func (r *inMemoryEditorRepo) FindByID(_ context.Context, id string) (editor.Post
 	return editor.Post{}, editor.ErrPostNotFound
 }
 
+func (r *inMemoryEditorRepo) FindDraftByAuthor(_ context.Context, authorID string) (editor.Post, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, p := range r.posts {
+		if p.AuthorID == authorID && p.Status == editor.StatusDraft {
+			return p, nil
+		}
+	}
+	return editor.Post{}, editor.ErrPostNotFound
+}
+
 func (r *inMemoryEditorRepo) ListByAuthor(_ context.Context, authorID string) ([]editor.Post, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -90,6 +90,21 @@ func (r *EditorRepository) FindByID(ctx context.Context, id string) (editor.Post
 	return p, nil
 }
 
+func (r *EditorRepository) FindDraftByAuthor(ctx context.Context, authorID string) (editor.Post, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT `+editorPostCols+` FROM editor_posts WHERE author_id = $1 AND status = 'draft' LIMIT 1`,
+		authorID,
+	)
+	p, err := scanPost(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return editor.Post{}, editor.ErrPostNotFound
+		}
+		return editor.Post{}, fmt.Errorf("find draft editor_post: %w", err)
+	}
+	return p, nil
+}
+
 func (r *EditorRepository) ListByAuthor(ctx context.Context, authorID string) ([]editor.Post, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT `+editorPostCols+` FROM editor_posts WHERE author_id = $1 ORDER BY created_at DESC`,

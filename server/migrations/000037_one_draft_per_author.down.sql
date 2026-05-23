@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS uniq_editor_posts_one_draft_per_author;

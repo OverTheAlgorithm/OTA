@@ -81,7 +81,7 @@ export function EditorPickDetailPage() {
 
             <SanitizedHTML
               html={post.content_html}
-              className="editor-pick-content prose prose-stone max-w-none"
+              className="wl-editor-content max-w-none"
             />
           </article>
         )}

@@ -77,6 +77,10 @@ type Repository interface {
 	Update(ctx context.Context, p Post) (Post, error)
 	Delete(ctx context.Context, id string) error
 	FindByID(ctx context.Context, id string) (Post, error)
+	// FindDraftByAuthor returns the single draft for an author, or
+	// ErrPostNotFound if none exists. A partial unique index in the DB
+	// guarantees at most one row matches.
+	FindDraftByAuthor(ctx context.Context, authorID string) (Post, error)
 	ListByAuthor(ctx context.Context, authorID string) ([]Post, error)
 	ListAllForAdmin(ctx context.Context) ([]Post, error)
 	ListPublishedCards(ctx context.Context, limit, offset int) ([]PublicCard, error)

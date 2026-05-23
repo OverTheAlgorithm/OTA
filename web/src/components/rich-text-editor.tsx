@@ -46,7 +46,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-stone max-w-none min-h-[400px] focus:outline-none px-4 py-3",
+          "wl-editor-content max-w-none min-h-[400px] focus:outline-none px-4 py-3",
       },
     },
   });

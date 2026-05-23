@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { useAuth } from "@/contexts/auth-context";
-import { createEditorPost, uploadEditorImage, hasRoleAtLeast } from "@/lib/api";
+import {
+  createEditorPost,
+  hasRoleAtLeast,
+  listMyEditorPosts,
+  uploadEditorImage,
+} from "@/lib/api";
 
 export function EditorNewPage() {
   const navigate = useNavigate();
@@ -14,15 +19,48 @@ export function EditorNewPage() {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Each user keeps at most one draft. If one already exists we redirect to
+  // its edit page so the in-progress content is restored automatically.
+  const [checkingDraft, setCheckingDraft] = useState(true);
 
-  if (loading) {
+  const canEdit = !!user && hasRoleAtLeast(user.role, "editor");
+
+  useEffect(() => {
+    if (loading) return;
+    if (!canEdit) {
+      setCheckingDraft(false);
+      return;
+    }
+    let cancelled = false;
+    listMyEditorPosts()
+      .then((posts) => {
+        if (cancelled) return;
+        const draft = posts.find((p) => p.status === "draft");
+        if (draft) {
+          navigate(`/editor/edit/${draft.id}`, { replace: true });
+          return;
+        }
+        setCheckingDraft(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Don't block the new-post flow if the lookup fails; just render the
+        // blank editor and let the upsert on save handle uniqueness.
+        setCheckingDraft(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, canEdit, navigate]);
+
+  if (loading || checkingDraft) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
         <p>로딩 중...</p>
       </div>
     );
   }
-  if (!user || !hasRoleAtLeast(user.role, "editor")) {
+  if (!canEdit) {
     navigate("/", { replace: true });
     return null;
   }

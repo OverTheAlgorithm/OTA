@@ -2,6 +2,7 @@ package editor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -43,7 +44,10 @@ type UpdateParams struct {
 	Status      string
 }
 
-// Create persists a new post for AuthorID.
+// Create persists a new post for AuthorID. When Status is draft the author's
+// existing draft (if any) is overwritten so each user holds at most one
+// in-progress draft at a time. A partial unique index in the DB enforces the
+// same invariant as a safety net.
 func (s *Service) Create(ctx context.Context, p CreateParams) (Post, error) {
 	if err := validateStatus(p.Status); err != nil {
 		return Post{}, err
@@ -70,6 +74,22 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (Post, error) {
 	if p.Status == StatusPublished {
 		now := s.now()
 		post.PublishedAt = &now
+	}
+
+	if p.Status == StatusDraft {
+		existing, err := s.repo.FindDraftByAuthor(ctx, p.AuthorID)
+		if err == nil {
+			existing.Title = post.Title
+			existing.ContentHTML = post.ContentHTML
+			existing.ContentText = post.ContentText
+			existing.FirstImageURL = post.FirstImageURL
+			existing.Status = StatusDraft
+			existing.PublishedAt = nil
+			return s.repo.Update(ctx, existing)
+		}
+		if !errors.Is(err, ErrPostNotFound) {
+			return Post{}, fmt.Errorf("lookup existing draft: %w", err)
+		}
 	}
 
 	return s.repo.Create(ctx, post)
