@@ -8,13 +8,15 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ota/domain/editor"
+	"ota/domain/user"
 )
 
 // EditorHandler exposes CRUD endpoints for editor posts. All routes assume the
 // caller has been authenticated and authorised as editor+ by middleware.
 type EditorHandler struct {
-	svc    *editor.Service
-	upload *EditorUploadHandler
+	svc      *editor.Service
+	upload   *EditorUploadHandler
+	userRepo user.Repository
 }
 
 func NewEditorHandler(svc *editor.Service) *EditorHandler {
@@ -28,15 +30,68 @@ func (h *EditorHandler) WithUploadHandler(u *EditorUploadHandler) *EditorHandler
 	return h
 }
 
+// WithUserRepo enables the profile sub-routes (pen-name editor) that need
+// direct access to the users table. Optional so existing unit tests can
+// construct the handler without a user repository.
+func (h *EditorHandler) WithUserRepo(repo user.Repository) *EditorHandler {
+	h.userRepo = repo
+	return h
+}
+
 func (h *EditorHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/posts", h.Create)
 	group.GET("/posts", h.List)
 	group.GET("/posts/:id", h.Get)
 	group.PUT("/posts/:id", h.Update)
 	group.DELETE("/posts/:id", h.Delete)
+	if h.userRepo != nil {
+		group.PUT("/profile/pen-name", h.UpdatePenName)
+	}
 	if h.upload != nil {
 		h.upload.RegisterRoutes(group)
 	}
+}
+
+type penNameRequest struct {
+	PenName string `json:"pen_name"`
+}
+
+// UpdatePenName handles PUT /api/v1/editor/profile/pen-name. The caller is
+// already known to be editor+ via the route's middleware. An empty (or
+// whitespace-only) value clears the pen name so the byline falls back to the
+// caller's nickname.
+func (h *EditorHandler) UpdatePenName(c *gin.Context) {
+	callerID := c.GetString("userID")
+
+	var req penNameRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "요청 형식이 올바르지 않습니다"})
+		return
+	}
+
+	normalised, err := user.NormalisePenName(req.PenName)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.userRepo.UpdatePenName(c.Request.Context(), callerID, normalised); err != nil {
+		if errors.Is(err, user.ErrPenNameTaken) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		slog.Error("update pen name", "user_id", callerID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "필명 변경 중 오류가 발생했습니다"})
+		return
+	}
+
+	u, err := h.userRepo.FindByID(c.Request.Context(), callerID)
+	if err != nil {
+		slog.Error("reload user after pen name update", "user_id", callerID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "유저 정보를 다시 불러올 수 없습니다"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": u})
 }
 
 type editorPostRequest struct {

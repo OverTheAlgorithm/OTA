@@ -12,6 +12,8 @@ import {
   getBankAccount,
   getSubscriptions,
   deleteAccount,
+  updatePenName,
+  hasRoleAtLeast,
   type CoinTransaction,
   type WithdrawalDetail,
   type BankAccount,
@@ -209,9 +211,105 @@ function WithdrawalHistoryTab() {
   );
 }
 
+// ── Pen Name Section (editor+ only) ──────────────────────────────────────────
+
+const PEN_NAME_MIN = 2;
+const PEN_NAME_MAX = 32;
+
+function PenNameSection({
+  initial,
+  fallbackNickname,
+  onSaved,
+}: {
+  initial: string;
+  fallbackNickname: string;
+  onSaved: () => Promise<void>;
+}) {
+  const [value, setValue] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValue(initial);
+  }, [initial]);
+
+  const trimmed = value.trim();
+  const dirty = trimmed !== (initial ?? "").trim();
+  const tooShort = trimmed.length > 0 && trimmed.length < PEN_NAME_MIN;
+
+  const handleSave = async () => {
+    if (saving || !dirty || tooShort) return;
+    setSaving(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await updatePenName(trimmed);
+      await onSaved();
+      setSavedMsg(trimmed ? "필명이 저장되었습니다" : "필명이 해제되었습니다");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "필명 변경에 실패했습니다");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const previewName = trimmed || fallbackNickname || "닉네임";
+
+  return (
+    <div className="border-l-[3px] border-[#43b9d6] pl-5">
+      <h2 className="text-lg font-bold text-[#231815] mb-1">필명</h2>
+      <p className="text-xs text-[#231815]/60 mb-3">
+        에디터 픽에서 작성자 이름으로 표시됩니다. 비워두면 닉네임이 사용됩니다.
+      </p>
+      <div className="rounded-[22px] bg-white border border-[#231815] px-5 py-4 space-y-3">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setSavedMsg(null);
+            setError(null);
+          }}
+          maxLength={PEN_NAME_MAX}
+          placeholder={fallbackNickname || "필명을 입력하세요"}
+          className="w-full h-10 px-3 rounded-lg border border-[#231815]/20 focus:border-[#008fb2] focus:outline-none text-sm"
+        />
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[#231815]/60">
+            표시 이름: <span className="font-medium text-[#231815]">{previewName}</span>
+          </span>
+          <span className="text-[#231815]/40">
+            {trimmed.length}/{PEN_NAME_MAX}자
+          </span>
+        </div>
+        {tooShort && (
+          <p className="text-xs text-[#ff5442]">필명은 {PEN_NAME_MIN}자 이상이어야 합니다.</p>
+        )}
+        {error && (
+          <p className="text-xs text-[#ff5442] bg-[#ff5442]/10 rounded px-2 py-1 border border-[#ff5442]/20">
+            {error}
+          </p>
+        )}
+        {savedMsg && <p className="text-xs text-[#2ea55e]">{savedMsg}</p>}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !dirty || tooShort}
+          className="px-4 h-9 rounded-full border-2 border-[#231815] text-sm font-medium bg-white text-[#231815] hover:bg-[#231815]/5 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving ? "저장 중..." : "저장"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Settings Tab ─────────────────────────────────────────────────────────────
 
 function SettingsTab() {
+  const { user, refreshUser } = useAuth();
+  const isEditor = hasRoleAtLeast(user?.role, "editor");
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
   const [bankAccount, setBankAccount] = useState<BankAccount | null>(null);
   const [bankLoading, setBankLoading] = useState(true);
@@ -249,6 +347,14 @@ function SettingsTab() {
     <div className="space-y-8">
       <InterestSection selected={subscriptions} onChange={setSubscriptions} />
       <ChannelPreferencesSection />
+
+      {isEditor && (
+        <PenNameSection
+          initial={user?.pen_name ?? ""}
+          fallbackNickname={user?.nickname ?? ""}
+          onSaved={refreshUser}
+        />
+      )}
 
       {/* Bank Account Section */}
       <div className="border-l-[3px] border-[#43b9d6] pl-5">

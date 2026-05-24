@@ -24,9 +24,14 @@ export interface User {
   nickname?: string;
   profile_image?: string;
   role: UserRole | string;
+  pen_name?: string;
   created_at: string;
   updated_at: string;
 }
+
+// Mirrors the server-side bounds in user.NormalisePenName.
+export const PEN_NAME_MIN_LEN = 2;
+export const PEN_NAME_MAX_LEN = 32;
 
 // ── Editor posts ───────────────────────────────────────────────────────────
 

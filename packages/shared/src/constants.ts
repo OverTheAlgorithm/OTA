@@ -89,6 +89,7 @@ export const API_PATHS = {
   EDITOR_POSTS: `${API_PREFIX}/editor/posts`,
   EDITOR_POST: (id: string) => `${API_PREFIX}/editor/posts/${id}`,
   EDITOR_UPLOAD_IMAGE: `${API_PREFIX}/editor/upload-image`,
+  EDITOR_PROFILE_PEN_NAME: `${API_PREFIX}/editor/profile/pen-name`,
 
   // Editor Picks (public)
   EDITOR_PICKS: `${API_PREFIX}/editor-picks`,

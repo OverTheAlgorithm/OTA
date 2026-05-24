@@ -146,6 +146,7 @@ export const {
   updateEditorPost,
   deleteEditorPost,
   uploadEditorImage,
+  updatePenName,
   // Editor Picks (public)
   listEditorPicks,
   getEditorPick,

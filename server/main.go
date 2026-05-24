@@ -419,7 +419,9 @@ func main() {
 	editorRepo := storage.NewEditorRepository(pool)
 	editorService := editor.NewService(editorRepo)
 	editorUploadHandler := handler.NewEditorUploadHandler(imageBaseDir, "/api/v1/images")
-	editorHandler := handler.NewEditorHandler(editorService).WithUploadHandler(editorUploadHandler)
+	editorHandler := handler.NewEditorHandler(editorService).
+		WithUploadHandler(editorUploadHandler).
+		WithUserRepo(userRepo)
 	editorPickHandler := handler.NewEditorPickHandler(editorRepo)
 	roleChangeRepo := storage.NewRoleChangeRepository(pool)
 	adminUserHandler := handler.NewAdminUserHandler(userRepo, roleChangeRepo)

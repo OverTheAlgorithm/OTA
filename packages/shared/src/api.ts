@@ -897,6 +897,22 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     }
   }
 
+  // Editor+ only. Pass an empty string (or whitespace) to clear the pen name —
+  // the byline then falls back to the user's nickname.
+  async function updatePenName(penName: string): Promise<User> {
+    const res = await apiFetch(API_PATHS.EDITOR_PROFILE_PEN_NAME, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pen_name: penName }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "필명 변경에 실패했습니다" }));
+      throw new Error(err.error || "필명 변경에 실패했습니다");
+    }
+    const body: ApiResponse<User> = await res.json();
+    return body.data;
+  }
+
   async function uploadEditorImage(file: File): Promise<UploadedImage> {
     const form = new FormData();
     form.append("file", file);
@@ -1054,6 +1070,7 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     updateEditorPost,
     deleteEditorPost,
     uploadEditorImage,
+    updatePenName,
     // Editor Picks (public)
     listEditorPicks,
     getEditorPick,

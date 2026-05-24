@@ -2,13 +2,28 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"ota/domain/user"
 )
+
+// userCols is the single source of truth for SELECT/RETURNING column order on
+// the users table. Every Scan target below depends on this exact ordering.
+const userCols = `id, kakao_id, email, email_verified, nickname, profile_image, role, COALESCE(pen_name, ''), created_at, updated_at`
+
+func scanUser(row pgx.Row) (user.User, error) {
+	var u user.User
+	err := row.Scan(
+		&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname,
+		&u.ProfileImage, &u.Role, &u.PenName, &u.CreatedAt, &u.UpdatedAt,
+	)
+	return u, err
+}
 
 // CompleteSignupParams holds all data needed to atomically complete a signup.
 type CompleteSignupParams struct {
@@ -36,12 +51,9 @@ func (r *UserRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64, ema
 			nickname = EXCLUDED.nickname,
 			profile_image = EXCLUDED.profile_image,
 			updated_at = NOW()
-		RETURNING id, kakao_id, email, email_verified, nickname, profile_image, role, created_at, updated_at`
+		RETURNING ` + userCols
 
-	var u user.User
-	err := r.pool.QueryRow(ctx, query, kakaoID, email, nickname, profileImage).Scan(
-		&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt,
-	)
+	u, err := scanUser(r.pool.QueryRow(ctx, query, kakaoID, email, nickname, profileImage))
 	if err != nil {
 		return user.User{}, fmt.Errorf("upsert user: %w", err)
 	}
@@ -49,12 +61,8 @@ func (r *UserRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64, ema
 }
 
 func (r *UserRepository) FindByKakaoID(ctx context.Context, kakaoID int64) (user.User, bool, error) {
-	query := `SELECT id, kakao_id, email, email_verified, nickname, profile_image, role, created_at, updated_at FROM users WHERE kakao_id = $1`
-
-	var u user.User
-	err := r.pool.QueryRow(ctx, query, kakaoID).Scan(
-		&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt,
-	)
+	u, err := scanUser(r.pool.QueryRow(ctx,
+		`SELECT `+userCols+` FROM users WHERE kakao_id = $1`, kakaoID))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return user.User{}, false, nil
@@ -65,12 +73,8 @@ func (r *UserRepository) FindByKakaoID(ctx context.Context, kakaoID int64) (user
 }
 
 func (r *UserRepository) FindByID(ctx context.Context, id string) (user.User, error) {
-	query := `SELECT id, kakao_id, email, email_verified, nickname, profile_image, role, created_at, updated_at FROM users WHERE id = $1`
-
-	var u user.User
-	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt,
-	)
+	u, err := scanUser(r.pool.QueryRow(ctx,
+		`SELECT `+userCols+` FROM users WHERE id = $1`, id))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return user.User{}, fmt.Errorf("user not found")
@@ -81,12 +85,8 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (user.User, er
 }
 
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (user.User, error) {
-	query := `SELECT id, kakao_id, email, email_verified, nickname, profile_image, role, created_at, updated_at FROM users WHERE email = $1`
-
-	var u user.User
-	err := r.pool.QueryRow(ctx, query, email).Scan(
-		&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt,
-	)
+	u, err := scanUser(r.pool.QueryRow(ctx,
+		`SELECT `+userCols+` FROM users WHERE email = $1`, email))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return user.User{}, fmt.Errorf("user not found")
@@ -125,6 +125,33 @@ func (r *UserRepository) UpdateRole(ctx context.Context, userID, newRole string)
 	return nil
 }
 
+// UpdatePenName sets users.pen_name to the supplied value, or clears it when
+// penName is empty. A unique-violation from the case-insensitive partial index
+// is translated to user.ErrPenNameTaken so handlers can return 409.
+func (r *UserRepository) UpdatePenName(ctx context.Context, userID, penName string) error {
+	var arg any
+	if penName == "" {
+		arg = nil
+	} else {
+		arg = penName
+	}
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE users SET pen_name = $2, updated_at = NOW() WHERE id = $1`,
+		userID, arg,
+	)
+	if err != nil {
+		var pg *pgconn.PgError
+		if errors.As(err, &pg) && pg.Code == "23505" {
+			return user.ErrPenNameTaken
+		}
+		return fmt.Errorf("update pen name: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user not found: %s", userID)
+	}
+	return nil
+}
+
 func (r *UserRepository) DeleteByID(ctx context.Context, userID string) error {
 	query := `DELETE FROM users WHERE id = $1`
 	tag, err := r.pool.Exec(ctx, query, userID)
@@ -153,17 +180,16 @@ func (r *UserRepository) CompleteSignupTx(ctx context.Context, p CompleteSignupP
 	defer tx.Rollback(ctx)
 
 	// 1. Upsert user
-	var u user.User
-	err = tx.QueryRow(ctx, `
+	u, err := scanUser(tx.QueryRow(ctx, `
 		INSERT INTO users (kakao_id, email, nickname, profile_image)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (kakao_id) DO UPDATE SET
 			nickname      = EXCLUDED.nickname,
 			profile_image = EXCLUDED.profile_image,
 			updated_at    = NOW()
-		RETURNING id, kakao_id, email, email_verified, nickname, profile_image, role, created_at, updated_at`,
+		RETURNING `+userCols,
 		p.KakaoID, p.Email, p.Nickname, p.ProfileImageURL,
-	).Scan(&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname, &u.ProfileImage, &u.Role, &u.CreatedAt, &u.UpdatedAt)
+	))
 	if err != nil {
 		return user.User{}, fmt.Errorf("complete signup upsert user: %w", err)
 	}

@@ -147,8 +147,14 @@ func (r *EditorRepository) ListAllForAdmin(ctx context.Context) ([]editor.Post, 
 }
 
 func (r *EditorRepository) ListPublishedCards(ctx context.Context, limit, offset int) ([]editor.PublicCard, error) {
+	// Author byline preference: pen_name (trimmed, non-empty) ➜ nickname ➜ "".
+	// The btrim character set strips ASCII whitespace (space/tab/LF/CR/VT/FF)
+	// so even a value like "  \n " falls through to nickname — defence in
+	// depth alongside the CHECK constraint on users.pen_name.
 	const query = `
-		SELECT p.id, p.author_id, COALESCE(u.nickname, ''), p.title, p.content_text, p.first_image_url, p.published_at
+		SELECT p.id, p.author_id,
+		       COALESCE(NULLIF(btrim(u.pen_name, E' \t\n\r\v\f'), ''), u.nickname, ''),
+		       p.title, p.content_text, p.first_image_url, p.published_at
 		FROM editor_posts p
 		LEFT JOIN users u ON u.id = p.author_id
 		WHERE p.status = 'published' AND p.published_at IS NOT NULL
@@ -174,7 +180,9 @@ func (r *EditorRepository) ListPublishedCards(ctx context.Context, limit, offset
 
 func (r *EditorRepository) GetPublishedByID(ctx context.Context, id string) (editor.PublicPost, error) {
 	const query = `
-		SELECT p.id, p.author_id, COALESCE(u.nickname, ''), p.title, p.content_html, p.first_image_url, p.published_at, p.updated_at
+		SELECT p.id, p.author_id,
+		       COALESCE(NULLIF(btrim(u.pen_name, E' \t\n\r\v\f'), ''), u.nickname, ''),
+		       p.title, p.content_html, p.first_image_url, p.published_at, p.updated_at
 		FROM editor_posts p
 		LEFT JOIN users u ON u.id = p.author_id
 		WHERE p.id = $1 AND p.status = 'published' AND p.published_at IS NOT NULL`

@@ -78,6 +78,10 @@ func (m *mockUserRepoSignup) UpdateRole(_ context.Context, _ string, _ string) e
 	return nil
 }
 
+func (m *mockUserRepoSignup) UpdatePenName(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
 type mockTermsRepoSignup struct {
 	requiredTerms []terms.Term
 	savedConsents map[string][]string
