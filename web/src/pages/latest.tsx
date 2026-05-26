@@ -311,7 +311,7 @@ export function LatestPage() {
       <Helmet>
         <title>최신 소식 - 위즈레터</title>
         <meta name="description" content="오늘의 최신 뉴스 브리핑을 확인하세요." />
-        <link rel="canonical" href="https://wizletter.mindhacker.club/latest" />
+        <link rel="canonical" href="https://wizletter.com/latest" />
       </Helmet>
       <Header />
 

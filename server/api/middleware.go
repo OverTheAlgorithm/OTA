@@ -70,8 +70,8 @@ func LoggerMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 
 func CORSMiddleware(frontendURL string) gin.HandlerFunc {
 	// Extract allowed base domains from FRONTEND_URL (comma-separated).
-	// Each entry like "https://mindhacker.club" allows the domain itself
-	// and all its subdomains (e.g. https://wizletter.mindhacker.club).
+	// Each entry like "https://wizletter.com" allows the domain itself
+	// and all its subdomains (e.g. https://www.wizletter.com).
 	type allowedDomain struct {
 		scheme string
 		host   string

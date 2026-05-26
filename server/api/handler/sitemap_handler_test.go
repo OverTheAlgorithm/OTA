@@ -36,7 +36,7 @@ func (m *mockSitemapRepoForHandler) GetAllEditorPostEntries(_ context.Context) (
 func TestSitemapHandler_ContentType(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := handler.NewSitemapHandler(&mockSitemapRepoForHandler{}, "https://wizletter.mindhacker.club")
+	h := handler.NewSitemapHandler(&mockSitemapRepoForHandler{}, "https://wizletter.com")
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -57,7 +57,7 @@ func TestSitemapHandler_ContentType(t *testing.T) {
 func TestSitemapHandler_StaticPages(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := handler.NewSitemapHandler(&mockSitemapRepoForHandler{}, "https://wizletter.mindhacker.club")
+	h := handler.NewSitemapHandler(&mockSitemapRepoForHandler{}, "https://wizletter.com")
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -72,13 +72,13 @@ func TestSitemapHandler_StaticPages(t *testing.T) {
 
 	body := w.Body.String()
 	staticURLs := []string{
-		"https://wizletter.mindhacker.club/",
-		"https://wizletter.mindhacker.club/latest",
-		"https://wizletter.mindhacker.club/allnews",
-		"https://wizletter.mindhacker.club/privacy-policy",
-		"https://wizletter.mindhacker.club/terms-of-service",
-		"https://wizletter.mindhacker.club/cookie-policy",
-		"https://wizletter.mindhacker.club/about",
+		"https://wizletter.com/",
+		"https://wizletter.com/latest",
+		"https://wizletter.com/allnews",
+		"https://wizletter.com/privacy-policy",
+		"https://wizletter.com/terms-of-service",
+		"https://wizletter.com/cookie-policy",
+		"https://wizletter.com/about",
 	}
 	for _, u := range staticURLs {
 		if !strings.Contains(body, u) {
@@ -97,7 +97,7 @@ func TestSitemapHandler_TopicURLs(t *testing.T) {
 			{ID: "456", CreatedAt: fixedTime.Add(-24 * time.Hour)},
 		},
 	}
-	h := handler.NewSitemapHandler(repo, "https://wizletter.mindhacker.club")
+	h := handler.NewSitemapHandler(repo, "https://wizletter.com")
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -111,10 +111,10 @@ func TestSitemapHandler_TopicURLs(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, "https://wizletter.mindhacker.club/topic/123") {
+	if !strings.Contains(body, "https://wizletter.com/topic/123") {
 		t.Error("expected sitemap to contain topic/123")
 	}
-	if !strings.Contains(body, "https://wizletter.mindhacker.club/topic/456") {
+	if !strings.Contains(body, "https://wizletter.com/topic/456") {
 		t.Error("expected sitemap to contain topic/456")
 	}
 }
@@ -128,7 +128,7 @@ func TestSitemapHandler_ValidXML(t *testing.T) {
 			{ID: "999", CreatedAt: fixedTime},
 		},
 	}
-	h := handler.NewSitemapHandler(repo, "https://wizletter.mindhacker.club")
+	h := handler.NewSitemapHandler(repo, "https://wizletter.com")
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -170,7 +170,7 @@ func TestSitemapHandler_IncludesEditorPicks(t *testing.T) {
 			{ID: "ep-2", UpdatedAt: fixedTime.Add(-24 * time.Hour)},
 		},
 	}
-	h := handler.NewSitemapHandler(repo, "https://wizletter.mindhacker.club")
+	h := handler.NewSitemapHandler(repo, "https://wizletter.com")
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -185,9 +185,9 @@ func TestSitemapHandler_IncludesEditorPicks(t *testing.T) {
 
 	body := w.Body.String()
 	for _, want := range []string{
-		"https://wizletter.mindhacker.club/editor-picks/ep-1",
-		"https://wizletter.mindhacker.club/editor-picks/ep-2",
-		"https://wizletter.mindhacker.club/editor-picks", // static list page
+		"https://wizletter.com/editor-picks/ep-1",
+		"https://wizletter.com/editor-picks/ep-2",
+		"https://wizletter.com/editor-picks", // static list page
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("expected sitemap to contain %s", want)
@@ -199,7 +199,7 @@ func TestSitemapHandler_RepoError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	repo := &mockSitemapRepoForHandler{err: context.DeadlineExceeded}
-	h := handler.NewSitemapHandler(repo, "https://wizletter.mindhacker.club")
+	h := handler.NewSitemapHandler(repo, "https://wizletter.com")
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)

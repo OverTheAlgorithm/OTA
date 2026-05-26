@@ -8,7 +8,7 @@ export function CookiePolicyPage() {
       <Helmet>
         <title>쿠키 정책 - 위즈레터</title>
         <meta name="description" content="위즈레터의 쿠키 사용 정책을 안내합니다." />
-        <link rel="canonical" href="https://wizletter.mindhacker.club/cookie-policy" />
+        <link rel="canonical" href="https://wizletter.com/cookie-policy" />
       </Helmet>
       <header className="border-b-[3px] border-[#231815] px-6 py-4">
         <div className="mx-auto max-w-3xl">

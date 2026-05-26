@@ -27,7 +27,7 @@ export function PrivacyPolicyPage() {
       <Helmet>
         <title>개인정보 처리방침 - 위즈레터</title>
         <meta name="description" content="위즈레터의 개인정보 처리방침을 안내합니다." />
-        <link rel="canonical" href="https://wizletter.mindhacker.club/privacy-policy" />
+        <link rel="canonical" href="https://wizletter.com/privacy-policy" />
       </Helmet>
       <header className="border-b-[3px] border-[#231815] px-6 py-4">
         <div className="mx-auto max-w-3xl">

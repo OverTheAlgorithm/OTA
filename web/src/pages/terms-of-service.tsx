@@ -27,7 +27,7 @@ export function TermsOfServicePage() {
       <Helmet>
         <title>서비스 이용약관 - 위즈레터</title>
         <meta name="description" content="위즈레터의 서비스 이용약관을 안내합니다." />
-        <link rel="canonical" href="https://wizletter.mindhacker.club/terms-of-service" />
+        <link rel="canonical" href="https://wizletter.com/terms-of-service" />
       </Helmet>
       <header className="border-b-[3px] border-[#231815] px-6 py-4">
         <div className="mx-auto max-w-3xl">

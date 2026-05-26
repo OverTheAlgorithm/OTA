@@ -8,7 +8,7 @@ export function AboutPage() {
       <Helmet>
         <title>서비스 소개 - 위즈레터</title>
         <meta name="description" content="위즈레터는 AI 기술을 활용하여 다양한 뉴스를 종합 분석하고 핵심 소식을 전달하는 서비스입니다." />
-        <link rel="canonical" href="https://wizletter.mindhacker.club/about" />
+        <link rel="canonical" href="https://wizletter.com/about" />
       </Helmet>
       <header className="border-b-[3px] border-[#231815] px-6 py-4">
         <div className="mx-auto max-w-3xl">

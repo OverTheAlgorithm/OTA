@@ -508,12 +508,12 @@ export function TopicPage() {
       <Helmet>
         <title>{topic.topic} - 위즈레터</title>
         <meta name="description" content={topic.detail} />
-        <link rel="canonical" href={`https://wizletter.mindhacker.club/topic/${topic.id}`} />
+        <link rel="canonical" href={`https://wizletter.com/topic/${topic.id}`} />
         <meta property="og:title" content={topic.topic} />
         <meta property="og:description" content={topic.detail} />
-        <meta property="og:url" content={`https://wizletter.mindhacker.club/topic/${topic.id}`} />
+        <meta property="og:url" content={`https://wizletter.com/topic/${topic.id}`} />
         <meta property="og:type" content="article" />
-        <meta property="og:image" content={topic.image_url || "https://wizletter.mindhacker.club/w_logo.png"} />
+        <meta property="og:image" content={topic.image_url || "https://wizletter.com/w_logo.png"} />
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -521,18 +521,18 @@ export function TopicPage() {
             "headline": topic.topic,
             "description": topic.detail,
             "datePublished": topic.created_at,
-            "image": topic.image_url || "https://wizletter.mindhacker.club/w_logo.png",
+            "image": topic.image_url || "https://wizletter.com/w_logo.png",
             "publisher": {
               "@type": "Organization",
               "name": "위즈레터",
               "logo": {
                 "@type": "ImageObject",
-                "url": "https://wizletter.mindhacker.club/w_logo.png",
+                "url": "https://wizletter.com/w_logo.png",
               },
             },
             "mainEntityOfPage": {
               "@type": "WebPage",
-              "@id": `https://wizletter.mindhacker.club/topic/${topic.id}`,
+              "@id": `https://wizletter.com/topic/${topic.id}`,
             },
           })}
         </script>
