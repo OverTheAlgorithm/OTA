@@ -345,7 +345,7 @@ func TestService_ListForCaller(t *testing.T) {
 	_, _ = svc.Create(context.Background(), CreateParams{AuthorID: "u-1", Title: "a", ContentHTML: "<p>a</p>", Status: StatusDraft})
 	_, _ = svc.Create(context.Background(), CreateParams{AuthorID: "u-2", Title: "b", ContentHTML: "<p>b</p>", Status: StatusDraft})
 
-	editorOwn, err := svc.ListForCaller(context.Background(), "u-1", user.RoleEditor)
+	editorOwn, err := svc.ListForCaller(context.Background(), "u-1")
 	if err != nil {
 		t.Fatalf("editor list: %v", err)
 	}
@@ -353,11 +353,14 @@ func TestService_ListForCaller(t *testing.T) {
 		t.Errorf("editor sees only own, got %+v", editorOwn)
 	}
 
-	adminAll, err := svc.ListForCaller(context.Background(), "admin-1", user.RoleAdmin)
+	// Admins are intentionally scoped to their own posts here too — the
+	// endpoint is "my posts", not "all posts". Cross-author admin views must
+	// use a dedicated admin endpoint.
+	adminOwn, err := svc.ListForCaller(context.Background(), "admin-1")
 	if err != nil {
 		t.Fatalf("admin list: %v", err)
 	}
-	if len(adminAll) != 2 {
-		t.Errorf("admin should see all 2 posts, got %d", len(adminAll))
+	if len(adminOwn) != 0 {
+		t.Errorf("admin should only see own posts (0), got %d", len(adminOwn))
 	}
 }

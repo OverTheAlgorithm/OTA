@@ -164,11 +164,12 @@ func (s *Service) GetForEdit(ctx context.Context, id, callerID, callerRole strin
 	return p, nil
 }
 
-// ListForCaller returns the caller's own posts. Admins see every post.
-func (s *Service) ListForCaller(ctx context.Context, callerID, callerRole string) ([]Post, error) {
-	if user.HasRoleAtLeast(callerRole, user.RoleAdmin) {
-		return s.repo.ListAllForAdmin(ctx)
-	}
+// ListForCaller returns the caller's own posts. Admins included — the
+// "my posts" endpoint is strictly scoped to the caller so the editor UI
+// (which auto-loads the caller's draft) never surfaces another author's
+// in-progress work. Cross-author admin overview belongs on a dedicated
+// admin endpoint, not here.
+func (s *Service) ListForCaller(ctx context.Context, callerID string) ([]Post, error) {
 	return s.repo.ListByAuthor(ctx, callerID)
 }
 

@@ -126,12 +126,16 @@ func TestEditorHandler_List_Editor_SeesOnlyOwn(t *testing.T) {
 	}
 }
 
-func TestEditorHandler_List_Admin_SeesAll(t *testing.T) {
+// TestEditorHandler_List_Admin_SeesOnlyOwn ensures the "my posts" endpoint is
+// strictly scoped to the caller — even for admins — so the editor UI never
+// surfaces another author's in-progress draft when auto-loading it.
+func TestEditorHandler_List_Admin_SeesOnlyOwn(t *testing.T) {
 	r, svc := setupEditorHandler(t, "admin-1", user.RoleAdmin)
 	_, _ = svc.Create(t.Context(), editor.CreateParams{AuthorID: "u-1", Title: "a", ContentHTML: "<p>a</p>", Status: editor.StatusDraft})
 	_, _ = svc.Create(t.Context(), editor.CreateParams{AuthorID: "u-2", Title: "b", ContentHTML: "<p>b</p>", Status: editor.StatusDraft})
+	_, _ = svc.Create(t.Context(), editor.CreateParams{AuthorID: "admin-1", Title: "c", ContentHTML: "<p>c</p>", Status: editor.StatusDraft})
 
-	w := doRequest(r,http.MethodGet, "/editor/posts", nil)
+	w := doRequest(r, http.MethodGet, "/editor/posts", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
 	}
@@ -139,7 +143,7 @@ func TestEditorHandler_List_Admin_SeesAll(t *testing.T) {
 		Data []editor.Post `json:"data"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	if len(resp.Data) != 2 {
-		t.Errorf("admin should see 2 posts, got %d", len(resp.Data))
+	if len(resp.Data) != 1 || resp.Data[0].AuthorID != "admin-1" {
+		t.Errorf("admin should only see own posts, got %+v", resp.Data)
 	}
 }

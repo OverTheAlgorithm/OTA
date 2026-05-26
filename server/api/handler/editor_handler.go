@@ -124,12 +124,11 @@ func (h *EditorHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": post})
 }
 
-// List handles GET /api/v1/editor/posts (own posts; admin sees all).
+// List handles GET /api/v1/editor/posts (own posts only, regardless of role).
 func (h *EditorHandler) List(c *gin.Context) {
 	callerID := c.GetString("userID")
-	callerRole := c.GetString("role")
 
-	posts, err := h.svc.ListForCaller(c.Request.Context(), callerID, callerRole)
+	posts, err := h.svc.ListForCaller(c.Request.Context(), callerID)
 	if err != nil {
 		slog.Error("editor list error", "user_id", callerID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "글 목록을 불러올 수 없습니다"})
