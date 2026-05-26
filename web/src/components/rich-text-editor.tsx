@@ -99,7 +99,10 @@ export function RichTextEditor({
 
   return (
     <div className="border-2 border-[#231815] rounded-md bg-white">
-      <div className="flex flex-wrap items-center gap-1 border-b-2 border-[#231815] p-2 bg-[#fdf9ee]">
+      {/* Sticky toolbar: site header is sticky at top:0 with a 65px row, so the
+          toolbar parks just below it. z-30 keeps it under the header (z-40) but
+          above editor content. */}
+      <div className="sticky top-[65px] z-30 flex flex-wrap items-center gap-1 border-b-2 border-[#231815] p-2 bg-[#fdf9ee]">
         <ToolbarButton active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} label="굵게">
           <strong>B</strong>
         </ToolbarButton>
