@@ -3,7 +3,7 @@ import { View, Text, Image, Pressable, StyleSheet } from "react-native";
 import { TopicPreview, EarnStatusItem } from "../../../packages/shared/src/types";
 import { formatDate } from "../../../packages/shared/src/utils";
 
-const DEFAULT_IMAGE = "https://server.mindhacker.club/static/default.png";
+const DEFAULT_IMAGE = "https://server.wizletter.com/static/default.png";
 
 interface TopicCardProps {
   topic: TopicPreview;

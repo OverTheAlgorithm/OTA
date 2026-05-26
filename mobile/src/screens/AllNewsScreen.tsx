@@ -19,7 +19,7 @@ import { formatDate } from "../../../packages/shared/src/utils";
 type NavProp = NativeStackNavigationProp<Record<string, object | undefined>>;
 
 const PAGE_SIZE = 12;
-const DEFAULT_IMAGE = "https://server.mindhacker.club/static/default.png";
+const DEFAULT_IMAGE = "https://server.wizletter.com/static/default.png";
 
 interface ActiveFilter {
   type: FilterType;

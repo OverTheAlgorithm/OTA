@@ -6,4 +6,4 @@
 //   Windows: ipconfig → IPv4 Address
 //   Mac/Linux: ifconfig | grep inet
 
-export const API_BASE = "https://server.mindhacker.club";
+export const API_BASE = "https://server.wizletter.com";

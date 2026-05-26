@@ -2,7 +2,7 @@
 
 AI-curated daily briefing service. Collects trending topics, summarizes with AI, delivers via email, gamifies reading with coins/levels.
 
-**Branding**: Public-facing brand is "WizLetter" (위즈레터). Go module name is still `ota`. Domain: wizletter.com (frontend, Vercel), server.mindhacker.club (backend, Oracle Cloud + Caddy).
+**Branding**: Public-facing brand is "WizLetter" (위즈레터). Go module name is still `ota`. Domain: wizletter.com (frontend, Vercel), server.wizletter.com (backend, Oracle Cloud + Caddy).
 
 ## Tech Stack
 - **Server**: Go 1.25 + Gin + pgx (PostgreSQL 16)
@@ -158,10 +158,10 @@ contexts/         # auth-context (AuthProvider with JWT cookie)
 5. Per-route: AuthMiddleware, AdminMiddleware
 
 ## Deployment
-- **Frontend**: Vercel. vercel.json rewrites /api/* to server.mindhacker.club.
+- **Frontend**: Vercel. vercel.json rewrites /api/* to server.wizletter.com.
 - **Backend**: Oracle Cloud Ubuntu. Docker Compose: Caddy (SSL, 80/443) -> Go server (8080) -> Postgres (5432, internal only).
 - **CI/CD**: GitHub Actions on push to main. Build check -> SSH deploy -> docker compose up --build.
-- **Domains**: wizletter.com (frontend), server.mindhacker.club (backend API).
+- **Domains**: wizletter.com (frontend), server.wizletter.com (backend API).
 
 ## Testing
 - Unit tests: mocks in `_test.go` files (same package for handler tests, internal for domain tests)
