@@ -1,13 +1,23 @@
+import { kakaoLogin } from "@/lib/kakao-sdk";
+
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export const LOGIN_REDIRECT_KEY = "ota_login_redirect";
 
 export function KakaoLoginButton({ redirectPath }: { redirectPath?: string } = {}) {
-  const handleClick = () => {
+  const handleClick = async () => {
     if (redirectPath) {
       localStorage.setItem(LOGIN_REDIRECT_KEY, redirectPath);
     }
-    window.location.href = `${API_BASE}/api/v1/auth/kakao/login`;
+    // Try the JS SDK first — on mobile with the KakaoTalk app installed this
+    // hands off to the app for a true single-tap login. On desktop / app
+    // missing it falls back to Kakao's web OAuth page (still one redirect).
+    // If the SDK isn't loaded or the JS key isn't configured, drop through to
+    // the server-side redirect flow so behaviour is preserved.
+    const launched = await kakaoLogin();
+    if (!launched) {
+      window.location.href = `${API_BASE}/api/v1/auth/kakao/login`;
+    }
   };
 
   return (

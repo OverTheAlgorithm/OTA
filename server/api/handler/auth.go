@@ -231,6 +231,19 @@ func (h *AuthHandler) KakaoLogin(c *gin.Context) {
 	c.Redirect(http.StatusFound, authURL)
 }
 
+// KakaoState issues a one-shot CSRF state token for the client-side Kakao JS
+// SDK. The frontend fetches this before calling Kakao.Auth.authorize() so the
+// callback can validate state with the same store as the redirect-based flow.
+func (h *AuthHandler) KakaoState(c *gin.Context) {
+	state, err := h.states.Generate()
+	if err != nil {
+		slog.Error("failed to generate state", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"state": state})
+}
+
 func (h *AuthHandler) KakaoCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
@@ -561,6 +574,7 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 
 func (h *AuthHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/kakao/login", h.KakaoLogin)
+	group.GET("/kakao/state", h.KakaoState)
 	group.GET("/kakao/callback", h.KakaoCallback)
 	group.POST("/complete-signup", h.CompleteSignup)
 	group.POST("/logout", h.Logout)
