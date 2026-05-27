@@ -479,7 +479,8 @@ interface CategoryTab {
   label: string;
 }
 
-// Short tab labels matching the Figma design.
+// News-category tab strip. Always begins with an "all" pseudo-tab so the
+// user can clear the filter without leaving this section.
 const NEWS_CATEGORY_TABS: CategoryTab[] = [
   { type: "all", key: "all", emoji: "🏠", label: "전체" },
   { type: "category", key: "general", emoji: "📰", label: "종합" },
@@ -491,27 +492,7 @@ const NEWS_CATEGORY_TABS: CategoryTab[] = [
   { type: "category", key: "health", emoji: "🏥", label: "건강" },
 ];
 
-// Shortens the long, descriptive brain_category labels (e.g. "모르면 나만
-// 모르는 이야기예요") down to a tab-sized snippet. Falls back to the first
-// 6 chars + "…" when no manual override is set.
-const BRAIN_LABEL_OVERRIDES: Record<string, string> = {
-  must_know: "필독",
-  plan_ahead: "일정",
-  conversation: "대화",
-  opinion: "의견",
-  result: "결과",
-  trend: "트렌드",
-  useful: "생활팁",
-  fun: "유머",
-  over_the_algorithm: "OTA",
-};
-
-function shortBrainLabel(bc: BrainCategory): string {
-  const override = BRAIN_LABEL_OVERRIDES[bc.key];
-  if (override) return override;
-  if (bc.label.length <= 6) return bc.label;
-  return bc.label.slice(0, 6) + "…";
-}
+type TabSet = "wizletter" | "general";
 
 // Time before a slow fetch surfaces *any* loading affordance. Below this we
 // keep the previous tab's results on screen so a typical sub-second response
@@ -525,6 +506,10 @@ type LoadPhase = "initial" | "idle" | "fetching" | "slow" | "verySlow";
 function CategoryNewsSection() {
   const { user } = useAuth();
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
+  // 위즈레터 카테고리 (brain_category) opens by default — it carries our
+  // editorial framing, while "일반 카테고리" gives readers the familiar
+  // press-section view.
+  const [tabSet, setTabSet] = useState<TabSet>("wizletter");
   const [active, setActive] = useState<{ type: TabKind; key: string }>({
     type: "all",
     key: "all",
@@ -592,24 +577,62 @@ function CategoryNewsSection() {
     return m;
   }, [brainCategories]);
 
-  const tabs: CategoryTab[] = useMemo(
-    () => [
-      ...NEWS_CATEGORY_TABS,
+  // Tab strip depends on which set is active. The leading "all" tab is shared
+  // between both — selecting it clears the filter regardless of which set we
+  // are showing.
+  const tabs: CategoryTab[] = useMemo(() => {
+    if (tabSet === "general") return NEWS_CATEGORY_TABS;
+    return [
+      { type: "all", key: "all", emoji: "🏠", label: "전체" },
       ...brainCategories.map<CategoryTab>((bc) => ({
         type: "brain_category",
         key: bc.key,
         emoji: bc.emoji,
-        label: shortBrainLabel(bc),
+        label: bc.label,
       })),
-    ],
-    [brainCategories],
-  );
+    ];
+  }, [tabSet, brainCategories]);
+
+  // When the user flips between tab sets, drop back to "전체" so we never leave
+  // the selection pointing at a tab that is no longer on screen.
+  const switchTabSet = (next: TabSet) => {
+    if (next === tabSet) return;
+    setTabSet(next);
+    setActive({ type: "all", key: "all" });
+  };
 
   return (
     <section className="mt-12">
-      <h2 className="text-lg font-bold text-[#231815] mb-4 flex items-center gap-2">
-        <span aria-hidden>🌐</span> 카테고리별 뉴스
-      </h2>
+      <div className="flex items-end justify-between mb-4 gap-3 flex-wrap">
+        <h2 className="text-lg font-bold text-[#231815] flex items-center gap-2">
+          <span aria-hidden>🌐</span> 카테고리별 뉴스
+        </h2>
+        <div className="flex items-center gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => switchTabSet("wizletter")}
+            className={`transition-colors ${
+              tabSet === "wizletter"
+                ? "font-bold text-[#231815]"
+                : "text-[#231815]/30 hover:text-[#231815]/60"
+            }`}
+          >
+            위즈레터 카테고리
+          </button>
+          <span className="text-[#231815]/20" aria-hidden>|</span>
+          <button
+            type="button"
+            onClick={() => switchTabSet("general")}
+            className={`transition-colors ${
+              tabSet === "general"
+                ? "font-bold text-[#231815]"
+                : "text-[#231815]/30 hover:text-[#231815]/60"
+            }`}
+          >
+            일반 카테고리
+          </button>
+        </div>
+      </div>
 
       <div className="border-b border-[#231815]/20 mb-5 overflow-x-auto">
         <div className="flex items-stretch gap-1 min-w-max">
@@ -620,11 +643,6 @@ function CategoryNewsSection() {
               <button
                 key={tabId}
                 onClick={() => setActive({ type: tab.type, key: tab.key })}
-                title={
-                  tab.type === "brain_category"
-                    ? brainCategoryMap[tab.key]?.label ?? tab.label
-                    : tab.label
-                }
                 className={`flex flex-col items-center justify-end px-3 py-2 min-w-[68px] text-xs transition-colors ${
                   isActive
                     ? "text-[#231815] border-b-[3px] border-[#43b9d6] -mb-px"
