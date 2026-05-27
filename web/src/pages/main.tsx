@@ -603,13 +603,15 @@ function CategoryNewsSection() {
 
   return (
     <section className="mt-12">
-      <div className="flex items-center mb-4 gap-3 flex-wrap">
+      {/* items-baseline so the smaller toggle text aligns to the heading's
+          bottom baseline instead of floating above it center-aligned. */}
+      <div className="flex items-baseline mb-4 gap-3 flex-wrap">
         <h2 className="text-lg font-bold text-[#231815] flex items-center gap-2">
           <span aria-hidden>🌐</span> 카테고리별 뉴스
         </h2>
         {/* Sit the toggle right next to the heading — the mid-aged target
             readership easily misses controls pinned to the right edge. */}
-        <div className="flex items-center gap-2 text-sm ml-1">
+        <div className="flex items-baseline gap-2 text-sm ml-1">
           <button
             type="button"
             onClick={() => switchTabSet("wizletter")}
