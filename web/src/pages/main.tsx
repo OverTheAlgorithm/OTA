@@ -130,9 +130,12 @@ function HeroSection({
     // column lines up across both rows.
     <section className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
       <div className="lg:col-span-3 space-y-5">
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight tracking-tight">
+        <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold leading-tight tracking-tight break-keep">
           읽는 만큼 쌓이는{" "}
-          <span className="text-[#43b9d6]">지식 포인트</span>,
+          {/* whitespace-nowrap holds "지식 포인트" together so the space
+              between the two words is never the break point on a narrow
+              mobile width. */}
+          <span className="text-[#43b9d6] whitespace-nowrap">지식 포인트</span>,
           <br />
           <span className="text-[#f5a623]">보상</span>으로 바꾸는 위즈레터
         </h1>
@@ -371,8 +374,9 @@ function CarouselSlide({
         />
       </div>
       {/* Fixed-height body so swapping slides with shorter/longer text does
-          not push the section below up and down. */}
-      <div className="p-5 sm:p-6 h-[140px] sm:h-[156px] flex flex-col overflow-hidden">
+          not push the section below up and down. Sized to fit a 2-line
+          title + 2-line summary + the meta row on every viewport. */}
+      <div className="p-5 sm:p-6 h-[180px] flex flex-col overflow-hidden">
         <div className="flex items-center gap-2 mb-2 text-xs font-bold text-[#231815] shrink-0">
           {topic.created_at && <span>{formatDate(topic.created_at)}</span>}
           {topic.category && (
