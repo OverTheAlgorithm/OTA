@@ -36,6 +36,21 @@ interface ActiveFilter {
   value: string;
 }
 
+// 위즈레터 카테고리 (brain_category) vs 일반 카테고리 (news category).
+type TabSet = "wizletter" | "general";
+
+// News-category labels for the "일반" tab strip. Kept short so eight tabs fit
+// evenly across the row without horizontal scroll.
+const GENERAL_CATEGORY_TABS: { key: string; emoji: string; label: string }[] = [
+  { key: "general", emoji: "📰", label: "종합" },
+  { key: "entertainment", emoji: "🎬", label: "연예" },
+  { key: "business", emoji: "💰", label: "경제" },
+  { key: "sports", emoji: "⚽", label: "스포츠" },
+  { key: "technology", emoji: "💻", label: "IT/기술" },
+  { key: "science", emoji: "🔬", label: "과학" },
+  { key: "health", emoji: "🏥", label: "건강" },
+];
+
 function NewsCard({
   topic,
   earnStatus,
@@ -104,6 +119,21 @@ export function AllNewsPage() {
       if (saved) return JSON.parse(saved) as ActiveFilter;
     } catch { /* ignore */ }
     return { type: "", value: "" };
+  });
+  // Default to whichever set matches the persisted filter, otherwise 위즈레터.
+  const [tabSet, setTabSet] = useState<TabSet>(() => {
+    try {
+      const saved = sessionStorage.getItem("allnews_tabset");
+      if (saved === "wizletter" || saved === "general") return saved;
+    } catch { /* ignore */ }
+    try {
+      const filterRaw = sessionStorage.getItem("allnews_filter");
+      if (filterRaw) {
+        const f = JSON.parse(filterRaw) as ActiveFilter;
+        if (f.type === "category") return "general";
+      }
+    } catch { /* ignore */ }
+    return "wizletter";
   });
   const [topics, setTopics] = useState<TopicPreview[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -217,27 +247,50 @@ export function AllNewsPage() {
     setActiveFilter(next);
   };
 
+  // Swap between the wizletter / general tab strips. If the user is already
+  // on "전체" the filter is identical across both sets, so we skip the
+  // setActiveFilter call and the resulting refetch — pure visual flip.
+  const switchTabSet = (next: TabSet) => {
+    if (next === tabSet) return;
+    sessionStorage.setItem("allnews_tabset", next);
+    setTabSet(next);
+    if (activeFilter.type !== "") {
+      const cleared: ActiveFilter = { type: "", value: "" };
+      sessionStorage.setItem("allnews_filter", JSON.stringify(cleared));
+      sessionStorage.removeItem("allnews_count");
+      sessionStorage.removeItem("allnews_scroll");
+      setActiveFilter(cleared);
+    }
+  };
+
   const handleLoadMore = () => {
     if (!loadingMore && hasMore) {
       loadTopics(activeFilter, true);
     }
   };
 
-  // Build tab list: "전체" + categories + brain_categories
-  const tabs: { label: string; type: FilterType; value: string; emoji?: string }[] = [
-    { label: "전체", type: "", value: "" },
-    ...filterOptions.categories.map((c) => ({
-      label: c.label,
-      type: "category" as FilterType,
-      value: c.key,
-    })),
-    ...filterOptions.brain_categories.map((bc) => ({
-      label: bc.label,
-      type: "brain_category" as FilterType,
-      value: bc.key,
-      emoji: bc.emoji,
-    })),
-  ];
+  // Tab list depends on which set is active. "전체" is shared between both —
+  // it clears the filter regardless of which set is showing.
+  const tabs: { label: string; type: FilterType; value: string; emoji?: string }[] =
+    tabSet === "general"
+      ? [
+          { label: "전체", type: "", value: "" },
+          ...GENERAL_CATEGORY_TABS.map((t) => ({
+            label: t.label,
+            type: "category" as FilterType,
+            value: t.key,
+            emoji: t.emoji,
+          })),
+        ]
+      : [
+          { label: "전체", type: "", value: "" },
+          ...filterOptions.brain_categories.map((bc) => ({
+            label: bc.label,
+            type: "brain_category" as FilterType,
+            value: bc.key,
+            emoji: bc.emoji,
+          })),
+        ];
 
   const isActiveTab = (type: FilterType, value: string) =>
     activeFilter.type === type && activeFilter.value === value;
@@ -294,16 +347,56 @@ export function AllNewsPage() {
             </span>
           </button>
 
-          {/* Category tabs */}
+          {/* 위즈레터 | 일반 set toggle — sits right next to the section
+              cue so middle-aged readers do not miss it. */}
+          <div className="mb-3 flex items-baseline gap-3 flex-wrap">
+            <span className="text-base font-bold text-[#231815]">분류</span>
+            <div className="flex items-baseline gap-2 text-sm ml-1">
+              <button
+                type="button"
+                onClick={() => switchTabSet("wizletter")}
+                className={`transition-colors ${
+                  tabSet === "wizletter"
+                    ? "font-bold text-[#231815]"
+                    : "text-[#231815]/30 hover:text-[#231815]/60"
+                }`}
+              >
+                위즈레터
+              </button>
+              <span className="text-[#231815]/20" aria-hidden>|</span>
+              <button
+                type="button"
+                onClick={() => switchTabSet("general")}
+                className={`transition-colors ${
+                  tabSet === "general"
+                    ? "font-bold text-[#231815]"
+                    : "text-[#231815]/30 hover:text-[#231815]/60"
+                }`}
+              >
+                일반
+              </button>
+            </div>
+          </div>
+
+          {/* Category tabs — general set distributes evenly across the row;
+              wizletter labels are too long, so they keep natural width and
+              scroll horizontally. */}
           <div className="mb-8 -mx-6 px-6 overflow-x-auto scrollbar-hide">
-            <div className="flex gap-5 pb-2 min-w-max border-b border-[#dbdade]">
+            <div
+              className={
+                tabSet === "general"
+                  ? "flex pb-2 border-b border-[#dbdade]"
+                  : "flex gap-5 pb-2 min-w-max border-b border-[#dbdade]"
+              }
+            >
               {tabs.map((tab) => {
                 const active = isActiveTab(tab.type, tab.value);
+                const widthClass = tabSet === "general" ? "flex-1" : "";
                 return (
                   <button
                     key={`${tab.type}-${tab.value}`}
                     onClick={() => handleFilterChange(tab.type, tab.value)}
-                    className={`pb-2 text-base font-medium whitespace-nowrap transition-colors relative ${
+                    className={`pb-2 text-base font-medium whitespace-nowrap transition-colors relative ${widthClass} ${
                       active
                         ? "text-[#008fb2]"
                         : "text-[#231815]/60 hover:text-[#231815]"
