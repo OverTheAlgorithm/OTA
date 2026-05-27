@@ -35,6 +35,7 @@ import type {
   EditorPost,
   EditorPostStatus,
   EditorPickDetail,
+  EditorPickCard,
   EditorPickPage,
   UploadedImage,
   RoleChangeLog,
@@ -967,6 +968,26 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     return body.data;
   }
 
+  async function searchEditorPicks(
+    query: string,
+    limit: number,
+    offset: number
+  ): Promise<{ items: EditorPickCard[]; has_more: boolean }> {
+    const trimmed = query.trim();
+    if (!trimmed) return { items: [], has_more: false };
+    const params = new URLSearchParams();
+    params.set("q", trimmed);
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    const res = await publicFetch(`${API_PATHS.EDITOR_PICKS_SEARCH}?${params}`);
+    if (!res.ok) return { items: [], has_more: false };
+    const body = await res.json();
+    return {
+      items: body.data?.items ?? [],
+      has_more: body.data?.has_more ?? false,
+    };
+  }
+
   // ── Admin Users ────────────────────────────────────────────────────────
 
   async function adminSearchUserByRole(type: "id" | "email", q: string): Promise<User> {
@@ -1092,6 +1113,7 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     // Editor Picks (public)
     listEditorPicks,
     getEditorPick,
+    searchEditorPicks,
     // Admin Users
     adminSearchUserByRole,
     adminUpdateUserRole,

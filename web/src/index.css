@@ -119,6 +119,19 @@ body {
   }
 }
 
+/* ── scrollbar-hide utility ────────────────────────────────────────────────
+   Applied to horizontal tab strips (main + allnews) so the browser does not
+   render the thin scrollbar track on the cross-axis. overflow-x-auto can
+   trigger a vertical scrollbar in some engines when the content row sits
+   right at the container's height; this rule kills the chrome cleanly. */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge legacy */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome / Safari / Webkit */
+}
+
 /* ── Rich-text content (editor + reader view) ───────────────────────────────
    Tailwind v4 preflight resets heading sizes, so plain h1/h2/h3 from the
    TipTap editor would render at body size. This class restores semantic

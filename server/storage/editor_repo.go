@@ -200,6 +200,57 @@ func (r *EditorRepository) GetPublishedByID(ctx context.Context, id string) (edi
 	return p, nil
 }
 
+// SearchPublishedCards is the editor-post counterpart to
+// HistoryRepository.SearchContextItems. The pg_trgm GIN indexes from
+// migration 000040 keep the ILIKE substring scan cheap.
+//
+// Ranking:
+//
+//	rank 2 = title match (highest)
+//	rank 1 = body match
+//
+// Newer posts come first within a rank tier. Uses limit+1 to detect hasMore.
+func (r *EditorRepository) SearchPublishedCards(ctx context.Context, query string, limit, offset int) ([]editor.PublicCard, bool, error) {
+	pattern := "%" + query + "%"
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT p.id, p.author_id,
+		       COALESCE(NULLIF(btrim(u.pen_name, E' \t\n\r\v\f'), ''), u.nickname, ''),
+		       p.title, p.content_text, p.first_image_url, p.published_at,
+		       CASE WHEN p.title ILIKE $1 THEN 2 ELSE 1 END AS match_rank
+		FROM editor_posts p
+		LEFT JOIN users u ON u.id = p.author_id
+		WHERE p.status = 'published'
+		  AND p.published_at IS NOT NULL
+		  AND (p.title ILIKE $1 OR p.content_text ILIKE $1)
+		ORDER BY match_rank DESC, p.published_at DESC
+		LIMIT $2 OFFSET $3
+	`, pattern, limit+1, offset)
+	if err != nil {
+		return nil, false, fmt.Errorf("search editor_posts: %w", err)
+	}
+	defer rows.Close()
+
+	var out []editor.PublicCard
+	for rows.Next() {
+		var c editor.PublicCard
+		var matchRank int
+		if err := rows.Scan(&c.ID, &c.AuthorID, &c.AuthorName, &c.Title, &c.Excerpt, &c.FirstImageURL, &c.PublishedAt, &matchRank); err != nil {
+			return nil, false, fmt.Errorf("scan editor_post search row: %w", err)
+		}
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, fmt.Errorf("iterate editor_post search rows: %w", err)
+	}
+
+	hasMore := len(out) > limit
+	if hasMore {
+		out = out[:limit]
+	}
+	return out, hasMore, nil
+}
+
 func (r *EditorRepository) CountPublished(ctx context.Context) (int, error) {
 	var n int
 	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM editor_posts WHERE status = 'published'`).Scan(&n)

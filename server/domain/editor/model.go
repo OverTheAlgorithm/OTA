@@ -86,4 +86,8 @@ type Repository interface {
 	ListPublishedCards(ctx context.Context, limit, offset int) ([]PublicCard, error)
 	GetPublishedByID(ctx context.Context, id string) (PublicPost, error)
 	CountPublished(ctx context.Context) (int, error)
+	// SearchPublishedCards performs case-insensitive substring search across
+	// title and content_text on published posts. Title matches outrank body
+	// matches; ties break by recency. Returns cards, hasMore, error.
+	SearchPublishedCards(ctx context.Context, query string, limit, offset int) ([]PublicCard, bool, error)
 }

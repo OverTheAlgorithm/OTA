@@ -95,6 +95,7 @@ export const API_PATHS = {
   // Editor Picks (public)
   EDITOR_PICKS: `${API_PREFIX}/editor-picks`,
   EDITOR_PICK: (id: string) => `${API_PREFIX}/editor-picks/${id}`,
+  EDITOR_PICKS_SEARCH: `${API_PREFIX}/editor-picks/search`,
 
   // Admin Users (role management)
   ADMIN_USERS_SEARCH: `${API_PREFIX}/admin/users/search`,

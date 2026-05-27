@@ -378,25 +378,19 @@ export function AllNewsPage() {
             </div>
           </div>
 
-          {/* Category tabs — general set distributes evenly across the row;
-              wizletter labels are too long, so they keep natural width and
-              scroll horizontally. */}
+          {/* Tabs stretch to fill spare row width via flex-grow, but never
+              shrink below their natural content width (shrink-0) so labels
+              like "IT/기술" don't wrap on mobile. When the natural total
+              exceeds the container, the row scrolls horizontally. */}
           <div className="mb-8 -mx-6 px-6 overflow-x-auto scrollbar-hide">
-            <div
-              className={
-                tabSet === "general"
-                  ? "flex pb-2 border-b border-[#dbdade]"
-                  : "flex gap-5 pb-2 min-w-max border-b border-[#dbdade]"
-              }
-            >
+            <div className="flex pb-2 border-b border-[#dbdade] min-w-full">
               {tabs.map((tab) => {
                 const active = isActiveTab(tab.type, tab.value);
-                const widthClass = tabSet === "general" ? "flex-1" : "";
                 return (
                   <button
                     key={`${tab.type}-${tab.value}`}
                     onClick={() => handleFilterChange(tab.type, tab.value)}
-                    className={`pb-2 text-base font-medium whitespace-nowrap transition-colors relative ${widthClass} ${
+                    className={`pb-2 px-3 text-base font-medium whitespace-nowrap transition-colors relative grow shrink-0 ${
                       active
                         ? "text-[#008fb2]"
                         : "text-[#231815]/60 hover:text-[#231815]"

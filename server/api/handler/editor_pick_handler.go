@@ -4,6 +4,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 
@@ -24,7 +26,44 @@ func NewEditorPickHandler(repo editor.Repository) *EditorPickHandler {
 
 func (h *EditorPickHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("", h.List)
+	// `/search` must be registered before `/:id` so Gin's router does not
+	// treat "search" as a post ID.
+	group.GET("/search", h.Search)
 	group.GET("/:id", h.Get)
+}
+
+// Search handles GET /api/v1/editor-picks/search?q=&limit=&offset=.
+// Mirrors the topic search contract: query is required, trimmed, max 100
+// chars. Title matches outrank body matches; ties break by recency.
+func (h *EditorPickHandler) Search(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query string 'q' is required"})
+		return
+	}
+	if utf8.RuneCountInString(q) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query string 'q' too long (max 100 chars)"})
+		return
+	}
+
+	limit, offset := parsePageParams(c, 10, 50)
+
+	cards, hasMore, err := h.repo.SearchPublishedCards(c.Request.Context(), q, limit, offset)
+	if err != nil {
+		slog.Error("editor-picks search error", "query", q, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if cards == nil {
+		cards = []editor.PublicCard{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"items":    cards,
+			"has_more": hasMore,
+			"query":    q,
+		},
+	})
 }
 
 // List handles GET /api/v1/editor-picks?limit=10&offset=0.

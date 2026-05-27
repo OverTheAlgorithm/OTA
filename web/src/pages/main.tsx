@@ -647,27 +647,22 @@ function CategoryNewsSection() {
         </div>
       </div>
 
-      <div className="border-b border-[#231815]/20 mb-5 overflow-x-auto">
-        {/* General categories (8 short labels) stretch evenly across the row;
-            wizletter labels are too long to distribute, so they keep their
-            natural width and scroll horizontally. */}
-        <div
-          className={
-            tabSet === "general"
-              ? "flex items-stretch"
-              : "flex items-stretch gap-1 min-w-max"
-          }
-        >
+      <div className="border-b border-[#231815]/20 mb-5 overflow-x-auto scrollbar-hide">
+        {/* grow + shrink-0 lets tabs stretch to fill the row when there is
+            spare room (general set on desktop) while never squeezing a tab
+            below its natural content width — which is what caused "스포츠"
+            and "IT/기술" to wrap to two lines on mobile. When the natural
+            total exceeds the container the row overflows horizontally
+            instead, picked up by the scrollbar-hide wrapper above. */}
+        <div className="flex items-stretch min-w-full">
           {tabs.map((tab) => {
             const isActive = active.type === tab.type && active.key === tab.key;
             const tabId = `${tab.type}:${tab.key}`;
-            const widthClass =
-              tabSet === "general" ? "flex-1" : "min-w-[68px]";
             return (
               <button
                 key={tabId}
                 onClick={() => setActive({ type: tab.type, key: tab.key })}
-                className={`flex flex-col items-center justify-end px-3 py-2 text-xs transition-colors ${widthClass} ${
+                className={`flex flex-col items-center justify-end grow shrink-0 px-3 py-2 text-xs whitespace-nowrap transition-colors ${
                   isActive
                     ? "text-[#231815] border-b-[3px] border-[#43b9d6] -mb-px"
                     : "text-[#231815]/60 hover:text-[#231815]"

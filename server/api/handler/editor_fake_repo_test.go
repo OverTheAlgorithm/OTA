@@ -3,7 +3,9 @@ package handler_test
 import (
 	"context"
 	"errors"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -150,6 +152,71 @@ func (r *inMemoryEditorRepo) CountPublished(_ context.Context) (int, error) {
 		}
 	}
 	return n, nil
+}
+
+// SearchPublishedCards mirrors the storage implementation's ranking — title
+// matches outrank body matches, ties break by recency — so handler tests can
+// exercise the contract without spinning up a Postgres container.
+func (r *inMemoryEditorRepo) SearchPublishedCards(_ context.Context, query string, limit, offset int) ([]editor.PublicCard, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	needle := strings.ToLower(query)
+	type ranked struct {
+		card editor.PublicCard
+		rank int
+	}
+	var hits []ranked
+	for _, p := range r.posts {
+		if p.Status != editor.StatusPublished || p.PublishedAt == nil {
+			continue
+		}
+		titleHit := strings.Contains(strings.ToLower(p.Title), needle)
+		bodyHit := strings.Contains(strings.ToLower(p.ContentText), needle)
+		if !titleHit && !bodyHit {
+			continue
+		}
+		rank := 1
+		if titleHit {
+			rank = 2
+		}
+		hits = append(hits, ranked{
+			card: editor.PublicCard{
+				ID:            p.ID,
+				AuthorID:      p.AuthorID,
+				Title:         p.Title,
+				Excerpt:       p.ContentText,
+				FirstImageURL: p.FirstImageURL,
+				PublishedAt:   *p.PublishedAt,
+			},
+			rank: rank,
+		})
+	}
+	sort.SliceStable(hits, func(i, j int) bool {
+		if hits[i].rank != hits[j].rank {
+			return hits[i].rank > hits[j].rank
+		}
+		return hits[i].card.PublishedAt.After(hits[j].card.PublishedAt)
+	})
+
+	hasMore := false
+	if offset >= len(hits) {
+		return nil, false, nil
+	}
+	end := offset + limit + 1
+	if end > len(hits) {
+		end = len(hits)
+	} else {
+		hasMore = true
+	}
+	picked := hits[offset:end]
+	if hasMore {
+		picked = picked[:limit]
+	}
+	out := make([]editor.PublicCard, len(picked))
+	for i, p := range picked {
+		out[i] = p.card
+	}
+	return out, hasMore, nil
 }
 
 // errNotUsed is here to satisfy any future linter complaint about the unused errors import.

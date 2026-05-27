@@ -151,6 +151,7 @@ export const {
   // Editor Picks (public)
   listEditorPicks,
   getEditorPick,
+  searchEditorPicks,
   // Admin Users (role management)
   adminSearchUserByRole,
   adminUpdateUserRole,

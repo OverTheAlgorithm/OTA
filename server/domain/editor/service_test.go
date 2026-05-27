@@ -96,6 +96,9 @@ func (r *fakeRepo) GetPublishedByID(context.Context, string) (PublicPost, error)
 	return PublicPost{}, errors.New("not used")
 }
 func (r *fakeRepo) CountPublished(context.Context) (int, error) { return 0, nil }
+func (r *fakeRepo) SearchPublishedCards(context.Context, string, int, int) ([]PublicCard, bool, error) {
+	return nil, false, nil
+}
 
 func itoa(n int) string {
 	if n == 0 {
