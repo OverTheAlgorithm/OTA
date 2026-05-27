@@ -124,8 +124,10 @@ function HeroSection({
   onOpenLogin: () => void;
 }) {
   return (
-    <section className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-      <div className="space-y-5">
+    // Mirror the carousel/editor-picks 2-1 split below so the right-hand
+    // column lines up across both rows.
+    <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="lg:col-span-2 space-y-5">
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight tracking-tight">
           읽는 만큼 쌓이는 포인트,
           <br />
@@ -139,7 +141,7 @@ function HeroSection({
         <StepFlow />
       </div>
 
-      <div className="md:pt-4">
+      <div className="lg:pt-2">
         {loggedIn ? <UserLevelCard /> : <UnauthenticatedCTA onClick={onOpenLogin} />}
       </div>
     </section>
@@ -169,7 +171,10 @@ function StepFlow() {
             </p>
           </div>
           {i < steps.length - 1 && (
-            <span className="mt-5 sm:mt-6 text-[#231815]/40 text-xl shrink-0">
+            <span
+              aria-hidden
+              className="mt-4 sm:mt-5 text-[#231815]/40 text-5xl sm:text-6xl font-light leading-none shrink-0 select-none"
+            >
               ›
             </span>
           )}
@@ -202,12 +207,17 @@ function UnauthenticatedCTA({ onClick }: { onClick: () => void }) {
 
 // ─── Today's Top News (carousel) ─────────────────────────────────────────────
 
+// 5s between auto-advance ticks. Pauses on hover and after any manual nav
+// click so the user isn't fighting the carousel.
+const HERO_AUTO_ADVANCE_MS = 5000;
+
 function TodaysTopNews() {
   const { user } = useAuth();
   const [topics, setTopics] = useState<TopicPreview[]>([]);
   const [earnMap, setEarnMap] = useState<Record<string, EarnStatusItem>>({});
   const [loading, setLoading] = useState(true);
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -232,9 +242,23 @@ function TodaysTopNews() {
   const total = topics.length;
   const active = topics[index];
 
+  // Auto-advance every 5 seconds. Re-runs whenever `paused` flips so a manual
+  // click resets the timer (and pauses for one tick) instead of double-firing.
+  useEffect(() => {
+    if (paused || total < 2) return;
+    const handle = window.setInterval(() => {
+      setIndex((i) => (i + 1) % total);
+    }, HERO_AUTO_ADVANCE_MS);
+    return () => window.clearInterval(handle);
+  }, [paused, total]);
+
   const go = (delta: number) => {
     if (total === 0) return;
     setIndex((i) => (i + delta + total) % total);
+    // Brief pause/reset so the next auto-tick happens 5s after the click, not
+    // mid-stride.
+    setPaused(true);
+    window.setTimeout(() => setPaused(false), HERO_AUTO_ADVANCE_MS);
   };
 
   return (
@@ -252,7 +276,11 @@ function TodaysTopNews() {
           <p className="text-sm text-[#231815]/50">표시할 소식이 없습니다.</p>
         </div>
       ) : (
-        <article className="rounded-xl border-[2px] border-[#231815] bg-white overflow-hidden">
+        <article
+          className="rounded-xl border-[2px] border-[#231815] bg-white overflow-hidden flex flex-col"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
           <Link to={`/topic/${active.id}`} className="block group">
             <div className="aspect-[16/9] overflow-hidden bg-[#f0ece0]">
               <img
@@ -264,8 +292,10 @@ function TodaysTopNews() {
                 }}
               />
             </div>
-            <div className="p-5 sm:p-6">
-              <div className="flex items-center gap-2 mb-2 text-xs font-bold text-[#231815]">
+            {/* Fixed-height body so swapping slides with shorter/longer text
+                does not push the section below up and down. */}
+            <div className="p-5 sm:p-6 h-[140px] sm:h-[156px] flex flex-col overflow-hidden">
+              <div className="flex items-center gap-2 mb-2 text-xs font-bold text-[#231815] shrink-0">
                 {active.created_at && <span>{formatDate(active.created_at)}</span>}
                 {active.category && (
                   <span className="text-[#231815]/60">
@@ -274,10 +304,10 @@ function TodaysTopNews() {
                 )}
                 {earnMap[active.id] && <CoinTag status={earnMap[active.id]} />}
               </div>
-              <h3 className="text-xl sm:text-2xl font-bold leading-snug line-clamp-2 group-hover:opacity-70 transition-opacity">
+              <h3 className="text-lg sm:text-xl font-bold leading-snug line-clamp-2 group-hover:opacity-70 transition-opacity">
                 {active.topic}
               </h3>
-              <p className="mt-2 text-sm text-[#231815]/70 line-clamp-2 leading-relaxed">
+              <p className="mt-1.5 text-sm text-[#231815]/70 line-clamp-2 leading-relaxed">
                 {active.summary}
               </p>
             </div>
@@ -286,20 +316,20 @@ function TodaysTopNews() {
             <span className="text-xs text-[#231815]/60">
               {index + 1} / {total}
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => go(-1)}
                 aria-label="이전 소식"
-                className="w-9 h-9 rounded-full border border-[#231815] flex items-center justify-center text-[#231815] hover:bg-[#231815]/5"
+                className="w-10 h-10 rounded-full border-[2px] border-[#231815] flex items-center justify-center text-[#231815] hover:bg-[#231815]/5 transition-colors"
               >
-                ‹
+                <ChevronIcon direction="left" />
               </button>
               <button
                 onClick={() => go(1)}
                 aria-label="다음 소식"
-                className="w-9 h-9 rounded-full border border-[#231815] flex items-center justify-center text-[#231815] hover:bg-[#231815]/5"
+                className="w-10 h-10 rounded-full border-[2px] border-[#231815] flex items-center justify-center text-[#231815] hover:bg-[#231815]/5 transition-colors"
               >
-                ›
+                <ChevronIcon direction="right" />
               </button>
             </div>
           </div>
@@ -382,30 +412,64 @@ function EditorPicksSection() {
 
 // ─── Category News (tab nav + card list) ─────────────────────────────────────
 
-// Short tab labels matching the Figma design — these are the news categories
-// (categories table) rather than brain_categories (which carry long descriptive
-// labels like "모르면 나만 모르는 이야기예요" unsuited to a tab strip).
-const NEWS_CATEGORY_TABS: { key: string; emoji: string; label: string }[] = [
-  { key: "all", emoji: "🏠", label: "전체" },
-  { key: "general", emoji: "📰", label: "종합" },
-  { key: "entertainment", emoji: "🎬", label: "연예" },
-  { key: "business", emoji: "💰", label: "경제" },
-  { key: "sports", emoji: "⚽", label: "스포츠" },
-  { key: "technology", emoji: "💻", label: "IT/기술" },
-  { key: "science", emoji: "🔬", label: "과학" },
-  { key: "health", emoji: "🏥", label: "건강" },
+// `type` discriminates which backend filter to apply. `"all"` clears filters,
+// `"category"` targets the news category table, and `"brain_category"` targets
+// the curated brain_categories. The tab strip mixes both with the news
+// categories appearing first.
+type TabKind = "all" | "category" | "brain_category";
+
+interface CategoryTab {
+  type: TabKind;
+  key: string;
+  emoji: string;
+  label: string;
+}
+
+// Short tab labels matching the Figma design.
+const NEWS_CATEGORY_TABS: CategoryTab[] = [
+  { type: "all", key: "all", emoji: "🏠", label: "전체" },
+  { type: "category", key: "general", emoji: "📰", label: "종합" },
+  { type: "category", key: "entertainment", emoji: "🎬", label: "연예" },
+  { type: "category", key: "business", emoji: "💰", label: "경제" },
+  { type: "category", key: "sports", emoji: "⚽", label: "스포츠" },
+  { type: "category", key: "technology", emoji: "💻", label: "IT/기술" },
+  { type: "category", key: "science", emoji: "🔬", label: "과학" },
+  { type: "category", key: "health", emoji: "🏥", label: "건강" },
 ];
+
+// Shortens the long, descriptive brain_category labels (e.g. "모르면 나만
+// 모르는 이야기예요") down to a tab-sized snippet. Falls back to the first
+// 6 chars + "…" when no manual override is set.
+const BRAIN_LABEL_OVERRIDES: Record<string, string> = {
+  must_know: "필독",
+  plan_ahead: "일정",
+  conversation: "대화",
+  opinion: "의견",
+  result: "결과",
+  trend: "트렌드",
+  useful: "생활팁",
+  fun: "유머",
+  over_the_algorithm: "OTA",
+};
+
+function shortBrainLabel(bc: BrainCategory): string {
+  const override = BRAIN_LABEL_OVERRIDES[bc.key];
+  if (override) return override;
+  if (bc.label.length <= 6) return bc.label;
+  return bc.label.slice(0, 6) + "…";
+}
 
 function CategoryNewsSection() {
   const { user } = useAuth();
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
-  const [activeKey, setActiveKey] = useState<string>("all");
+  const [active, setActive] = useState<{ type: TabKind; key: string }>({
+    type: "all",
+    key: "all",
+  });
   const [topics, setTopics] = useState<TopicPreview[]>([]);
   const [earnMap, setEarnMap] = useState<Record<string, EarnStatusItem>>({});
   const [loading, setLoading] = useState(true);
 
-  // brain_categories still come from the API so we can label individual cards
-  // (#밈/유머 etc.) even though the tab strip uses news categories.
   useEffect(() => {
     getBrainCategories()
       .then(setBrainCategories)
@@ -414,8 +478,8 @@ function CategoryNewsSection() {
 
   useEffect(() => {
     setLoading(true);
-    const filterType = activeKey === "all" ? "" : "category";
-    const filterValue = activeKey === "all" ? "" : activeKey;
+    const filterType = active.type === "all" ? "" : active.type;
+    const filterValue = active.type === "all" ? "" : active.key;
     fetchAllTopics(filterType, filterValue, CATEGORY_PAGE_SIZE, 0)
       .then((page) => {
         setTopics(page.data);
@@ -433,13 +497,26 @@ function CategoryNewsSection() {
       })
       .catch(() => setTopics([]))
       .finally(() => setLoading(false));
-  }, [activeKey, user]);
+  }, [active, user]);
 
   const brainCategoryMap = useMemo(() => {
     const m: Record<string, { emoji: string; label: string }> = {};
     for (const bc of brainCategories) m[bc.key] = { emoji: bc.emoji, label: bc.label };
     return m;
   }, [brainCategories]);
+
+  const tabs: CategoryTab[] = useMemo(
+    () => [
+      ...NEWS_CATEGORY_TABS,
+      ...brainCategories.map<CategoryTab>((bc) => ({
+        type: "brain_category",
+        key: bc.key,
+        emoji: bc.emoji,
+        label: shortBrainLabel(bc),
+      })),
+    ],
+    [brainCategories],
+  );
 
   return (
     <section className="mt-12">
@@ -449,12 +526,18 @@ function CategoryNewsSection() {
 
       <div className="border-b border-[#231815]/20 mb-5 overflow-x-auto">
         <div className="flex items-stretch gap-1 min-w-max">
-          {NEWS_CATEGORY_TABS.map((tab) => {
-            const isActive = activeKey === tab.key;
+          {tabs.map((tab) => {
+            const isActive = active.type === tab.type && active.key === tab.key;
+            const tabId = `${tab.type}:${tab.key}`;
             return (
               <button
-                key={tab.key}
-                onClick={() => setActiveKey(tab.key)}
+                key={tabId}
+                onClick={() => setActive({ type: tab.type, key: tab.key })}
+                title={
+                  tab.type === "brain_category"
+                    ? brainCategoryMap[tab.key]?.label ?? tab.label
+                    : tab.label
+                }
                 className={`flex flex-col items-center justify-end px-3 py-2 min-w-[68px] text-xs transition-colors ${
                   isActive
                     ? "text-[#231815] border-b-[3px] border-[#43b9d6] -mb-px"
@@ -558,5 +641,27 @@ function CategoryCard({
 function Tag({ children }: { children: React.ReactNode }) {
   return (
     <span className="text-[11px] text-[#231815]/50">{children}</span>
+  );
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  // SVG keeps the icon crisp at any size and avoids the tiny default rendering
+  // of `‹`/`›` characters at this button scale.
+  const rotate = direction === "left" ? "rotate-180" : "";
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={rotate}
+      aria-hidden
+    >
+      <polyline points="9 6 15 12 9 18" />
+    </svg>
   );
 }
