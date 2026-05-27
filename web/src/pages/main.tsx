@@ -538,9 +538,11 @@ function CategoryNewsSection() {
 
   useEffect(() => {
     let cancelled = false;
-    // Only escalate to a visible loading state if the fetch is *actually* slow.
-    // Below the first threshold we keep the previous tab's content on screen
-    // unchanged so a quick API response causes no visual disturbance.
+    // Clear the previous tab's cards immediately so the click feels
+    // responsive — keeping them on screen made the UI feel frozen. The
+    // min-h on the list container below holds vertical space steady.
+    setTopics([]);
+    setEarnMap({});
     setPhase((prev) => (prev === "initial" ? "initial" : "fetching"));
 
     const slowTimer = window.setTimeout(() => {
@@ -556,7 +558,6 @@ function CategoryNewsSection() {
       .then((page) => {
         if (cancelled) return;
         setTopics(page.data);
-        setEarnMap({}); // wipe stale earn data from the previous tab
         if (user && page.data.length > 0) {
           batchEarnStatus(page.data.map((t) => t.id))
             .then((statuses) => {
@@ -637,19 +638,21 @@ function CategoryNewsSection() {
         </div>
       </div>
 
-      {/* min-h reserves vertical space so swapping between dense and sparse
-          categories does not collapse the layout while the next fetch is in
-          flight. */}
+      {/* min-h reserves vertical space so the area below does not jump
+          while the fetch is in flight or when a category yields no items. */}
       <div className="relative min-h-[600px]">
         {phase === "initial" || phase === "verySlow" ? (
           <div className="py-12 flex justify-center">
             <LoadingState size="sm" />
           </div>
-        ) : topics.length === 0 ? (
+        ) : phase === "idle" && topics.length === 0 ? (
           <p className="text-center py-10 text-sm text-[#231815]/50">
             이 카테고리에는 아직 소식이 없습니다.
           </p>
         ) : (
+          // List can be empty here only when a fetch is still in flight; the
+          // container stays blank until the response arrives. The min-h above
+          // keeps everything below this section anchored.
           <ul className="space-y-3">
             {topics.map((topic) => (
               <CategoryCard
