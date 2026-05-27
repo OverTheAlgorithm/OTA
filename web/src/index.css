@@ -2,9 +2,9 @@
 
 /* Color tokens */
 :root {
-  --color-bg: #fdf9ee;
+  --color-bg: #ffffff;
   --color-fg: #231815;
-  --color-card-bg: #fdf9ee;
+  --color-card-bg: #ffffff;
   --color-border: #231815;
   --color-text-secondary: #555;
   --color-text-muted: #888;

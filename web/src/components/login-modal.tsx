@@ -16,7 +16,7 @@ export function LoginModal({ open, onClose, redirectPath, error }: LoginModalPro
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-sm bg-[#fdf9ee] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-6"
+        className="relative w-full max-w-sm bg-[#ffffff] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-6"
         onClick={(e) => e.stopPropagation()}
       >
         <button

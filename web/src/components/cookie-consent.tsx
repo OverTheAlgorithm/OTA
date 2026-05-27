@@ -46,7 +46,7 @@ export function CookieConsent() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between gap-4 border-t border-[#231815] bg-[#fdf9ee] px-4 py-3 sm:px-6">
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between gap-4 border-t border-[#231815] bg-[#ffffff] px-4 py-3 sm:px-6">
       <p className="text-sm text-[#231815]">
         이 웹사이트는 서비스 개선을 위해 쿠키를 사용합니다.{" "}
         <Link

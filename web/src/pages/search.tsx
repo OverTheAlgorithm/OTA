@@ -100,7 +100,7 @@ export function SearchPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       <Helmet>
         <title>
           {submittedQuery ? `"${submittedQuery}" 검색 결과` : "검색"} | 위즈레터
@@ -150,7 +150,7 @@ export function SearchPage() {
               "{submittedQuery}" 검색 결과 {results.length}개
               {hasMore ? "+" : ""}
             </p>
-            <ul className="space-y-3">
+            <ul className="divide-y divide-[#231815]/10 border-y border-[#231815]/10">
               {results.map((topic) => (
                 <SearchResultRow
                   key={topic.id}
@@ -184,9 +184,9 @@ function SearchResultRow({ topic, query }: { topic: TopicPreview; query: string 
     <li>
       <Link
         to={`/topic/${topic.id}`}
-        className="flex gap-4 p-4 border border-[#231815] rounded-lg bg-white hover:shadow-md transition-shadow"
+        className="flex gap-4 py-4 hover:opacity-70 transition-opacity"
       >
-        <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 overflow-hidden rounded-md bg-[#f0ece0] border border-[#231815]/30">
+        <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 overflow-hidden rounded-md bg-[#f5f5f5]">
           <img
             src={topic.image_url || defaultImage}
             alt={topic.topic}

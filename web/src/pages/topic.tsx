@@ -463,7 +463,7 @@ export function TopicPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
+      <div className="min-h-screen flex items-center justify-center bg-[#ffffff]">
         <LoadingState label="불러오는 중" className="text-[#231815]/60" />
       </div>
     );
@@ -471,7 +471,7 @@ export function TopicPage() {
 
   if (error === "not_found") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
+      <div className="min-h-screen flex items-center justify-center bg-[#ffffff]">
         <p className="text-[#231815]/60">존재하지 않는 주제입니다.</p>
       </div>
     );
@@ -479,7 +479,7 @@ export function TopicPage() {
 
   if (error || !topic) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
+      <div className="min-h-screen flex items-center justify-center bg-[#ffffff]">
         <p className="text-[#231815]/60">불러오기에 실패했습니다. 잠시 후 다시 시도해 주세요.</p>
       </div>
     );
@@ -504,7 +504,7 @@ export function TopicPage() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       <Helmet>
         <title>{topic.topic} - 위즈레터</title>
         <meta name="description" content={topic.detail} />
@@ -738,7 +738,7 @@ export function TopicPage() {
       {/* ── Leave Confirmation Modal ── */}
       {showLeaveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="w-full max-w-sm bg-[#fdf9ee] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-5">
+          <div className="w-full max-w-sm bg-[#ffffff] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-5">
             <div className="w-14 h-14 rounded-full bg-[#43b9d6]/15 flex items-center justify-center">
               <svg className="w-7 h-7 text-[#43b9d6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
@@ -807,7 +807,7 @@ export function TopicPage() {
           onClick={() => setLoginOpen(false)}
         >
           <div
-            className="relative w-full max-w-sm bg-[#fdf9ee] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-6"
+            className="relative w-full max-w-sm bg-[#ffffff] border-[3px] border-[#231815] rounded-2xl p-8 flex flex-col items-center gap-6"
             onClick={(e) => e.stopPropagation()}
           >
             <button

@@ -51,7 +51,7 @@ interface ErrorFallbackProps {
 
 export function ErrorFallback({ onRetry }: ErrorFallbackProps) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#fdf9ee] px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#ffffff] px-4">
       <p className="text-6xl font-bold text-[#43b9d6]">!</p>
       <h1 className="mt-4 text-2xl font-semibold text-[#231815]">
         문제가 발생했어요

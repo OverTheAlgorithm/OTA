@@ -23,7 +23,7 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#fdf9ee] border-b-[3px] border-[#231815]">
+      <header className="sticky top-0 z-40 bg-[#ffffff] border-b border-[#231815]/10">
         <div className="max-w-[1200px] mx-auto px-6 h-[65px] flex items-center justify-between">
           <Link to="/" className="flex items-center">
             <img
@@ -134,7 +134,7 @@ export function Header() {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="md:hidden border-t-[2px] border-[#231815] bg-[#fdf9ee] px-6 py-4 space-y-3">
+          <div className="md:hidden border-t border-[#231815]/10 bg-[#ffffff] px-6 py-4 space-y-3">
             <Link
               to="/latest"
               className="block text-base font-medium text-[#231815]"

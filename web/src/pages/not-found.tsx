@@ -5,7 +5,7 @@ import { Footer } from "@/components/footer";
 
 export function NotFoundPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       <Helmet>
         <title>페이지를 찾을 수 없습니다 - 위즈레터</title>
         <meta name="description" content="요청하신 페이지가 존재하지 않거나 이동되었습니다." />

@@ -104,9 +104,9 @@ function HeroArticle({
   return (
     <Link
       to={`/topic/${topic.id}`}
-      className="group block border-[2px] border-[#231815] rounded-2xl overflow-hidden hover:shadow-lg transition-shadow bg-white"
+      className="group block border border-[#231815]/15 rounded-2xl overflow-hidden hover:shadow-sm transition-shadow bg-white"
     >
-      <div className="aspect-[2/1] sm:aspect-[5/2] overflow-hidden bg-[#f0ece0]">
+      <div className="aspect-[2/1] sm:aspect-[5/2] overflow-hidden bg-[#f5f5f5]">
         <img
           src={topic.image_url || defaultImage}
           alt={topic.topic}
@@ -158,10 +158,10 @@ function NewsItem({
   return (
     <Link
       to={`/topic/${topic.id}`}
-      className="group block border border-[#231815] rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+      className="group block py-4 hover:opacity-70 transition-opacity"
     >
-      <div className="flex flex-col sm:flex-row">
-        <div className="sm:w-[180px] sm:flex-shrink-0 aspect-[16/10] sm:aspect-auto overflow-hidden bg-[#f0ece0]">
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="sm:w-[180px] sm:flex-shrink-0 aspect-[16/10] sm:aspect-auto overflow-hidden rounded-md bg-[#f5f5f5]">
           <img
             src={topic.image_url || defaultImage}
             alt={topic.topic}
@@ -171,7 +171,7 @@ function NewsItem({
             }}
           />
         </div>
-        <div className="flex-1 p-4">
+        <div className="flex-1">
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2">
               {topic.created_at && (
@@ -300,14 +300,14 @@ export function LatestPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
+      <div className="min-h-screen flex items-center justify-center bg-[#ffffff]">
         <LoadingState label="불러오는 중" className="text-[#231815]/60" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       <Helmet>
         <title>최신 소식 - 위즈레터</title>
         <meta name="description" content="오늘의 최신 뉴스 브리핑을 확인하세요." />
@@ -373,7 +373,7 @@ export function LatestPage() {
                       </h2>
                     </div>
                   </div>
-                  <div className="space-y-3">
+                  <div className="divide-y divide-[#231815]/10 border-y border-[#231815]/10">
                     {group.items.map((topic) => (
                       <NewsItem
                         key={topic.id}
@@ -406,7 +406,7 @@ export function LatestPage() {
                           </h2>
                         </div>
                       </div>
-                      <div className="space-y-3">
+                      <div className="divide-y divide-[#231815]/10 border-y border-[#231815]/10">
                         {group.items.map((topic) => (
                           <NewsItem
                             key={topic.id}

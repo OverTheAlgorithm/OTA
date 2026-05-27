@@ -23,13 +23,13 @@ export function PrivacyPolicyPage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#fdf9ee]">
+    <div className="flex min-h-screen flex-col bg-[#ffffff]">
       <Helmet>
         <title>개인정보 처리방침 - 위즈레터</title>
         <meta name="description" content="위즈레터의 개인정보 처리방침을 안내합니다." />
         <link rel="canonical" href="https://wizletter.com/privacy-policy" />
       </Helmet>
-      <header className="border-b-[3px] border-[#231815] px-6 py-4">
+      <header className="border-b border-[#231815]/10 px-6 py-4">
         <div className="mx-auto max-w-3xl">
           <Link to="/">
             <img src="/wl-logo.png" alt="WizLetter" className="w-[160px]" />

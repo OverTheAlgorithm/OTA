@@ -42,7 +42,7 @@ export function EditorPickDetailPage() {
     (user.id === post.author_id || hasRoleAtLeast(user.role, "admin"));
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       <Helmet>
         <title>{post?.title ?? "에디터 픽"} | WizLetter</title>
         {post && <meta name="description" content={post.title} />}

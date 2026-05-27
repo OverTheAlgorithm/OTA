@@ -62,7 +62,7 @@ export function PollEditModal({ poll, onClose, onSaved, onDeleted }: PollEditMod
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-lg rounded-2xl bg-[#fdf9ee] p-6 shadow-xl">
+      <div className="w-full max-w-lg rounded-2xl bg-[#ffffff] p-6 shadow-xl">
         <p className="mb-4 text-lg font-bold text-[#231815]">투표 편집 (관리자)</p>
 
         <label className="mb-1 block text-xs font-bold text-[#231815]/70">질문</label>

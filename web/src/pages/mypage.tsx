@@ -474,14 +474,14 @@ export function MypagePage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
+      <div className="min-h-screen flex items-center justify-center bg-[#ffffff]">
         <LoadingState label="로딩 중" className="text-[#231815]/60" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       {/* ── Header ── */}
       <Header />
 

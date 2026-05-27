@@ -46,7 +46,7 @@ export function EditorPicksPage() {
   const canLoadMore = items.length < total;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       <Helmet>
         <title>에디터 픽 | WizLetter</title>
         <meta name="description" content="WizLetter 에디터가 직접 작성한 글들을 만나보세요" />
@@ -66,7 +66,7 @@ export function EditorPicksPage() {
           <p className="text-stone-600">아직 발행된 글이 없습니다.</p>
         ) : (
           <>
-            <ul className="space-y-4">
+            <ul className="divide-y divide-[#231815]/10 border-y border-[#231815]/10">
               {items.map((card) => (
                 <EditorPickListItem key={card.id} card={card} />
               ))}
@@ -77,7 +77,7 @@ export function EditorPicksPage() {
                   type="button"
                   onClick={handleLoadMore}
                   disabled={loadingMore}
-                  className="px-6 h-11 rounded-full border-2 border-[#231815] text-sm font-medium bg-white text-[#231815] hover:bg-[#231815]/5 disabled:opacity-60"
+                  className="px-6 h-11 rounded-full border border-[#231815]/30 text-sm font-medium bg-white text-[#231815] hover:bg-[#231815]/5 disabled:opacity-60"
                 >
                   {loadingMore ? "불러오는 중..." : `더 보기 (${items.length}/${total})`}
                 </button>
@@ -98,9 +98,9 @@ function EditorPickListItem({ card }: { card: EditorPickCard }) {
     <li>
       <Link
         to={`/editor-picks/${card.id}`}
-        className="flex gap-4 p-4 border-2 border-[#231815] rounded-lg bg-white hover:opacity-90 transition-opacity"
+        className="flex gap-4 py-4 hover:opacity-70 transition-opacity"
       >
-        <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-md overflow-hidden bg-[#f0ece0] border border-[#231815]/30">
+        <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-md overflow-hidden bg-[#f5f5f5]">
           <img
             src={thumbnail}
             alt={card.title}

@@ -55,7 +55,7 @@ export function EditorNewPage() {
 
   if (loading || checkingDraft) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">
+      <div className="min-h-screen flex items-center justify-center bg-[#ffffff]">
         <p>로딩 중...</p>
       </div>
     );
@@ -100,7 +100,7 @@ export function EditorNewPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       <Helmet>
         <title>새 글 발행하기 | WizLetter</title>
       </Helmet>

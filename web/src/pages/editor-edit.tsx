@@ -48,7 +48,7 @@ export function EditorEditPage() {
     };
   }, [id]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#fdf9ee]">로딩 중...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#ffffff]">로딩 중...</div>;
   if (!user || !hasRoleAtLeast(user.role, "editor")) {
     navigate("/", { replace: true });
     return null;
@@ -105,7 +105,7 @@ export function EditorEditPage() {
 
   if (fetching) {
     return (
-      <div className="min-h-screen bg-[#fdf9ee]">
+      <div className="min-h-screen bg-[#ffffff]">
         <Header />
         <main className="max-w-[1000px] w-full mx-auto px-6 py-8">
           <p>글을 불러오는 중...</p>
@@ -116,7 +116,7 @@ export function EditorEditPage() {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-[#fdf9ee]">
+      <div className="min-h-screen bg-[#ffffff]">
         <Header />
         <main className="max-w-[1000px] w-full mx-auto px-6 py-8 text-red-700">
           {error ?? "글을 찾을 수 없습니다"}
@@ -126,7 +126,7 @@ export function EditorEditPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       <Helmet>
         <title>{title || "글 수정"} | WizLetter</title>
       </Helmet>

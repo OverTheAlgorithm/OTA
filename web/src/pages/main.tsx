@@ -49,7 +49,7 @@ export function MainPage() {
   }, [loginError]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee] text-[#231815]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff] text-[#231815]">
       <Helmet>
         <title>위즈레터 - 매일 아침 5분, 세상의 흐름을 읽다</title>
         <meta
@@ -162,7 +162,7 @@ function StepFlow() {
       {steps.map((step, i) => (
         <div key={step.title} className="flex items-start gap-2 sm:gap-3 flex-1">
           <div className="flex flex-col items-center flex-1 min-w-0">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-[2px] border-[#231815]/30 bg-[#fdf9ee] flex items-center justify-center">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-[2px] border-[#231815]/30 bg-[#ffffff] flex items-center justify-center">
               <img src={step.icon} alt="" className="w-8 h-8 sm:w-9 sm:h-9" />
             </div>
             <p className="mt-2 text-sm font-bold text-[#231815] text-center">
@@ -188,7 +188,7 @@ function StepFlow() {
 
 function UnauthenticatedCTA({ onClick }: { onClick: () => void }) {
   return (
-    <div className="rounded-2xl border-[2px] border-[#231815] bg-white p-6 sm:p-7 flex flex-col items-center text-center">
+    <div className="rounded-2xl border border-[#231815]/15 bg-white p-6 sm:p-7 flex flex-col items-center text-center">
       <h2 className="text-lg sm:text-xl font-bold mb-2">
         위즈레터를 구독하고
         <br />더 많은 혜택을 누려보세요!
@@ -288,16 +288,16 @@ function TodaysTopNews() {
       </h2>
 
       {loading ? (
-        <div className="aspect-[16/10] rounded-xl border border-[#231815]/30 bg-white flex items-center justify-center">
+        <div className="aspect-[16/10] rounded-xl border border-[#231815]/15 bg-white flex items-center justify-center">
           <LoadingState size="sm" />
         </div>
       ) : total === 0 ? (
-        <div className="aspect-[16/10] rounded-xl border border-[#231815]/30 bg-white flex items-center justify-center">
+        <div className="aspect-[16/10] rounded-xl border border-[#231815]/15 bg-white flex items-center justify-center">
           <p className="text-sm text-[#231815]/50">표시할 소식이 없습니다.</p>
         </div>
       ) : (
         <article
-          className="rounded-xl border-[2px] border-[#231815] bg-white overflow-hidden flex flex-col"
+          className="rounded-xl border border-[#231815]/15 bg-white overflow-hidden flex flex-col"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
@@ -318,7 +318,7 @@ function TodaysTopNews() {
               ))}
             </div>
           </div>
-          <div className="flex items-center justify-between px-4 py-3 border-t border-[#231815]/20">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[#231815]/10">
             <span className="text-xs text-[#231815]/60">
               {index + 1} / {total}
             </span>
@@ -326,14 +326,14 @@ function TodaysTopNews() {
               <button
                 onClick={() => go(-1)}
                 aria-label="이전 소식"
-                className="w-10 h-10 rounded-full border-[2px] border-[#231815] flex items-center justify-center text-[#231815] hover:bg-[#231815]/5 transition-colors"
+                className="w-10 h-10 rounded-full border border-[#231815]/30 flex items-center justify-center text-[#231815] hover:bg-[#231815]/5 transition-colors"
               >
                 <ChevronIcon direction="left" />
               </button>
               <button
                 onClick={() => go(1)}
                 aria-label="다음 소식"
-                className="w-10 h-10 rounded-full border-[2px] border-[#231815] flex items-center justify-center text-[#231815] hover:bg-[#231815]/5 transition-colors"
+                className="w-10 h-10 rounded-full border border-[#231815]/30 flex items-center justify-center text-[#231815] hover:bg-[#231815]/5 transition-colors"
               >
                 <ChevronIcon direction="right" />
               </button>
@@ -359,7 +359,7 @@ function CarouselSlide({
       // translate-x math (`-index * 100%`) lands on slide boundaries.
       className="block group w-full shrink-0"
     >
-      <div className="aspect-[16/9] overflow-hidden bg-[#f0ece0]">
+      <div className="aspect-[16/9] overflow-hidden bg-[#f5f5f5]">
         <img
           src={topic.image_url || defaultImage}
           alt={topic.topic}
@@ -424,18 +424,19 @@ function EditorPicksSection() {
           <LoadingState size="sm" />
         </div>
       ) : items.length === 0 ? (
-        <p className="text-sm text-[#231815]/50 py-6 text-center border border-[#231815]/15 rounded-lg bg-white">
+        <p className="text-sm text-[#231815]/50 py-6 text-center">
           아직 발행된 에디터 픽이 없습니다.
         </p>
       ) : (
-        <ul className="space-y-2.5">
+        // divide-y draws a single hairline between rows — no boxed card chrome.
+        <ul className="divide-y divide-[#231815]/10 border-y border-[#231815]/10">
           {items.map((card) => (
             <li key={card.id}>
               <Link
                 to={`/editor-picks/${card.id}`}
-                className="flex gap-3 p-3 rounded-lg bg-white border border-[#231815]/20 hover:shadow-md transition-shadow"
+                className="flex gap-3 py-3 hover:opacity-70 transition-opacity"
               >
-                <div className="w-20 h-20 sm:w-24 sm:h-24 shrink-0 overflow-hidden rounded-md bg-[#f0ece0]">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 shrink-0 overflow-hidden rounded-md bg-[#f5f5f5]">
                   <img
                     src={card.first_image_url || defaultImage}
                     alt={card.title}
@@ -655,7 +656,7 @@ function CategoryNewsSection() {
           // List can be empty here only when a fetch is still in flight; the
           // container stays blank until the response arrives. The min-h above
           // keeps everything below this section anchored.
-          <ul className="space-y-3">
+          <ul className="divide-y divide-[#231815]/10 border-y border-[#231815]/10">
             {topics.map((topic) => (
               <CategoryCard
                 key={topic.id}
@@ -700,9 +701,9 @@ function CategoryCard({
     <li>
       <Link
         to={`/topic/${topic.id}`}
-        className="flex gap-4 p-4 border border-[#231815] rounded-lg bg-white hover:shadow-md transition-shadow"
+        className="flex gap-4 py-4 hover:opacity-70 transition-opacity"
       >
-        <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 overflow-hidden rounded-md bg-[#f0ece0] border border-[#231815]/30">
+        <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 overflow-hidden rounded-md bg-[#f5f5f5]">
           <img
             src={topic.image_url || defaultImage}
             alt={topic.topic}

@@ -54,7 +54,7 @@ function NewsCard({
 
   return (
     <Link to={`/topic/${topic.id}`} className="group block">
-      <div className="aspect-[16/10] overflow-hidden rounded-xl bg-[#f0ece0] mb-3">
+      <div className="aspect-[16/10] overflow-hidden rounded-xl bg-[#f5f5f5] mb-3">
         <img
           src={topic.image_url || defaultImage}
           alt={topic.topic}
@@ -243,7 +243,7 @@ export function AllNewsPage() {
     activeFilter.type === type && activeFilter.value === value;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdf9ee]">
+    <div className="min-h-screen flex flex-col bg-[#ffffff]">
       <Helmet>
         <title>전체 뉴스 - 위즈레터</title>
         <meta name="description" content="위즈레터의 모든 뉴스를 한눈에 확인하세요." />
