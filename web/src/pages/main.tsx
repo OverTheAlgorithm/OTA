@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { UserLevelCard } from "@/components/user-level-card";
 import { CoinTag } from "@/components/coin-tag";
-import { LoadingState } from "@/components/spinner";
+import { LoadingState, Spinner } from "@/components/spinner";
 import { LoginModal } from "@/components/login-modal";
 import { useAuth } from "@/contexts/auth-context";
 import {
@@ -218,6 +218,10 @@ function TodaysTopNews() {
   const [loading, setLoading] = useState(true);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Holds the timeout id from the most recent manual nav click so a fast
+  // second click can cancel the earlier "resume" handler instead of letting
+  // it race the new pause.
+  const resumeTimer = useRef<number | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -240,7 +244,6 @@ function TodaysTopNews() {
   }, [user]);
 
   const total = topics.length;
-  const active = topics[index];
 
   // Auto-advance every 5 seconds. Re-runs whenever `paused` flips so a manual
   // click resets the timer (and pauses for one tick) instead of double-firing.
@@ -252,13 +255,28 @@ function TodaysTopNews() {
     return () => window.clearInterval(handle);
   }, [paused, total]);
 
+  // Clean up any pending resume timer when the component unmounts.
+  useEffect(() => {
+    return () => {
+      if (resumeTimer.current !== null) {
+        window.clearTimeout(resumeTimer.current);
+      }
+    };
+  }, []);
+
   const go = (delta: number) => {
     if (total === 0) return;
     setIndex((i) => (i + delta + total) % total);
-    // Brief pause/reset so the next auto-tick happens 5s after the click, not
-    // mid-stride.
+    // Cancel any earlier resume scheduled by a previous click so timeouts
+    // don't stack and prematurely un-pause auto-advance.
+    if (resumeTimer.current !== null) {
+      window.clearTimeout(resumeTimer.current);
+    }
     setPaused(true);
-    window.setTimeout(() => setPaused(false), HERO_AUTO_ADVANCE_MS);
+    resumeTimer.current = window.setTimeout(() => {
+      resumeTimer.current = null;
+      setPaused(false);
+    }, HERO_AUTO_ADVANCE_MS);
   };
 
   return (
@@ -271,7 +289,7 @@ function TodaysTopNews() {
         <div className="aspect-[16/10] rounded-xl border border-[#231815]/30 bg-white flex items-center justify-center">
           <LoadingState size="sm" />
         </div>
-      ) : !active ? (
+      ) : total === 0 ? (
         <div className="aspect-[16/10] rounded-xl border border-[#231815]/30 bg-white flex items-center justify-center">
           <p className="text-sm text-[#231815]/50">표시할 소식이 없습니다.</p>
         </div>
@@ -281,37 +299,23 @@ function TodaysTopNews() {
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
-          <Link to={`/topic/${active.id}`} className="block group">
-            <div className="aspect-[16/9] overflow-hidden bg-[#f0ece0]">
-              <img
-                src={active.image_url || defaultImage}
-                alt={active.topic}
-                className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
-                onError={(e) => {
-                  if (e.currentTarget.src !== defaultImage) e.currentTarget.src = defaultImage;
-                }}
-              />
+          {/* Slide track: all slides sit in a flex row, the track translates
+              horizontally to expose the active slide. transition-transform
+              handles the actual animation. */}
+          <div className="relative overflow-hidden">
+            <div
+              className="flex transition-transform duration-500 ease-out"
+              style={{ transform: `translateX(-${index * 100}%)` }}
+            >
+              {topics.map((topic) => (
+                <CarouselSlide
+                  key={topic.id}
+                  topic={topic}
+                  earnStatus={earnMap[topic.id]}
+                />
+              ))}
             </div>
-            {/* Fixed-height body so swapping slides with shorter/longer text
-                does not push the section below up and down. */}
-            <div className="p-5 sm:p-6 h-[140px] sm:h-[156px] flex flex-col overflow-hidden">
-              <div className="flex items-center gap-2 mb-2 text-xs font-bold text-[#231815] shrink-0">
-                {active.created_at && <span>{formatDate(active.created_at)}</span>}
-                {active.category && (
-                  <span className="text-[#231815]/60">
-                    {CATEGORY_LABELS[active.category] ?? active.category}
-                  </span>
-                )}
-                {earnMap[active.id] && <CoinTag status={earnMap[active.id]} />}
-              </div>
-              <h3 className="text-lg sm:text-xl font-bold leading-snug line-clamp-2 group-hover:opacity-70 transition-opacity">
-                {active.topic}
-              </h3>
-              <p className="mt-1.5 text-sm text-[#231815]/70 line-clamp-2 leading-relaxed">
-                {active.summary}
-              </p>
-            </div>
-          </Link>
+          </div>
           <div className="flex items-center justify-between px-4 py-3 border-t border-[#231815]/20">
             <span className="text-xs text-[#231815]/60">
               {index + 1} / {total}
@@ -336,6 +340,53 @@ function TodaysTopNews() {
         </article>
       )}
     </section>
+  );
+}
+
+function CarouselSlide({
+  topic,
+  earnStatus,
+}: {
+  topic: TopicPreview;
+  earnStatus?: EarnStatusItem;
+}) {
+  return (
+    <Link
+      to={`/topic/${topic.id}`}
+      // w-full + shrink-0 keep each slide exactly one frame wide so the track
+      // translate-x math (`-index * 100%`) lands on slide boundaries.
+      className="block group w-full shrink-0"
+    >
+      <div className="aspect-[16/9] overflow-hidden bg-[#f0ece0]">
+        <img
+          src={topic.image_url || defaultImage}
+          alt={topic.topic}
+          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+          onError={(e) => {
+            if (e.currentTarget.src !== defaultImage) e.currentTarget.src = defaultImage;
+          }}
+        />
+      </div>
+      {/* Fixed-height body so swapping slides with shorter/longer text does
+          not push the section below up and down. */}
+      <div className="p-5 sm:p-6 h-[140px] sm:h-[156px] flex flex-col overflow-hidden">
+        <div className="flex items-center gap-2 mb-2 text-xs font-bold text-[#231815] shrink-0">
+          {topic.created_at && <span>{formatDate(topic.created_at)}</span>}
+          {topic.category && (
+            <span className="text-[#231815]/60">
+              {CATEGORY_LABELS[topic.category] ?? topic.category}
+            </span>
+          )}
+          {earnStatus && <CoinTag status={earnStatus} />}
+        </div>
+        <h3 className="text-lg sm:text-xl font-bold leading-snug line-clamp-2 group-hover:opacity-70 transition-opacity">
+          {topic.topic}
+        </h3>
+        <p className="mt-1.5 text-sm text-[#231815]/70 line-clamp-2 leading-relaxed">
+          {topic.summary}
+        </p>
+      </div>
+    </Link>
   );
 }
 
@@ -459,6 +510,15 @@ function shortBrainLabel(bc: BrainCategory): string {
   return bc.label.slice(0, 6) + "…";
 }
 
+// Time before a slow fetch surfaces *any* loading affordance. Below this we
+// keep the previous tab's results on screen so a typical sub-second response
+// produces no flicker at all.
+const TAB_SPINNER_DELAY_MS = 3000;
+// Time before we replace the content with the full skeleton state.
+const TAB_FULL_LOADER_DELAY_MS = 10000;
+
+type LoadPhase = "initial" | "idle" | "fetching" | "slow" | "verySlow";
+
 function CategoryNewsSection() {
   const { user } = useAuth();
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
@@ -468,7 +528,7 @@ function CategoryNewsSection() {
   });
   const [topics, setTopics] = useState<TopicPreview[]>([]);
   const [earnMap, setEarnMap] = useState<Record<string, EarnStatusItem>>({});
-  const [loading, setLoading] = useState(true);
+  const [phase, setPhase] = useState<LoadPhase>("initial");
 
   useEffect(() => {
     getBrainCategories()
@@ -477,26 +537,49 @@ function CategoryNewsSection() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
+    // Only escalate to a visible loading state if the fetch is *actually* slow.
+    // Below the first threshold we keep the previous tab's content on screen
+    // unchanged so a quick API response causes no visual disturbance.
+    setPhase((prev) => (prev === "initial" ? "initial" : "fetching"));
+
+    const slowTimer = window.setTimeout(() => {
+      if (!cancelled) setPhase((prev) => (prev === "fetching" ? "slow" : prev));
+    }, TAB_SPINNER_DELAY_MS);
+    const verySlowTimer = window.setTimeout(() => {
+      if (!cancelled) setPhase((prev) => (prev === "slow" || prev === "fetching" ? "verySlow" : prev));
+    }, TAB_FULL_LOADER_DELAY_MS);
+
     const filterType = active.type === "all" ? "" : active.type;
     const filterValue = active.type === "all" ? "" : active.key;
     fetchAllTopics(filterType, filterValue, CATEGORY_PAGE_SIZE, 0)
       .then((page) => {
+        if (cancelled) return;
         setTopics(page.data);
+        setEarnMap({}); // wipe stale earn data from the previous tab
         if (user && page.data.length > 0) {
           batchEarnStatus(page.data.map((t) => t.id))
             .then((statuses) => {
+              if (cancelled) return;
               const m: Record<string, EarnStatusItem> = {};
               for (const s of statuses) m[s.id] = s;
               setEarnMap(m);
             })
             .catch(() => {});
-        } else {
-          setEarnMap({});
         }
       })
-      .catch(() => setTopics([]))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!cancelled) setTopics([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPhase("idle");
+      });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(slowTimer);
+      window.clearTimeout(verySlowTimer);
+    };
   }, [active, user]);
 
   const brainCategoryMap = useMemo(() => {
@@ -554,26 +637,40 @@ function CategoryNewsSection() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="py-12 flex justify-center">
-          <LoadingState size="sm" />
-        </div>
-      ) : topics.length === 0 ? (
-        <p className="text-center py-10 text-sm text-[#231815]/50">
-          이 카테고리에는 아직 소식이 없습니다.
-        </p>
-      ) : (
-        <ul className="space-y-3">
-          {topics.map((topic) => (
-            <CategoryCard
-              key={topic.id}
-              topic={topic}
-              earnStatus={earnMap[topic.id]}
-              brainCategoryMap={brainCategoryMap}
-            />
-          ))}
-        </ul>
-      )}
+      {/* min-h reserves vertical space so swapping between dense and sparse
+          categories does not collapse the layout while the next fetch is in
+          flight. */}
+      <div className="relative min-h-[600px]">
+        {phase === "initial" || phase === "verySlow" ? (
+          <div className="py-12 flex justify-center">
+            <LoadingState size="sm" />
+          </div>
+        ) : topics.length === 0 ? (
+          <p className="text-center py-10 text-sm text-[#231815]/50">
+            이 카테고리에는 아직 소식이 없습니다.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {topics.map((topic) => (
+              <CategoryCard
+                key={topic.id}
+                topic={topic}
+                earnStatus={earnMap[topic.id]}
+                brainCategoryMap={brainCategoryMap}
+              />
+            ))}
+          </ul>
+        )}
+
+        {/* Small inline spinner appears only once the fetch has actually
+            exceeded TAB_SPINNER_DELAY_MS — sub-3s responses leave the screen
+            visually untouched. */}
+        {phase === "slow" && (
+          <div className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-sm">
+            <Spinner size="sm" className="text-[#231815]/60" />
+          </div>
+        )}
+      </div>
     </section>
   );
 }
