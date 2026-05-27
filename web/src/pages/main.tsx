@@ -603,11 +603,13 @@ function CategoryNewsSection() {
 
   return (
     <section className="mt-12">
-      <div className="flex items-end justify-between mb-4 gap-3 flex-wrap">
+      <div className="flex items-center mb-4 gap-3 flex-wrap">
         <h2 className="text-lg font-bold text-[#231815] flex items-center gap-2">
           <span aria-hidden>🌐</span> 카테고리별 뉴스
         </h2>
-        <div className="flex items-center gap-2 text-sm">
+        {/* Sit the toggle right next to the heading — the mid-aged target
+            readership easily misses controls pinned to the right edge. */}
+        <div className="flex items-center gap-2 text-sm ml-1">
           <button
             type="button"
             onClick={() => switchTabSet("wizletter")}
@@ -617,7 +619,7 @@ function CategoryNewsSection() {
                 : "text-[#231815]/30 hover:text-[#231815]/60"
             }`}
           >
-            위즈레터 카테고리
+            위즈레터
           </button>
           <span className="text-[#231815]/20" aria-hidden>|</span>
           <button
@@ -629,21 +631,32 @@ function CategoryNewsSection() {
                 : "text-[#231815]/30 hover:text-[#231815]/60"
             }`}
           >
-            일반 카테고리
+            일반
           </button>
         </div>
       </div>
 
       <div className="border-b border-[#231815]/20 mb-5 overflow-x-auto">
-        <div className="flex items-stretch gap-1 min-w-max">
+        {/* General categories (8 short labels) stretch evenly across the row;
+            wizletter labels are too long to distribute, so they keep their
+            natural width and scroll horizontally. */}
+        <div
+          className={
+            tabSet === "general"
+              ? "flex items-stretch"
+              : "flex items-stretch gap-1 min-w-max"
+          }
+        >
           {tabs.map((tab) => {
             const isActive = active.type === tab.type && active.key === tab.key;
             const tabId = `${tab.type}:${tab.key}`;
+            const widthClass =
+              tabSet === "general" ? "flex-1" : "min-w-[68px]";
             return (
               <button
                 key={tabId}
                 onClick={() => setActive({ type: tab.type, key: tab.key })}
-                className={`flex flex-col items-center justify-end px-3 py-2 min-w-[68px] text-xs transition-colors ${
+                className={`flex flex-col items-center justify-end px-3 py-2 text-xs transition-colors ${widthClass} ${
                   isActive
                     ? "text-[#231815] border-b-[3px] border-[#43b9d6] -mb-px"
                     : "text-[#231815]/60 hover:text-[#231815]"
