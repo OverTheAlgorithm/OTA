@@ -79,6 +79,7 @@ export const {
   fetchAllTopics,
   fetchFilterOptions,
   getContextHistory,
+  searchTopics,
   // Level / Earn
   getUserLevel,
   initEarn,

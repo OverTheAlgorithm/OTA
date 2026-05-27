@@ -20,6 +20,7 @@ export const API_PATHS = {
   CONTEXT_TOPIC: (id: string) => `${API_PREFIX}/context/topic/${id}`,
   CONTEXT_CATEGORIES: `${API_PREFIX}/context/categories`,
   CONTEXT_HISTORY: `${API_PREFIX}/context/history`,
+  CONTEXT_SEARCH: `${API_PREFIX}/context/search`,
 
   // Level / Earn
   LEVEL: `${API_PREFIX}/level`,

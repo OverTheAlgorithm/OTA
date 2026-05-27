@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-r
 import { AuthProvider } from "@/contexts/auth-context";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { CookieConsent } from "@/components/cookie-consent";
-import { LandingPage } from "@/pages/landing";
+import { MainPage } from "@/pages/main";
+import { SearchPage } from "@/pages/search";
 
 import { EmailVerificationPage } from "@/pages/email-verification";
 import { TopicPage } from "@/pages/topic";
@@ -38,8 +39,9 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<ErrorBoundary><LandingPage /></ErrorBoundary>} />
+          <Route path="/" element={<ErrorBoundary><MainPage /></ErrorBoundary>} />
           <Route path="/login" element={<LoginRedirect />} />
+          <Route path="/search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
 
           <Route path="/latest" element={<ErrorBoundary><LatestPage /></ErrorBoundary>} />
           <Route path="/allnews" element={<ErrorBoundary><AllNewsPage /></ErrorBoundary>} />

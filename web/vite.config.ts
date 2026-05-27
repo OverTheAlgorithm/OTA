@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     proxy: {
-      "/api": "http://localhost:8080",
+      "/api": process.env.VITE_DEV_API_PROXY ?? "http://localhost:8080",
     },
   },
 }));

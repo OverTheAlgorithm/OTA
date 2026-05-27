@@ -52,6 +52,10 @@ func (m *mockLevelHistoryRepo) GetAllTopics(_ context.Context, _, _ string, _, _
 	return nil, false, nil
 }
 
+func (m *mockLevelHistoryRepo) SearchContextItems(_ context.Context, _ string, _, _ int) ([]collector.TopicPreview, bool, error) {
+	return nil, false, nil
+}
+
 func (m *mockLevelHistoryRepo) GetItemCategoryMap(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]collector.ItemMeta, error) {
 	return nil, nil
 }

@@ -12,13 +12,14 @@ export function Header() {
   const [loginOpen, setLoginOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const isLanding = location.pathname === "/";
   const isEditorOrAdmin = !!user && hasRoleAtLeast(user.role, "editor");
 
   const handleLogout = async () => {
     await logout();
     navigate("/", { replace: true });
   };
+
+  const handleSearch = () => navigate("/search");
 
   return (
     <>
@@ -32,33 +33,44 @@ export function Header() {
             />
           </Link>
           {/* Center nav (desktop) */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-7">
             <Link
               to="/latest"
               className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
             >
-              최신 소식 보기
+              최신 소식
             </Link>
             <Link
               to="/allnews"
               className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
             >
-              모든 소식 보기
+              모든 소식
             </Link>
-            {!isLanding && (
-              <Link
-                to="/editor-picks"
-                className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
-              >
-                에디터 픽
-              </Link>
-            )}
+            <Link
+              to="/editor-picks"
+              className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+            >
+              에디터 픽
+            </Link>
+            <Link
+              to="/about"
+              className="text-base font-medium text-[#231815] hover:opacity-70 transition-opacity"
+            >
+              위즈레터란?
+            </Link>
           </nav>
 
           {/* Right actions (desktop) + hamburger (mobile) */}
           <div className="flex items-center gap-3">
             {/* Desktop actions */}
-            <div className="hidden md:flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2">
+              <button
+                onClick={handleSearch}
+                aria-label="검색"
+                className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-[#231815]/5 transition-colors"
+              >
+                <SearchIcon />
+              </button>
               {isEditorOrAdmin && (
                 <Link
                   to="/editor/new"
@@ -95,12 +107,19 @@ export function Header() {
                   onClick={() => setLoginOpen(true)}
                   className="inline-flex items-center justify-center px-5 h-9 rounded-full bg-[#43b9d6] border-[2px] border-[#231815] text-sm font-medium text-[#231815] hover:opacity-80 transition-opacity"
                 >
-                  로그인
+                  회원가입
                 </button>
               )}
             </div>
 
-            {/* Hamburger (mobile) */}
+            {/* Mobile search + hamburger */}
+            <button
+              onClick={handleSearch}
+              aria-label="검색"
+              className="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-[#231815]/5 transition-colors"
+            >
+              <SearchIcon />
+            </button>
             <button
               onClick={() => setMenuOpen((v) => !v)}
               className="md:hidden flex flex-col justify-center items-center w-9 h-9 gap-[5px]"
@@ -121,24 +140,29 @@ export function Header() {
               className="block text-base font-medium text-[#231815]"
               onClick={() => setMenuOpen(false)}
             >
-              최신 소식 보기
+              최신 소식
             </Link>
             <Link
               to="/allnews"
               className="block text-base font-medium text-[#231815]"
               onClick={() => setMenuOpen(false)}
             >
-              모든 소식 보기
+              모든 소식
             </Link>
-            {!isLanding && (
-              <Link
-                to="/editor-picks"
-                className="block text-base font-medium text-[#231815]"
-                onClick={() => setMenuOpen(false)}
-              >
-                에디터 픽
-              </Link>
-            )}
+            <Link
+              to="/editor-picks"
+              className="block text-base font-medium text-[#231815]"
+              onClick={() => setMenuOpen(false)}
+            >
+              에디터 픽
+            </Link>
+            <Link
+              to="/about"
+              className="block text-base font-medium text-[#231815]"
+              onClick={() => setMenuOpen(false)}
+            >
+              위즈레터란?
+            </Link>
             {isEditorOrAdmin && (
               <Link
                 to="/editor/new"
@@ -178,7 +202,7 @@ export function Header() {
                 onClick={() => { setMenuOpen(false); setLoginOpen(true); }}
                 className="block text-base font-medium text-[#231815]"
               >
-                로그인
+                회원가입
               </button>
             )}
           </div>
@@ -193,5 +217,14 @@ export function Header() {
         redirectPath={location.pathname + location.search}
       />
     </>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
   );
 }

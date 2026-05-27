@@ -278,6 +278,69 @@ func (r *HistoryRepository) GetAllTopics(ctx context.Context, filterType, filter
 	return items, hasMore, nil
 }
 
+// SearchContextItems performs case-insensitive substring search across topic,
+// summary, and detail columns. Results are ranked by match location:
+//
+//	rank 3 = title match (highest)
+//	rank 2 = summary match
+//	rank 1 = detail-only match
+//
+// Within a rank tier, newer items come first. Uses limit+1 to detect hasMore.
+// The empty-query case is rejected at the handler layer.
+func (r *HistoryRepository) SearchContextItems(ctx context.Context, query string, limit, offset int) ([]collector.TopicPreview, bool, error) {
+	// Wrap query in % for ILIKE substring matching. The pg_trgm GIN indexes
+	// (migration 000039) accelerate this.
+	pattern := "%" + query + "%"
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT ci.id, ci.topic, ci.summary, ci.image_path,
+			ci.collection_run_id, ci.category, COALESCE(ci.brain_category, ''),
+			COALESCE(ci.priority, 'none'), ci.created_at,
+			(q.id IS NOT NULL) AS has_quiz,
+			CASE
+				WHEN ci.topic ILIKE $1   THEN 3
+				WHEN ci.summary ILIKE $1 THEN 2
+				ELSE 1
+			END AS match_rank
+		FROM context_items ci
+		JOIN collection_runs cr ON cr.id = ci.collection_run_id AND cr.status = 'success'
+		LEFT JOIN quizzes q ON q.context_item_id = ci.id
+		WHERE ci.topic ILIKE $1 OR ci.summary ILIKE $1 OR ci.detail ILIKE $1
+		ORDER BY match_rank DESC, ci.created_at DESC, ci.rank ASC
+		LIMIT $2 OFFSET $3
+	`, pattern, limit+1, offset)
+	if err != nil {
+		return nil, false, fmt.Errorf("search context items: %w", err)
+	}
+	defer rows.Close()
+
+	var items []collector.TopicPreview
+	for rows.Next() {
+		var item collector.TopicPreview
+		var imagePath *string
+		var matchRank int
+		if err := rows.Scan(&item.ID, &item.Topic, &item.Summary, &imagePath,
+			&item.RunID, &item.Category, &item.BrainCategory, &item.Priority,
+			&item.CreatedAt, &item.HasQuiz, &matchRank); err != nil {
+			return nil, false, fmt.Errorf("scan search row: %w", err)
+		}
+		if imagePath != nil {
+			url := "/api/v1/images/" + *imagePath
+			item.ImageURL = &url
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, fmt.Errorf("iterate search rows: %w", err)
+	}
+
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	return items, hasMore, nil
+}
+
 // GetItemCategoryMap returns lightweight metadata for a batch of item IDs.
 func (r *HistoryRepository) GetItemCategoryMap(ctx context.Context, itemIDs []uuid.UUID) (map[uuid.UUID]collector.ItemMeta, error) {
 	if len(itemIDs) == 0 {

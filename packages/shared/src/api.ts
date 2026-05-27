@@ -231,6 +231,23 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     return { data: body.data ?? [], has_more: body.has_more ?? false };
   }
 
+  async function searchTopics(
+    query: string,
+    limit: number,
+    offset: number
+  ): Promise<{ data: TopicPreview[]; has_more: boolean }> {
+    const trimmed = query.trim();
+    if (!trimmed) return { data: [], has_more: false };
+    const params = new URLSearchParams();
+    params.set("q", trimmed);
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    const res = await publicFetch(`${API_PATHS.CONTEXT_SEARCH}?${params}`);
+    if (!res.ok) return { data: [], has_more: false };
+    const body = await res.json();
+    return { data: body.data ?? [], has_more: body.has_more ?? false };
+  }
+
   async function fetchFilterOptions(): Promise<FilterOptions> {
     const res = await publicFetch(API_PATHS.CONTEXT_CATEGORIES);
     if (!res.ok) return { categories: [], brain_categories: [] };
@@ -1003,6 +1020,7 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     fetchAllTopics,
     fetchFilterOptions,
     getContextHistory,
+    searchTopics,
     // Level / Earn
     getUserLevel,
     initEarn,

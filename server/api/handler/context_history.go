@@ -3,6 +3,8 @@ package handler
 import (
 	"log/slog"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 
 	"ota/domain/collector"
 	"ota/domain/poll"
@@ -175,6 +177,42 @@ func (h *ContextHistoryHandler) GetAllTopics(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": topics, "has_more": hasMore})
 }
 
+// SearchTopics returns paginated topics matching the query string across
+// topic/summary/detail. Title matches outrank body matches; results within a
+// tier come back in newest-first order.
+//
+// Query params:
+//
+//	q      = search string (required, trimmed, max 100 chars)
+//	limit  = page size (default 10, max 50)
+//	offset = page offset (default 0)
+//
+// An empty or whitespace-only `q` returns 400.
+func (h *ContextHistoryHandler) SearchTopics(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query string 'q' is required"})
+		return
+	}
+	if utf8.RuneCountInString(q) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query string 'q' too long (max 100 chars)"})
+		return
+	}
+
+	limit, offset := parsePageParams(c, 10, 50)
+
+	topics, hasMore, err := h.repo.SearchContextItems(c.Request.Context(), q, limit, offset)
+	if err != nil {
+		slog.Error("search topics error", "query", q, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	if topics == nil {
+		topics = []collector.TopicPreview{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": topics, "has_more": hasMore, "query": q})
+}
+
 // GetCategories returns all categories and brain categories for the filter UI.
 // Public endpoint.
 func (h *ContextHistoryHandler) GetCategories(c *gin.Context) {
@@ -228,6 +266,9 @@ func (h *ContextHistoryHandler) RegisterRoutes(group *gin.RouterGroup) {
 
 	// Public: all topics with pagination + filter
 	group.GET("/topics", h.GetAllTopics)
+
+	// Public: full-text search across topic + summary + detail
+	group.GET("/search", h.SearchTopics)
 
 	// Public: categories + brain categories for filter UI
 	group.GET("/categories", h.GetCategories)

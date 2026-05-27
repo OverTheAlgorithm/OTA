@@ -20,14 +20,17 @@ import (
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
 type mockHistoryRepo struct {
-	topic        *collector.TopicDetail
-	topicErr     error
-	isToday      bool
-	isTodayErr   error
-	historyErr   error
-	historyItems []collector.HistoryEntry
-	recentTopics []collector.TopicPreview
-	recentErr    error
+	topic         *collector.TopicDetail
+	topicErr      error
+	isToday       bool
+	isTodayErr    error
+	historyErr    error
+	historyItems  []collector.HistoryEntry
+	recentTopics  []collector.TopicPreview
+	recentErr     error
+	searchTopics  []collector.TopicPreview
+	searchHasMore bool
+	searchErr     error
 }
 
 func (m *mockHistoryRepo) GetHistoryForUser(_ context.Context, _ string, _, _ int) ([]collector.HistoryEntry, bool, error) {
@@ -52,6 +55,10 @@ func (m *mockHistoryRepo) GetLatestRunTopics(_ context.Context) ([]collector.Top
 
 func (m *mockHistoryRepo) GetAllTopics(_ context.Context, _, _ string, _, _ int) ([]collector.TopicPreview, bool, error) {
 	return nil, false, nil
+}
+
+func (m *mockHistoryRepo) SearchContextItems(_ context.Context, _ string, _, _ int) ([]collector.TopicPreview, bool, error) {
+	return m.searchTopics, m.searchHasMore, m.searchErr
 }
 
 func (m *mockHistoryRepo) GetItemCategoryMap(_ context.Context, _ []uuid.UUID) (map[uuid.UUID]collector.ItemMeta, error) {
@@ -276,6 +283,157 @@ func TestGetRecentTopics_RepoError(t *testing.T) {
 	}
 	if len(resp.Data) != 0 {
 		t.Errorf("expected 0 topics on error, got %d", len(resp.Data))
+	}
+}
+
+// ─── Tests for SearchTopics ─────────────────────────────────────────────────
+
+// TestSearchTopics_MissingQuery: q 파라미터 없으면 400
+func TestSearchTopics_MissingQuery(t *testing.T) {
+	repo := &mockHistoryRepo{}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/search", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+// TestSearchTopics_BlankQuery: q가 공백만 있으면 400
+func TestSearchTopics_BlankQuery(t *testing.T) {
+	repo := &mockHistoryRepo{}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/search?q=%20%20%20", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+// TestSearchTopics_TooLongQuery: q가 100자 초과면 400
+func TestSearchTopics_TooLongQuery(t *testing.T) {
+	repo := &mockHistoryRepo{}
+	r := newTestRouter(repo)
+
+	// 101 Korean chars
+	long := ""
+	for range 101 {
+		long += "가"
+	}
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/search?q="+long, nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+// TestSearchTopics_Success: 정상 검색 응답
+func TestSearchTopics_Success(t *testing.T) {
+	id1, id2 := uuid.New(), uuid.New()
+	repo := &mockHistoryRepo{
+		searchTopics: []collector.TopicPreview{
+			{ID: id1, Topic: "AI 뉴스", Summary: "요약"},
+			{ID: id2, Topic: "다른 뉴스", Summary: "AI 언급"},
+		},
+		searchHasMore: true,
+	}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/search?q=AI&limit=2", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Data    []collector.TopicPreview `json:"data"`
+		HasMore bool                     `json:"has_more"`
+		Query   string                   `json:"query"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(resp.Data) != 2 {
+		t.Errorf("expected 2 topics, got %d", len(resp.Data))
+	}
+	if !resp.HasMore {
+		t.Errorf("expected has_more=true")
+	}
+	if resp.Query != "AI" {
+		t.Errorf("expected query 'AI', got %q", resp.Query)
+	}
+}
+
+// TestSearchTopics_Empty: 결과 없으면 빈 배열 + 200
+func TestSearchTopics_Empty(t *testing.T) {
+	repo := &mockHistoryRepo{searchTopics: nil}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/search?q=NotFoundQuery", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data []collector.TopicPreview `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(resp.Data) != 0 {
+		t.Errorf("expected 0 topics, got %d", len(resp.Data))
+	}
+}
+
+// TestSearchTopics_RepoError: repo 오류 시 500
+func TestSearchTopics_RepoError(t *testing.T) {
+	repo := &mockHistoryRepo{searchErr: errors.New("db error")}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/search?q=test", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+// TestSearchTopics_TrimsQuery: q에 양옆 공백이 있어도 정상 처리
+func TestSearchTopics_TrimsQuery(t *testing.T) {
+	repo := &mockHistoryRepo{
+		searchTopics: []collector.TopicPreview{{ID: uuid.New(), Topic: "hit"}},
+	}
+	r := newTestRouter(repo)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/context/search?q=%20%20hello%20%20", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		Query string `json:"query"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Query != "hello" {
+		t.Errorf("expected trimmed query 'hello', got %q", resp.Query)
 	}
 }
 

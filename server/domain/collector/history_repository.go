@@ -80,6 +80,10 @@ type HistoryRepository interface {
 	// filterType: "category" | "brain_category" | "" (all)
 	// Returns topics, hasMore, error.
 	GetAllTopics(ctx context.Context, filterType, filterValue string, limit, offset int) ([]TopicPreview, bool, error)
+	// SearchContextItems performs case-insensitive substring search across topic,
+	// summary, and detail. Title matches outrank body matches; ties break by recency.
+	// Returns topics, hasMore, error.
+	SearchContextItems(ctx context.Context, query string, limit, offset int) ([]TopicPreview, bool, error)
 	// GetItemCategoryMap returns lightweight metadata for a batch of item IDs.
 	GetItemCategoryMap(ctx context.Context, itemIDs []uuid.UUID) (map[uuid.UUID]ItemMeta, error)
 }
