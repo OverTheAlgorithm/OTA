@@ -81,11 +81,13 @@ export function MainPage() {
           onOpenLogin={() => setLoginOpen(true)}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-10">
-          <div className="lg:col-span-2">
+        {/* 3:2 split (60/40) — narrows the hero card ~10% so editor-pick
+            thumbnails get the room they need to render crisply. */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-10">
+          <div className="lg:col-span-3">
             <TodaysTopNews />
           </div>
-          <div>
+          <div className="lg:col-span-2">
             <EditorPicksSection />
           </div>
         </div>
@@ -124,10 +126,10 @@ function HeroSection({
   onOpenLogin: () => void;
 }) {
   return (
-    // Mirror the carousel/editor-picks 2-1 split below so the right-hand
+    // Mirror the carousel/editor-picks 3:2 split below so the right-hand
     // column lines up across both rows.
-    <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      <div className="lg:col-span-2 space-y-5">
+    <section className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+      <div className="lg:col-span-3 space-y-5">
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight tracking-tight">
           읽는 만큼 쌓이는 포인트,
           <br />
@@ -141,7 +143,7 @@ function HeroSection({
         <StepFlow />
       </div>
 
-      <div className="lg:pt-2">
+      <div className="lg:col-span-2 lg:pt-2">
         {loggedIn ? <UserLevelCard /> : <UnauthenticatedCTA onClick={onOpenLogin} />}
       </div>
     </section>
@@ -433,7 +435,7 @@ function EditorPicksSection() {
                 to={`/editor-picks/${card.id}`}
                 className="flex gap-3 p-3 rounded-lg bg-white border border-[#231815]/20 hover:shadow-md transition-shadow"
               >
-                <div className="w-16 h-16 shrink-0 overflow-hidden rounded-md bg-[#f0ece0]">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 shrink-0 overflow-hidden rounded-md bg-[#f0ece0]">
                   <img
                     src={card.first_image_url || defaultImage}
                     alt={card.title}
@@ -444,7 +446,7 @@ function EditorPicksSection() {
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-[#231815]/50">
+                  <p className="text-xs text-[#231815]/50">
                     {formatDate(card.published_at)}
                     {card.author_name && ` · ${card.author_name}`}
                   </p>
