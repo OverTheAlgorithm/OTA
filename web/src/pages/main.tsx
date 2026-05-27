@@ -594,11 +594,15 @@ function CategoryNewsSection() {
   }, [tabSet, brainCategories]);
 
   // When the user flips between tab sets, drop back to "전체" so we never leave
-  // the selection pointing at a tab that is no longer on screen.
+  // the selection pointing at a tab that is no longer on screen — unless we
+  // are already on "전체", in which case the filter is identical across both
+  // sets and re-issuing the same fetch would just flicker the list.
   const switchTabSet = (next: TabSet) => {
     if (next === tabSet) return;
     setTabSet(next);
-    setActive({ type: "all", key: "all" });
+    if (active.type !== "all") {
+      setActive({ type: "all", key: "all" });
+    }
   };
 
   return (
