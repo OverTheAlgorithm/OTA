@@ -131,9 +131,10 @@ function HeroSection({
     <section className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
       <div className="lg:col-span-3 space-y-5">
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight tracking-tight">
-          읽는 만큼 쌓이는 포인트,
+          읽는 만큼 쌓이는{" "}
+          <span className="text-[#43b9d6]">지식 포인트</span>,
           <br />
-          현금으로 바꾸는 위즈레터
+          <span className="text-[#f5a623]">보상</span>으로 바꾸는 위즈레터
         </h1>
         <p className="text-base sm:text-lg text-[#231815]/75 leading-relaxed">
           같은 뉴스만 반복하는 알고리즘 대신,
@@ -154,7 +155,7 @@ function StepFlow() {
   const steps = [
     { icon: "/wl-step-1.svg", title: "뉴스 읽기", caption: "무료로 구독하고\n최신 뉴스를 읽어보세요" },
     { icon: "/wl-step-2.svg", title: "포인트 적립", caption: "뉴스를 읽은 만큼\n포인트가 쌓여요" },
-    { icon: "/wl-step-3.svg", title: "현금 전환", caption: "모은 포인트는\n현금으로 바꿀 수 있어요" },
+    { icon: "/wl-step-3.svg", title: "보상 전환", caption: "모은 포인트는\n현금으로 바꿀 수 있어요" },
   ];
 
   return (
