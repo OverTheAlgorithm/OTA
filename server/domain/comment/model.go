@@ -99,9 +99,9 @@ type Comment struct {
 	CreatedAt     time.Time
 
 	// Author fields populated by storage JOINs. Empty when storage does
-	// not include them (e.g. internal lookups).
+	// not include them (e.g. internal lookups). Comments always display
+	// the nickname — pen_name is scoped to editor-pick author bylines.
 	AuthorNickname     string
-	AuthorPenName      string
 	AuthorProfileImage string
 }
 
@@ -110,13 +110,11 @@ func (c Comment) IsDeleted() bool {
 	return c.DeletedAt != nil
 }
 
-// AuthorDisplayName returns the user-visible name for the author: pen_name
-// if set (editor+ feature), otherwise nickname.
+// AuthorDisplayName returns the user-visible name for the author. Comments
+// surface the nickname regardless of any pen name the user may have set
+// for their editor-pick byline.
 func (c Comment) AuthorDisplayName() string {
-	if strings.TrimSpace(c.AuthorPenName) != "" {
-		return c.AuthorPenName
-	}
-	return c.AuthorNickname
+	return strings.TrimSpace(c.AuthorNickname)
 }
 
 // NormalizeContent trims surrounding whitespace and collapses Windows-style

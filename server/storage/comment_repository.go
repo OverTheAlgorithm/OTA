@@ -25,12 +25,13 @@ func NewCommentRepository(pool *pgxpool.Pool) *CommentRepository {
 	return &CommentRepository{pool: pool}
 }
 
+// commentSelectCols intentionally omits pen_name: comments always show the
+// user's nickname. pen_name is reserved for editor-pick author bylines.
 const commentSelectCols = `
     c.id, c.target_type, c.target_id, c.user_id, c.group_id, c.parent_id,
     c.depth, c.rank_key, c.content, c.likes_count, c.dislikes_count,
     c.edited_at, c.deleted_at, c.created_at,
     COALESCE(u.nickname, '') AS nickname,
-    COALESCE(u.pen_name, '') AS pen_name,
     COALESCE(u.profile_image, '') AS profile_image
 `
 
@@ -42,7 +43,7 @@ func scanComment(row pgx.Row) (comment.Comment, error) {
 		&c.ID, &c.TargetType, &c.TargetID, &c.UserID, &c.GroupID, &parentID,
 		&c.Depth, &c.RankKey, &c.Content, &c.LikesCount, &c.DislikesCount,
 		&editedAt, &deletedAt, &c.CreatedAt,
-		&c.AuthorNickname, &c.AuthorPenName, &c.AuthorProfileImage,
+		&c.AuthorNickname, &c.AuthorProfileImage,
 	)
 	if err != nil {
 		return comment.Comment{}, err

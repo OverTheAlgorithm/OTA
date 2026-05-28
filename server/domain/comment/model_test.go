@@ -176,19 +176,16 @@ func TestComment_IsDeleted(t *testing.T) {
 func TestComment_AuthorDisplayName(t *testing.T) {
 	cases := []struct {
 		nickname string
-		penName  string
 		want     string
 	}{
-		{"alice", "", "alice"},
-		{"alice", "writer-a", "writer-a"},
-		{"alice", "   ", "alice"}, // whitespace pen_name falls back
-		{"", "writer-a", "writer-a"},
+		{"alice", "alice"},
+		{"  alice  ", "alice"}, // trims surrounding whitespace
+		{"", ""},
 	}
 	for _, c := range cases {
-		got := Comment{AuthorNickname: c.nickname, AuthorPenName: c.penName}.AuthorDisplayName()
+		got := Comment{AuthorNickname: c.nickname}.AuthorDisplayName()
 		if got != c.want {
-			t.Errorf("AuthorDisplayName(nickname=%q, pen=%q) = %q, want %q",
-				c.nickname, c.penName, got, c.want)
+			t.Errorf("AuthorDisplayName(nickname=%q) = %q, want %q", c.nickname, got, c.want)
 		}
 	}
 }

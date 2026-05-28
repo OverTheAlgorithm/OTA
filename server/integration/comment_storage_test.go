@@ -64,9 +64,6 @@ func TestCommentRepository_InsertAndGetRoot(t *testing.T) {
 	if saved.AuthorNickname != "alice" {
 		t.Errorf("author nickname = %q, want alice", saved.AuthorNickname)
 	}
-	if saved.AuthorPenName != "" {
-		t.Errorf("author pen_name = %q, want empty", saved.AuthorPenName)
-	}
 
 	got, err := repo.GetByID(ctx, id)
 	if err != nil {
@@ -77,7 +74,10 @@ func TestCommentRepository_InsertAndGetRoot(t *testing.T) {
 	}
 }
 
-func TestCommentRepository_PenNameHydration(t *testing.T) {
+// Pen names are deliberately not surfaced through the comment join — even
+// when an editor has set a pen name for their byline, comments always show
+// the nickname.
+func TestCommentRepository_PenNameNotSurfaced(t *testing.T) {
 	db := SetupTestDB(t)
 	defer db.Truncate(t, "comments", "users")
 
@@ -96,11 +96,11 @@ func TestCommentRepository_PenNameHydration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert: %v", err)
 	}
-	if saved.AuthorPenName != "TheBuilder" {
-		t.Errorf("pen_name = %q, want TheBuilder", saved.AuthorPenName)
+	if saved.AuthorNickname != "bob" {
+		t.Errorf("nickname = %q, want bob", saved.AuthorNickname)
 	}
-	if saved.AuthorDisplayName() != "TheBuilder" {
-		t.Errorf("display = %q, want TheBuilder", saved.AuthorDisplayName())
+	if saved.AuthorDisplayName() != "bob" {
+		t.Errorf("display = %q, want bob (not pen name)", saved.AuthorDisplayName())
 	}
 }
 
