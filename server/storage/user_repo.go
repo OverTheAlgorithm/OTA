@@ -14,13 +14,14 @@ import (
 
 // userCols is the single source of truth for SELECT/RETURNING column order on
 // the users table. Every Scan target below depends on this exact ordering.
-const userCols = `id, kakao_id, email, email_verified, nickname, profile_image, role, COALESCE(pen_name, ''), created_at, updated_at`
+const userCols = `id, kakao_id, email, email_verified, nickname, profile_image, role, COALESCE(pen_name, ''), nickname_state, created_at, updated_at`
 
 func scanUser(row pgx.Row) (user.User, error) {
 	var u user.User
 	err := row.Scan(
 		&u.ID, &u.KakaoID, &u.Email, &u.EmailVerified, &u.Nickname,
-		&u.ProfileImage, &u.Role, &u.PenName, &u.CreatedAt, &u.UpdatedAt,
+		&u.ProfileImage, &u.Role, &u.PenName, &u.NicknameState,
+		&u.CreatedAt, &u.UpdatedAt,
 	)
 	return u, err
 }
@@ -44,11 +45,19 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 }
 
 func (r *UserRepository) UpsertByKakaoID(ctx context.Context, kakaoID int64, email, nickname, profileImage string) (user.User, error) {
+	// Kakao logins should not clobber a nickname the user has explicitly
+	// customized. The CASE guard preserves the existing nickname whenever
+	// nickname_state has advanced to 'custom'; otherwise it refreshes from
+	// Kakao so signups (state='default') and acknowledged users (state=
+	// 'acknowledged', i.e. consent-given) get the latest Kakao name.
 	query := `
 		INSERT INTO users (kakao_id, email, nickname, profile_image)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (kakao_id) DO UPDATE SET
-			nickname = EXCLUDED.nickname,
+			nickname = CASE
+				WHEN users.nickname_state = 'custom' THEN users.nickname
+				ELSE EXCLUDED.nickname
+			END,
 			profile_image = EXCLUDED.profile_image,
 			updated_at = NOW()
 		RETURNING ` + userCols
@@ -149,6 +158,45 @@ func (r *UserRepository) UpdatePenName(ctx context.Context, userID, penName stri
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("user not found: %s", userID)
 	}
+	return nil
+}
+
+// UpdateNickname overwrites the nickname and advances nickname_state to
+// 'custom'. Subsequent Kakao logins will not refresh the nickname.
+func (r *UserRepository) UpdateNickname(ctx context.Context, userID, nickname string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE users
+		    SET nickname = $2,
+		        nickname_state = 'custom',
+		        updated_at = NOW()
+		  WHERE id = $1`,
+		userID, nickname,
+	)
+	if err != nil {
+		return fmt.Errorf("update nickname: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user not found: %s", userID)
+	}
+	return nil
+}
+
+// AcknowledgeNicknameWarning advances nickname_state from 'default' to
+// 'acknowledged'. Returns nil for any other state (idempotent), since the
+// user reaching `acknowledged` or `custom` already implies the warning
+// concern is resolved.
+func (r *UserRepository) AcknowledgeNicknameWarning(ctx context.Context, userID string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE users
+		    SET nickname_state = 'acknowledged',
+		        updated_at = NOW()
+		  WHERE id = $1 AND nickname_state = 'default'`,
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("acknowledge nickname warning: %w", err)
+	}
+	_ = tag // no rows affected just means the state was already advanced
 	return nil
 }
 

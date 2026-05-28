@@ -64,7 +64,13 @@ func (f *fakePenNameRepo) FindByEmail(context.Context, string) (user.User, error
 }
 func (f *fakePenNameRepo) UpdateEmail(context.Context, string, string) error { panic("not used") }
 func (f *fakePenNameRepo) UpdateRole(context.Context, string, string) error  { panic("not used") }
-func (f *fakePenNameRepo) DeleteByID(context.Context, string) error          { panic("not used") }
+func (f *fakePenNameRepo) UpdateNickname(context.Context, string, string) error {
+	panic("not used")
+}
+func (f *fakePenNameRepo) AcknowledgeNicknameWarning(context.Context, string) error {
+	panic("not used")
+}
+func (f *fakePenNameRepo) DeleteByID(context.Context, string) error { panic("not used") }
 
 func setupPenNameRouter(t *testing.T, callerID string, repo *fakePenNameRepo) *gin.Engine {
 	t.Helper()

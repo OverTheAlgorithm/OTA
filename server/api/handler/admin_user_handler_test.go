@@ -81,8 +81,12 @@ func (m *mockUserRepoAdminUser) UpdateRole(_ context.Context, userID, newRole st
 	m.updates = append(m.updates, roleUpdate{userID, newRole})
 	return nil
 }
-func (m *mockUserRepoAdminUser) UpdatePenName(context.Context, string, string) error { return nil }
-func (m *mockUserRepoAdminUser) DeleteByID(context.Context, string) error             { return nil }
+func (m *mockUserRepoAdminUser) UpdatePenName(context.Context, string, string) error  { return nil }
+func (m *mockUserRepoAdminUser) UpdateNickname(context.Context, string, string) error { return nil }
+func (m *mockUserRepoAdminUser) AcknowledgeNicknameWarning(context.Context, string) error {
+	return nil
+}
+func (m *mockUserRepoAdminUser) DeleteByID(context.Context, string) error { return nil }
 
 // ─── Mock Role Change Repository ────────────────────────────────────────────
 

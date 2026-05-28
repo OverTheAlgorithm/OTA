@@ -41,6 +41,12 @@ import type {
   RoleChangeLog,
   UpdateRoleResult,
   UserRole,
+  Comment,
+  CommentPage,
+  CommentTargetType,
+  CommentSortOrder,
+  CommentReaction,
+  CommentReactResult,
 } from "./types";
 import type {
   ScheduledPush,
@@ -931,6 +937,33 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     return body.data;
   }
 
+  async function updateNickname(nickname: string): Promise<User> {
+    const res = await apiFetch(API_PATHS.USER_NICKNAME, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nickname }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "닉네임 변경에 실패했습니다" }));
+      throw new Error(err.error || "닉네임 변경에 실패했습니다");
+    }
+    const body: ApiResponse<User> = await res.json();
+    return body.data;
+  }
+
+  async function dismissNicknameWarning(): Promise<User | null> {
+    const res = await apiFetch(API_PATHS.USER_NICKNAME_WARNING_DISMISS, {
+      method: "POST",
+    });
+    if (res.status === 204) return null;
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "처리에 실패했습니다" }));
+      throw new Error(err.error || "처리에 실패했습니다");
+    }
+    const body: ApiResponse<User> = await res.json();
+    return body.data ?? null;
+  }
+
   async function uploadEditorImage(file: File): Promise<UploadedImage> {
     const form = new FormData();
     form.append("file", file);
@@ -1024,6 +1057,111 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     return body.data ?? [];
   }
 
+  // ── Comments ───────────────────────────────────────────────────────────
+
+  async function listComments(params: {
+    target_type: CommentTargetType;
+    target_id: string;
+    sort?: CommentSortOrder;
+    cursor?: string;
+    limit?: number;
+  }): Promise<CommentPage> {
+    const q = new URLSearchParams();
+    q.set("target_type", params.target_type);
+    q.set("target_id", params.target_id);
+    if (params.sort) q.set("sort", params.sort);
+    if (params.cursor) q.set("cursor", params.cursor);
+    if (params.limit) q.set("limit", String(params.limit));
+    const res = await apiFetch(`${API_PATHS.COMMENTS}?${q.toString()}`);
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "댓글 조회 실패" }));
+      throw new Error(err.error || "댓글 조회 실패");
+    }
+    const body: ApiResponse<CommentPage> = await res.json();
+    return body.data ?? { items: [], next_cursor: "" };
+  }
+
+  async function listReplies(params: {
+    group_id: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<CommentPage> {
+    const q = new URLSearchParams();
+    if (params.cursor) q.set("cursor", params.cursor);
+    if (params.limit) q.set("limit", String(params.limit));
+    const path = `${API_PATHS.COMMENT_REPLIES(params.group_id)}${q.toString() ? "?" + q.toString() : ""}`;
+    const res = await apiFetch(path);
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "대댓글 조회 실패" }));
+      throw new Error(err.error || "대댓글 조회 실패");
+    }
+    const body: ApiResponse<CommentPage> = await res.json();
+    return body.data ?? { items: [], next_cursor: "" };
+  }
+
+  async function createComment(params: {
+    target_type: CommentTargetType;
+    target_id: string;
+    parent_id?: string | null;
+    content: string;
+  }): Promise<Comment> {
+    const res = await apiFetch(API_PATHS.COMMENTS, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target_type: params.target_type,
+        target_id: params.target_id,
+        parent_id: params.parent_id ?? null,
+        content: params.content,
+      }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "댓글 작성 실패" }));
+      throw new Error(err.error || "댓글 작성 실패");
+    }
+    const body: ApiResponse<Comment> = await res.json();
+    if (!body.data) throw new Error("댓글 작성 실패");
+    return body.data;
+  }
+
+  async function updateComment(id: string, content: string): Promise<Comment> {
+    const res = await apiFetch(API_PATHS.COMMENT(id), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "댓글 수정 실패" }));
+      throw new Error(err.error || "댓글 수정 실패");
+    }
+    const body: ApiResponse<Comment> = await res.json();
+    if (!body.data) throw new Error("댓글 수정 실패");
+    return body.data;
+  }
+
+  async function deleteComment(id: string): Promise<void> {
+    const res = await apiFetch(API_PATHS.COMMENT(id), { method: "DELETE" });
+    if (!res.ok && res.status !== 204) {
+      const err: ApiError = await res.json().catch(() => ({ error: "댓글 삭제 실패" }));
+      throw new Error(err.error || "댓글 삭제 실패");
+    }
+  }
+
+  async function reactComment(id: string, reaction: CommentReaction): Promise<CommentReactResult> {
+    const res = await apiFetch(API_PATHS.COMMENT_REACT(id), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reaction }),
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: "반응 실패" }));
+      throw new Error(err.error || "반응 실패");
+    }
+    const body: ApiResponse<CommentReactResult> = await res.json();
+    if (!body.data) throw new Error("반응 실패");
+    return body.data;
+  }
+
   return {
     // Auth
     fetchMe,
@@ -1110,6 +1248,8 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     deleteEditorPost,
     uploadEditorImage,
     updatePenName,
+    updateNickname,
+    dismissNicknameWarning,
     // Editor Picks (public)
     listEditorPicks,
     getEditorPick,
@@ -1118,6 +1258,13 @@ export function createApiClient(baseUrl: string, adapter: ApiAdapter) {
     adminSearchUserByRole,
     adminUpdateUserRole,
     adminGetRoleHistory,
+    // Comments
+    listComments,
+    listReplies,
+    createComment,
+    updateComment,
+    deleteComment,
+    reactComment,
   };
 }
 

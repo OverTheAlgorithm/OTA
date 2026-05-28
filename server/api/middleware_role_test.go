@@ -41,7 +41,11 @@ func (f *fakeUserRepo) FindByEmail(context.Context, string) (user.User, error) {
 func (f *fakeUserRepo) UpdateEmail(context.Context, string, string) error   { panic("not used") }
 func (f *fakeUserRepo) DeleteByID(context.Context, string) error            { panic("not used") }
 func (f *fakeUserRepo) UpdateRole(context.Context, string, string) error    { panic("not used") }
-func (f *fakeUserRepo) UpdatePenName(context.Context, string, string) error { panic("not used") }
+func (f *fakeUserRepo) UpdatePenName(context.Context, string, string) error  { panic("not used") }
+func (f *fakeUserRepo) UpdateNickname(context.Context, string, string) error { panic("not used") }
+func (f *fakeUserRepo) AcknowledgeNicknameWarning(context.Context, string) error {
+	panic("not used")
+}
 
 func TestRequireRoleMiddleware(t *testing.T) {
 	jwtMgr := auth.NewJWTManager("test-secret")

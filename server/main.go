@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	limiter "github.com/ulule/limiter/v3"
@@ -24,6 +25,7 @@ import (
 	"ota/cache"
 	"ota/config"
 	"ota/domain/collector"
+	"ota/domain/comment"
 	"ota/domain/delivery"
 	"ota/domain/editor"
 	"ota/domain/level"
@@ -444,6 +446,40 @@ func main() {
 	sitemapRepo := storage.NewSitemapRepository(pool)
 	sitemapHandler := handler.NewSitemapHandler(&sitemapRepoAdapter{sitemapRepo}, cfg.FrontendURL)
 
+	// Comments: repo + Redis-backed reaction store + flusher.
+	commentRepo := storage.NewCommentRepository(pool)
+	// reactionStore is typed as the union the flusher needs: the public
+	// comment.ReactionStore interface plus ReactionsHashAll, which both
+	// implementations expose. Defined inline to keep dependency direction
+	// (cache → scheduler) one-way.
+	type reactionFullStore interface {
+		comment.ReactionStore
+		ReactionsHashAll(ctx context.Context, commentID uuid.UUID) ([]comment.ReactionRow, error)
+	}
+	var reactionStore reactionFullStore
+	if rrs, err := cache.NewRedisReactionStoreFromConfig(redisCfg, "comment:"); err != nil {
+		slog.Warn("redis unavailable for comment reactions, using in-process", "error", err)
+		reactionStore = cache.NewMemoryReactionStore()
+	} else {
+		reactionStore = rrs
+		defer rrs.Close()
+		slog.Info("comment reactions connected to redis")
+	}
+	commentService := comment.NewService(commentRepo, reactionStore, map[comment.TargetType]comment.TargetValidator{
+		comment.TargetTopic:      storage.NewTopicTargetValidator(pool),
+		comment.TargetEditorPick: storage.NewEditorPickTargetValidator(pool),
+	})
+	commentHandler := handler.NewCommentHandler(
+		commentService,
+		api.AuthMiddleware(jwtManager),
+		api.OptionalAuthMiddleware(jwtManager),
+		nil,
+	)
+	commentFlusher := scheduler.NewCommentFlusher(reactionStore, commentRepo, scheduler.CommentFlusherConfig{})
+	commentFlusher.Start(shutdownCtx)
+	defer commentFlusher.Stop()
+	slog.Info("comment flusher started", "interval", "10s")
+
 	// Router
 	r := api.NewRouter("api", "v1", cfg.FrontendURL, jwtManager, cfg.RateLimitPerMin, rateLimitStore, []api.RouteModule{
 		{
@@ -565,6 +601,11 @@ func main() {
 			GroupName:   "admin/users",
 			Handler:     adminUserHandler,
 			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
+		},
+		{
+			GroupName:   "comments",
+			Handler:     commentHandler,
+			Middlewares: []gin.HandlerFunc{},
 		},
 		{
 			GroupName:   "",

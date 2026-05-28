@@ -16,6 +16,14 @@ export function hasRoleAtLeast(role: string | undefined | null, min: UserRole): 
   return (ROLE_RANK[role] ?? 0) >= ROLE_RANK[min];
 }
 
+/** Nickname state machine — see migration 000042 for the source of truth.
+ * - default      : nickname from Kakao, user has not seen the warning.
+ * - acknowledged : user saw the warning and chose to keep the Kakao name.
+ * - custom       : user explicitly set their own nickname; Kakao login
+ *                  will no longer refresh it.
+ */
+export type NicknameState = "default" | "acknowledged" | "custom";
+
 export interface User {
   id: string;
   kakao_id: number;
@@ -25,9 +33,14 @@ export interface User {
   profile_image?: string;
   role: UserRole | string;
   pen_name?: string;
+  nickname_state: NicknameState;
   created_at: string;
   updated_at: string;
 }
+
+// Mirrors the server-side bounds in user.NormaliseNickname.
+export const NICKNAME_MIN_LEN = 2;
+export const NICKNAME_MAX_LEN = 32;
 
 // Mirrors the server-side bounds in user.NormalisePenName.
 export const PEN_NAME_MIN_LEN = 2;
@@ -384,4 +397,45 @@ export interface BrainCategory {
   instruction: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ── Comments ────────────────────────────────────────────────────────────────
+
+export type CommentTargetType = "topic" | "editor_pick";
+export type CommentSortOrder = "popular" | "recent";
+/** 1 = like, -1 = dislike, 0 = none */
+export type CommentReaction = -1 | 0 | 1;
+
+export interface CommentAuthor {
+  id: string;
+  display_name: string;
+}
+
+export interface Comment {
+  id: string;
+  target_type: CommentTargetType;
+  target_id: string;
+  group_id: string;
+  parent_id: string | null;
+  depth: 0 | 1;
+  content: string;
+  likes_count: number;
+  dislikes_count: number;
+  my_reaction: CommentReaction;
+  reply_count: number;
+  is_deleted: boolean;
+  created_at: string;
+  edited_at?: string | null;
+  author: CommentAuthor;
+}
+
+export interface CommentPage {
+  items: Comment[];
+  next_cursor: string;
+}
+
+export interface CommentReactResult {
+  likes_count: number;
+  dislikes_count: number;
+  my_reaction: CommentReaction;
 }

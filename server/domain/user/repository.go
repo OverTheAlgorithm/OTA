@@ -13,5 +13,11 @@ type Repository interface {
 	// Returns ErrPenNameTaken if another user already holds the same name (case
 	// insensitive).
 	UpdatePenName(ctx context.Context, userID, penName string) error
+	// UpdateNickname overwrites the nickname and advances nickname_state to
+	// 'custom'. Callers must pre-normalise via NormaliseNickname.
+	UpdateNickname(ctx context.Context, userID, nickname string) error
+	// AcknowledgeNicknameWarning advances nickname_state from 'default' to
+	// 'acknowledged'. A no-op for any other state, so the call is idempotent.
+	AcknowledgeNicknameWarning(ctx context.Context, userID string) error
 	DeleteByID(ctx context.Context, userID string) error
 }

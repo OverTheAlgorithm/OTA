@@ -19,6 +19,7 @@ import { UserLevelCard } from "@/components/user-level-card";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { CommentSection } from "@/components/comments/CommentSection";
 import { LoadingState } from "@/components/spinner";
 import { LoginPromptModal } from "@/components/login-prompt-modal";
 
@@ -728,6 +729,9 @@ export function TopicPage() {
                 </div>
               </div>
             )}
+
+            {/* Comments */}
+            <CommentSection targetType="topic" targetId={topic.id} className="mt-10" />
           </article>
         </div>
       </main>

@@ -56,6 +56,14 @@ export type {
   UploadedImage,
   RoleChangeLog,
   UpdateRoleResult,
+  NicknameState,
+  Comment,
+  CommentAuthor,
+  CommentPage,
+  CommentTargetType,
+  CommentSortOrder,
+  CommentReaction,
+  CommentReactResult,
 } from "@wizletter/shared";
 
 export { hasRoleAtLeast } from "@wizletter/shared";
@@ -148,6 +156,8 @@ export const {
   deleteEditorPost,
   uploadEditorImage,
   updatePenName,
+  updateNickname,
+  dismissNicknameWarning,
   // Editor Picks (public)
   listEditorPicks,
   getEditorPick,
@@ -156,6 +166,13 @@ export const {
   adminSearchUserByRole,
   adminUpdateUserRole,
   adminGetRoleHistory,
+  // Comments
+  listComments,
+  listReplies,
+  createComment,
+  updateComment,
+  deleteComment,
+  reactComment,
 } = api;
 
 // ── Web-specific exports ────────────────────────────────────────────────────

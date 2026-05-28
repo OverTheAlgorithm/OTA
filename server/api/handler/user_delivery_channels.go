@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -45,6 +47,74 @@ func (h *UserDeliveryChannelsHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/delivery-channels", h.GetChannelPreferences)
 	group.PUT("/delivery-channels", h.UpdateChannelPreferences)
 	group.GET("/delivery-status", h.GetDeliveryStatus)
+	group.PUT("/nickname", h.UpdateNickname)
+	group.POST("/nickname-warning/dismiss", h.DismissNicknameWarning)
+}
+
+// UpdateNickname handles PUT /api/v1/user/nickname.
+// Persists a normalised nickname and advances nickname_state to 'custom',
+// which locks the nickname against future Kakao-login overwrites.
+func (h *UserDeliveryChannelsHandler) UpdateNickname(c *gin.Context) {
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req struct {
+		Nickname string `json:"nickname" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "요청 형식이 올바르지 않습니다"})
+		return
+	}
+
+	normalised, err := userDomain.NormaliseNickname(req.Nickname)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.userRepo.UpdateNickname(c.Request.Context(), userID, normalised); err != nil {
+		slog.Error("update nickname", "user_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "닉네임 변경 중 오류가 발생했습니다"})
+		return
+	}
+
+	u, err := h.userRepo.FindByID(c.Request.Context(), userID)
+	if err != nil {
+		slog.Error("reload user after nickname update", "user_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "유저 정보를 다시 불러올 수 없습니다"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": u})
+}
+
+// DismissNicknameWarning handles POST /api/v1/user/nickname-warning/dismiss.
+// Advances nickname_state from 'default' to 'acknowledged' so the comment
+// composer stops prompting. Idempotent for any state other than 'default'.
+func (h *UserDeliveryChannelsHandler) DismissNicknameWarning(c *gin.Context) {
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if err := h.userRepo.AcknowledgeNicknameWarning(c.Request.Context(), userID); err != nil {
+		slog.Error("dismiss nickname warning", "user_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "처리 중 오류가 발생했습니다"})
+		return
+	}
+
+	u, err := h.userRepo.FindByID(c.Request.Context(), userID)
+	if err != nil {
+		// Return 204 if we can't reload — the state change already
+		// happened, the client can poll for the updated state.
+		_ = errors.Unwrap(err)
+		c.Status(http.StatusNoContent)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": u})
 }
 
 // GetDeliveryStatus returns the user's latest delivery status per channel

@@ -92,6 +92,10 @@ export const API_PATHS = {
   EDITOR_UPLOAD_IMAGE: `${API_PREFIX}/editor/upload-image`,
   EDITOR_PROFILE_PEN_NAME: `${API_PREFIX}/editor/profile/pen-name`,
 
+  // User profile (nickname)
+  USER_NICKNAME: `${API_PREFIX}/user/nickname`,
+  USER_NICKNAME_WARNING_DISMISS: `${API_PREFIX}/user/nickname-warning/dismiss`,
+
   // Editor Picks (public)
   EDITOR_PICKS: `${API_PREFIX}/editor-picks`,
   EDITOR_PICK: (id: string) => `${API_PREFIX}/editor-picks/${id}`,
@@ -101,4 +105,10 @@ export const API_PATHS = {
   ADMIN_USERS_SEARCH: `${API_PREFIX}/admin/users/search`,
   ADMIN_USERS_ROLE: `${API_PREFIX}/admin/users/role`,
   ADMIN_USERS_ROLE_HISTORY: (id: string) => `${API_PREFIX}/admin/users/${id}/role-history`,
+
+  // Comments
+  COMMENTS: `${API_PREFIX}/comments`,
+  COMMENT: (id: string) => `${API_PREFIX}/comments/${id}`,
+  COMMENT_REPLIES: (groupId: string) => `${API_PREFIX}/comments/${groupId}/replies`,
+  COMMENT_REACT: (id: string) => `${API_PREFIX}/comments/${id}/react`,
 } as const;

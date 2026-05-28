@@ -82,6 +82,14 @@ func (m *mockUserRepoSignup) UpdatePenName(_ context.Context, _ string, _ string
 	return nil
 }
 
+func (m *mockUserRepoSignup) UpdateNickname(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (m *mockUserRepoSignup) AcknowledgeNicknameWarning(_ context.Context, _ string) error {
+	return nil
+}
+
 type mockTermsRepoSignup struct {
 	requiredTerms []terms.Term
 	savedConsents map[string][]string

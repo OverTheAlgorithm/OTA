@@ -13,6 +13,7 @@ import {
   getSubscriptions,
   deleteAccount,
   updatePenName,
+  updateNickname,
   hasRoleAtLeast,
   type CoinTransaction,
   type WithdrawalDetail,
@@ -215,6 +216,91 @@ function WithdrawalHistoryTab() {
 
 const PEN_NAME_MIN = 2;
 const PEN_NAME_MAX = 32;
+const NICKNAME_MIN = 2;
+const NICKNAME_MAX = 32;
+
+// Nickname editor. Available to all signed-in users. Submitting flips the
+// server-side nickname_state to "custom", which both suppresses the
+// first-time comment modal and locks the nickname against future Kakao
+// login overwrites.
+function NicknameSection({
+  initial,
+  onSaved,
+}: {
+  initial: string;
+  onSaved: () => Promise<void>;
+}) {
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+
+  const trimmed = value.trim();
+  const dirty = trimmed.length > 0 && trimmed !== (initial ?? "").trim();
+  const tooShort = trimmed.length > 0 && trimmed.length < NICKNAME_MIN;
+
+  const handleSave = async () => {
+    if (saving || !dirty || tooShort) return;
+    setSaving(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await updateNickname(trimmed);
+      await onSaved();
+      setSavedMsg("닉네임이 저장되었습니다");
+      setValue("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "닉네임 변경에 실패했습니다");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border-l-[3px] border-[#43b9d6] pl-5">
+      <h2 className="text-lg font-bold text-[#231815] mb-1">닉네임</h2>
+      <p className="text-xs text-[#231815]/60 mb-3">
+        댓글에 표시되는 이름입니다. 현재: <span className="font-medium text-[#231815]">{initial || "닉네임"}</span>
+      </p>
+      <div className="rounded-[22px] bg-white border border-[#231815] px-5 py-4 space-y-3">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setSavedMsg(null);
+            setError(null);
+          }}
+          maxLength={NICKNAME_MAX}
+          placeholder={initial || "새 닉네임을 입력하세요"}
+          className="w-full h-10 px-3 rounded-lg border border-[#231815]/20 focus:border-[#008fb2] focus:outline-none text-sm"
+          data-testid="mypage-nickname-input"
+        />
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[#231815]/60">{trimmed.length}/{NICKNAME_MAX}자</span>
+        </div>
+        {tooShort && (
+          <p className="text-xs text-[#ff5442]">닉네임은 {NICKNAME_MIN}자 이상이어야 합니다.</p>
+        )}
+        {error && (
+          <p className="text-xs text-[#ff5442] bg-[#ff5442]/10 rounded px-2 py-1 border border-[#ff5442]/20">
+            {error}
+          </p>
+        )}
+        {savedMsg && <p className="text-xs text-[#2ea55e]">{savedMsg}</p>}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !dirty || tooShort}
+          className="px-4 h-9 rounded-full border-2 border-[#231815] text-sm font-medium bg-white text-[#231815] hover:bg-[#231815]/5 disabled:opacity-50 disabled:cursor-not-allowed"
+          data-testid="mypage-nickname-save"
+        >
+          {saving ? "저장 중..." : "저장"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function PenNameSection({
   initial,
@@ -347,6 +433,11 @@ function SettingsTab() {
     <div className="space-y-8">
       <InterestSection selected={subscriptions} onChange={setSubscriptions} />
       <ChannelPreferencesSection />
+
+      <NicknameSection
+        initial={user?.nickname ?? ""}
+        onSaved={refreshUser}
+      />
 
       {isEditor && (
         <PenNameSection

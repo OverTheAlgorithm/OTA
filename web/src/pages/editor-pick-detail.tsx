@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { CommentSection } from "@/components/comments/CommentSection";
 import { SanitizedHTML } from "@/components/sanitized-html";
 import { useAuth } from "@/contexts/auth-context";
 import { getEditorPick, hasRoleAtLeast, type EditorPickDetail } from "@/lib/api";
@@ -83,6 +84,8 @@ export function EditorPickDetailPage() {
               html={post.content_html}
               className="wl-editor-content max-w-none"
             />
+
+            <CommentSection targetType="editor_pick" targetId={post.id} className="mt-10" />
           </article>
         )}
       </main>
