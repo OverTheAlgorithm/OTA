@@ -73,7 +73,7 @@ func TestDeliveryFlow_EndToEnd(t *testing.T) {
 	// 6. Setup delivery service with mock email sender
 	mockEmailSender := email.NewMockSender()
 	deliveryRepo := storage.NewDeliveryRepository(db.Pool)
-	collectorAdapter := storage.NewCollectorServiceAdapter(db.Pool)
+	collectorAdapter := storage.NewCollectorServiceAdapter(db.Pool, 0)
 	deliveryService := delivery.NewService(deliveryRepo, mockEmailSender, collectorAdapter, nil, "")
 
 	// 7. Execute delivery
@@ -202,7 +202,7 @@ func TestDeliveryFlow_Idempotency(t *testing.T) {
 	// Setup service
 	mockEmailSender := email.NewMockSender()
 	deliveryRepo := storage.NewDeliveryRepository(db.Pool)
-	collectorAdapter := storage.NewCollectorServiceAdapter(db.Pool)
+	collectorAdapter := storage.NewCollectorServiceAdapter(db.Pool, 0)
 	deliveryService := delivery.NewService(deliveryRepo, mockEmailSender, collectorAdapter, nil, "")
 
 	// First delivery

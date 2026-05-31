@@ -17,16 +17,30 @@ type SitemapTopicRow struct {
 // SitemapRepository fetches topic data for sitemap generation.
 type SitemapRepository struct {
 	pool *pgxpool.Pool
+	// minRefs filters sitemap entries so SEO crawlers do not pick up
+	// single-source topics. Pass 0 to disable the filter (tests).
+	minRefs int
 }
 
 // NewSitemapRepository constructs a SitemapRepository.
-func NewSitemapRepository(pool *pgxpool.Pool) *SitemapRepository {
-	return &SitemapRepository{pool: pool}
+// minRefs filters topic rows by jsonb_array_length(sources) >= minRefs.
+func NewSitemapRepository(pool *pgxpool.Pool, minRefs int) *SitemapRepository {
+	if minRefs < 0 {
+		minRefs = 0
+	}
+	return &SitemapRepository{pool: pool, minRefs: minRefs}
 }
 
 // GetAllTopicRows returns all topic IDs and creation timestamps ordered newest first.
+// Topics with fewer than minRefs sources are excluded so they never appear in
+// sitemap.xml and thus stay out of search engine indexes.
 func (r *SitemapRepository) GetAllTopicRows(ctx context.Context) ([]SitemapTopicRow, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id::text, created_at FROM context_items ORDER BY created_at DESC`)
+	rows, err := r.pool.Query(ctx, `
+		SELECT id::text, created_at
+		FROM context_items
+		WHERE jsonb_array_length(COALESCE(sources, '[]'::jsonb)) >= $1
+		ORDER BY created_at DESC
+	`, r.minRefs)
 	if err != nil {
 		return nil, fmt.Errorf("sitemap: query topic IDs: %w", err)
 	}

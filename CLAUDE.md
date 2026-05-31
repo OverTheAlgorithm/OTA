@@ -175,6 +175,7 @@ contexts/         # auth-context (AuthProvider with JWT cookie)
 - `EXTRA_COIN_LIMIT_PER_LEVEL` (default: 0) -- additional daily coins per level
 - `MIN_WITHDRAWAL_AMOUNT` (default: 3000)
 - `EARN_MIN_DURATION_SEC` (default: 10) -- dwell time before earn confirmed
+- `MIN_REFERENCES` (default: 1) -- minimum source URLs a topic must have to surface in user-facing lists (landing/latest/all/search), email delivery, and sitemap. Topic detail page and personal history bypass this filter (old links still resolve, already-delivered items stay visible). Set 2+ to hide single-source topics from new exposure.
 - `AI_PROVIDER` (gemini|openai), `GEMINI_API_KEY`, `GEMINI_MODEL` (default: gemini-3.1-pro-preview)
 - `GEMINI_MODEL_FALLBACK` (default: gemini-3-flash-preview) -- used on primary 5xx
 - `IMAGE_GENERATION_MODEL` (required) -- Gemini model for thumbnail generation

@@ -56,7 +56,7 @@ func TestCoinEarning_FirstEarn(t *testing.T) {
 
 	// 4. 코인 적립 실행
 	levelRepo := storage.NewLevelRepository(db.Pool)
-	historyRepo := storage.NewHistoryRepository(db.Pool)
+	historyRepo := storage.NewHistoryRepository(db.Pool, 0)
 	svc := level.NewService(levelRepo, level.NewLevelConfig(5000, 1000), 0, 0)
 
 	// run이 오늘 생성됐는지 확인
@@ -269,7 +269,7 @@ func TestCoinEarning_IsRunCreatedToday_OldRun(t *testing.T) {
 		t.Fatalf("failed to create old run: %v", err)
 	}
 
-	historyRepo := storage.NewHistoryRepository(db.Pool)
+	historyRepo := storage.NewHistoryRepository(db.Pool, 0)
 	isToday, err := historyRepo.IsRunCreatedToday(ctx, runID)
 	if err != nil {
 		t.Fatalf("IsRunCreatedToday error: %v", err)

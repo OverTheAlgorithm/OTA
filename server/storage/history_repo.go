@@ -16,10 +16,22 @@ var kstLocation = time.FixedZone("KST", 9*60*60)
 
 type HistoryRepository struct {
 	pool *pgxpool.Pool
+	// minRefs is the minimum number of source URLs a topic must have to appear
+	// in user-facing list endpoints (recent/latest/all/search). The single-item
+	// detail endpoint (GetContextItemByID) and personal history
+	// (GetHistoryForUser) intentionally bypass this filter so existing email
+	// links and already-delivered items remain visible.
+	minRefs int
 }
 
-func NewHistoryRepository(pool *pgxpool.Pool) *HistoryRepository {
-	return &HistoryRepository{pool: pool}
+// NewHistoryRepository constructs a HistoryRepository.
+// minRefs filters list endpoints by jsonb_array_length(sources) >= minRefs.
+// Pass 0 to disable the filter entirely.
+func NewHistoryRepository(pool *pgxpool.Pool, minRefs int) *HistoryRepository {
+	if minRefs < 0 {
+		minRefs = 0
+	}
+	return &HistoryRepository{pool: pool, minRefs: minRefs}
 }
 
 func (r *HistoryRepository) GetHistoryForUser(ctx context.Context, userID string, limit, offset int) ([]collector.HistoryEntry, bool, error) {
@@ -137,9 +149,10 @@ func (r *HistoryRepository) GetRecentTopics(ctx context.Context, count int) ([]c
 			ORDER BY started_at DESC
 			LIMIT 1
 		)
+		  AND jsonb_array_length(COALESCE(ci.sources, '[]'::jsonb)) >= $2
 		ORDER BY RANDOM()
 		LIMIT $1
-	`, count)
+	`, count, r.minRefs)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +188,9 @@ func (r *HistoryRepository) GetLatestRunTopics(ctx context.Context) ([]collector
 			ORDER BY started_at DESC
 			LIMIT 1
 		)
+		  AND jsonb_array_length(COALESCE(ci.sources, '[]'::jsonb)) >= $1
 		ORDER BY ci.priority DESC, ci.rank ASC
-	`)
+	`, r.minRefs)
 	if err != nil {
 		return nil, err
 	}
@@ -228,10 +242,10 @@ func (r *HistoryRepository) GetAllTopics(ctx context.Context, filterType, filter
 		FROM context_items ci
 		JOIN collection_runs cr ON cr.id = ci.collection_run_id AND cr.status = 'success'
 		LEFT JOIN quizzes q ON q.context_item_id = ci.id
-		WHERE 1=1`
+		WHERE jsonb_array_length(COALESCE(ci.sources, '[]'::jsonb)) >= $1`
 
-	var args []interface{}
-	argIdx := 1
+	args := []any{r.minRefs}
+	argIdx := 2
 
 	switch filterType {
 	case "category":
@@ -305,10 +319,11 @@ func (r *HistoryRepository) SearchContextItems(ctx context.Context, query string
 		FROM context_items ci
 		JOIN collection_runs cr ON cr.id = ci.collection_run_id AND cr.status = 'success'
 		LEFT JOIN quizzes q ON q.context_item_id = ci.id
-		WHERE ci.topic ILIKE $1 OR ci.summary ILIKE $1 OR ci.detail ILIKE $1
+		WHERE (ci.topic ILIKE $1 OR ci.summary ILIKE $1 OR ci.detail ILIKE $1)
+		  AND jsonb_array_length(COALESCE(ci.sources, '[]'::jsonb)) >= $4
 		ORDER BY match_rank DESC, ci.created_at DESC, ci.rank ASC
 		LIMIT $2 OFFSET $3
-	`, pattern, limit+1, offset)
+	`, pattern, limit+1, offset, r.minRefs)
 	if err != nil {
 		return nil, false, fmt.Errorf("search context items: %w", err)
 	}

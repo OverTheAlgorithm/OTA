@@ -278,7 +278,7 @@ func TestSitemap_IncludesEditorPosts_E2E(t *testing.T) {
 	publishedID := createResp.Data.ID
 
 	// Wire the sitemap handler against the same pool.
-	sitemapRepo := storage.NewSitemapRepository(env.db.Pool)
+	sitemapRepo := storage.NewSitemapRepository(env.db.Pool, 0)
 	type adapter struct {
 		repo *storage.SitemapRepository
 	}

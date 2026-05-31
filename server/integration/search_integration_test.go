@@ -96,7 +96,7 @@ func TestSearch_FindsKoreanTitleMatch(t *testing.T) {
 	defer db.Truncate(t, "context_items", "collection_runs")
 
 	ids := seedSearchData(t, db)
-	repo := storage.NewHistoryRepository(db.Pool)
+	repo := storage.NewHistoryRepository(db.Pool, 0)
 
 	got, hasMore, err := repo.SearchContextItems(context.Background(), "삼성전자", 10, 0)
 	if err != nil {
@@ -136,7 +136,7 @@ func TestSearch_TitleRanksAboveSummaryRanksAboveDetail(t *testing.T) {
 	defer db.Truncate(t, "context_items", "collection_runs")
 
 	ids := seedSearchData(t, db)
-	repo := storage.NewHistoryRepository(db.Pool)
+	repo := storage.NewHistoryRepository(db.Pool, 0)
 
 	// All three rows mention 삼성전자 in different fields. Limit so we capture
 	// the ordering deterministically.
@@ -165,7 +165,7 @@ func TestSearch_EnglishQuery(t *testing.T) {
 	defer db.Truncate(t, "context_items", "collection_runs")
 
 	ids := seedSearchData(t, db)
-	repo := storage.NewHistoryRepository(db.Pool)
+	repo := storage.NewHistoryRepository(db.Pool, 0)
 
 	got, _, err := repo.SearchContextItems(context.Background(), "AI", 10, 0)
 	if err != nil {
@@ -184,7 +184,7 @@ func TestSearch_CaseInsensitive(t *testing.T) {
 	defer db.Truncate(t, "context_items", "collection_runs")
 
 	seedSearchData(t, db)
-	repo := storage.NewHistoryRepository(db.Pool)
+	repo := storage.NewHistoryRepository(db.Pool, 0)
 
 	gotLower, _, err := repo.SearchContextItems(context.Background(), "ai", 10, 0)
 	if err != nil {
@@ -205,7 +205,7 @@ func TestSearch_Pagination(t *testing.T) {
 	defer db.Truncate(t, "context_items", "collection_runs")
 
 	seedSearchData(t, db)
-	repo := storage.NewHistoryRepository(db.Pool)
+	repo := storage.NewHistoryRepository(db.Pool, 0)
 
 	page1, hasMore1, err := repo.SearchContextItems(context.Background(), "삼성전자", 2, 0)
 	if err != nil {
@@ -268,7 +268,7 @@ func TestSearch_NoMatches(t *testing.T) {
 	defer db.Truncate(t, "context_items", "collection_runs")
 
 	seedSearchData(t, db)
-	repo := storage.NewHistoryRepository(db.Pool)
+	repo := storage.NewHistoryRepository(db.Pool, 0)
 
 	got, hasMore, err := repo.SearchContextItems(context.Background(), "존재하지않는키워드xyz", 10, 0)
 	if err != nil {
@@ -322,7 +322,7 @@ func TestSearch_ExcludesNonSuccessfulRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	histRepo := storage.NewHistoryRepository(db.Pool)
+	histRepo := storage.NewHistoryRepository(db.Pool, 0)
 	got, _, err := histRepo.SearchContextItems(ctx, "삼성전자", 10, 0)
 	if err != nil {
 		t.Fatalf("search: %v", err)

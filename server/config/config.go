@@ -58,6 +58,7 @@ type Config struct {
 	CoinsPerLevel          int // COINS_PER_LEVEL: coins needed per level transition; default 1000
 	RateLimitPerMin        int // RATE_LIMIT_PER_MIN: max requests per minute per user/IP; default 300
 	QuizMaxBonusCoins      int // QUIZ_MAX_BONUS_COINS: max random bonus coins for correct quiz answer (range: 1~N); default 3
+	MinReferences          int // MIN_REFERENCES: minimum source URLs per topic to surface in user-facing lists, email, sitemap; default 1 (matches existing pipeline drop threshold). Set 2+ to hide single-source topics from new exposure. Topic detail page and personal history bypass this filter.
 
 	RedisHost     string // REDIS_HOST: Redis server hostname; default "redis"
 	RedisPort     string // REDIS_PORT: Redis server port; default "6379"
@@ -132,6 +133,7 @@ func Load() (Config, error) {
 		CoinsPerLevel:          getEnvInt("COINS_PER_LEVEL", 1000),
 		RateLimitPerMin:        getEnvInt("RATE_LIMIT_PER_MIN", 300),
 		QuizMaxBonusCoins:      getEnvInt("QUIZ_MAX_BONUS_COINS", 3),
+		MinReferences:          getEnvInt("MIN_REFERENCES", 1),
 
 		RedisHost:     getEnv("REDIS_HOST", "redis"),
 		RedisPort:     getEnv("REDIS_PORT", "6379"),
@@ -184,6 +186,9 @@ func Load() (Config, error) {
 
 	if cfg.WithdrawalUnitAmount <= 0 {
 		return cfg, fmt.Errorf("WITHDRAWAL_UNIT_AMOUNT must be greater than 0")
+	}
+	if cfg.MinReferences < 0 {
+		return cfg, fmt.Errorf("MIN_REFERENCES must be >= 0 (got %d)", cfg.MinReferences)
 	}
 	if cfg.MinWithdrawalAmount%cfg.WithdrawalUnitAmount != 0 {
 		return cfg, fmt.Errorf("MIN_WITHDRAWAL_AMOUNT (%d) must be a multiple of WITHDRAWAL_UNIT_AMOUNT (%d)", cfg.MinWithdrawalAmount, cfg.WithdrawalUnitAmount)

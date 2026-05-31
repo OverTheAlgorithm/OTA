@@ -266,7 +266,7 @@ func main() {
 		From:     cfg.SMTPFrom,
 	})
 	deliveryRepo := storage.NewDeliveryRepository(pool)
-	collectorAdapter := storage.NewCollectorServiceAdapter(pool)
+	collectorAdapter := storage.NewCollectorServiceAdapter(pool, cfg.MinReferences)
 	deliveryService := delivery.NewService(deliveryRepo, emailSender, collectorAdapter, brainCategoryRepo, cfg.FrontendURL)
 	slog.Info("delivery service initialized")
 
@@ -359,7 +359,7 @@ func main() {
 	collectorService.WithPollRepo(pollRepo)
 
 	// Context history
-	historyRepo := storage.NewHistoryRepository(pool)
+	historyRepo := storage.NewHistoryRepository(pool, cfg.MinReferences)
 	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
 	contextHistoryHandler.WithCategoryRepo(categoryRepo, brainCategoryRepo)
 	contextHistoryHandler.WithQuizService(quizService, api.OptionalAuthMiddleware(jwtManager))
@@ -443,7 +443,7 @@ func main() {
 	adblockHandler := handler.NewAdblockHandler(adblockRepo)
 
 	// Sitemap
-	sitemapRepo := storage.NewSitemapRepository(pool)
+	sitemapRepo := storage.NewSitemapRepository(pool, cfg.MinReferences)
 	sitemapHandler := handler.NewSitemapHandler(&sitemapRepoAdapter{sitemapRepo}, cfg.FrontendURL)
 
 	// Comments: repo + Redis-backed reaction store + flusher.

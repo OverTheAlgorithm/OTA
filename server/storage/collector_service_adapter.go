@@ -13,11 +13,19 @@ import (
 // CollectorServiceAdapter adapts the storage layer to delivery.CollectorService interface
 type CollectorServiceAdapter struct {
 	pool *pgxpool.Pool
+	// minRefs filters GetContextItems so the email body only includes topics
+	// with at least minRefs source URLs. Pass 0 to disable the filter.
+	minRefs int
 }
 
-// NewCollectorServiceAdapter creates a new adapter
-func NewCollectorServiceAdapter(pool *pgxpool.Pool) *CollectorServiceAdapter {
-	return &CollectorServiceAdapter{pool: pool}
+// NewCollectorServiceAdapter creates a new adapter.
+// minRefs filters delivered items by jsonb_array_length(sources) >= minRefs.
+// Pass 0 to disable the filter entirely (kept for tests).
+func NewCollectorServiceAdapter(pool *pgxpool.Pool, minRefs int) *CollectorServiceAdapter {
+	if minRefs < 0 {
+		minRefs = 0
+	}
+	return &CollectorServiceAdapter{pool: pool, minRefs: minRefs}
 }
 
 // GetLatestRun retrieves the most recent collection run
@@ -76,7 +84,9 @@ func (a *CollectorServiceAdapter) GetLastDeliveredRun(ctx context.Context) (*col
 	return &run, nil
 }
 
-// GetContextItems retrieves all context items for a given run
+// GetContextItems retrieves all context items for a given run.
+// Topics with fewer than minRefs sources are filtered out so we never email
+// users (or anyone) content derived from a single article.
 func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uuid.UUID) ([]collector.ContextItem, error) {
 	query := `
 		SELECT id, collection_run_id, category, COALESCE(brain_category, ''), rank, topic, summary,
@@ -84,10 +94,11 @@ func (a *CollectorServiceAdapter) GetContextItems(ctx context.Context, runID uui
 		       COALESCE(priority, 'none'), image_path
 		FROM context_items
 		WHERE collection_run_id = $1
+		  AND jsonb_array_length(COALESCE(sources, '[]'::jsonb)) >= $2
 		ORDER BY rank
 	`
 
-	rows, err := a.pool.Query(ctx, query, runID)
+	rows, err := a.pool.Query(ctx, query, runID, a.minRefs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query context items: %w", err)
 	}
