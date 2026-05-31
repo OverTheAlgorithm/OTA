@@ -216,6 +216,31 @@ body {
   border-radius: 0.5rem;
   margin: 1em 0;
 }
+.wl-editor-content figure {
+  margin: 1.25em 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.wl-editor-content figure img {
+  margin: 0;
+}
+.wl-editor-content figure figcaption {
+  margin-top: 0.5em;
+  font-size: 0.85em;
+  color: #6b6b6b;
+  text-align: center;
+  line-height: 1.4;
+  max-width: 90%;
+}
+/* Placeholder for empty figcaption while editing — Tiptap's Placeholder
+   extension applies is-empty + data-placeholder on the figure node. */
+.wl-editor-content figure.is-empty figcaption::before {
+  content: attr(data-placeholder);
+  color: #b3b3b3;
+  font-style: italic;
+  pointer-events: none;
+}
 .wl-editor-content strong { font-weight: 700; }
 .wl-editor-content em { font-style: italic; }
 .wl-editor-content hr {

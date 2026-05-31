@@ -6,6 +6,7 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import CharacterCount from "@tiptap/extension-character-count";
 import TextAlign from "@tiptap/extension-text-align";
+import { Figure } from "./figure-extension";
 
 const MAX_CONTENT_CHARS = 50_000;
 
@@ -29,13 +30,22 @@ export function RichTextEditor({
       StarterKit.configure({
         // Hardcoded TipTap defaults are fine; we sanitise on the server anyway.
       }),
+      // Legacy <img> support so older posts still render in the editor. New
+      // image inserts go through the Figure node (img + editable caption).
       Image.configure({ inline: false, allowBase64: false }),
+      Figure,
       Link.configure({
         openOnClick: false,
         autolink: true,
         HTMLAttributes: { rel: "nofollow noopener", target: "_blank" },
       }),
-      Placeholder.configure({ placeholder }),
+      Placeholder.configure({
+        placeholder: ({ node }) => {
+          if (node.type.name === "figure") return "사진 출처/설명 (선택 사항)";
+          return placeholder;
+        },
+        includeChildren: true,
+      }),
       CharacterCount.configure({ limit: MAX_CONTENT_CHARS }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
     ],
@@ -66,7 +76,7 @@ export function RichTextEditor({
       if (!file || !editor) return;
       try {
         const url = await onImageUpload(file);
-        editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+        editor.chain().focus().setFigure({ src: url, alt: file.name }).run();
       } catch (err) {
         alert(err instanceof Error ? err.message : "이미지 업로드 실패");
       } finally {

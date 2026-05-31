@@ -10,7 +10,7 @@ const ALLOWED_TAGS = [
   "h1", "h2", "h3", "h4", "h5", "h6",
   "strong", "em", "u", "s", "code", "pre", "blockquote",
   "ul", "ol", "li",
-  "img",
+  "img", "figure", "figcaption",
 ];
 
 const ALLOWED_ATTR = [
