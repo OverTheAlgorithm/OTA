@@ -23,7 +23,7 @@ import {
 import { formatDate } from "@/lib/utils";
 
 const HERO_CAROUSEL_MAX = 7;
-const EDITOR_PICK_PREVIEW = 3;
+const EDITOR_PICK_PREVIEW = 5;
 const CATEGORY_PAGE_SIZE = 6;
 
 const CATEGORY_LABELS: Record<string, string> = {
