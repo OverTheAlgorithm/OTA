@@ -254,11 +254,6 @@ export function TopicPage() {
   const [quizLoginPromptOpen, setQuizLoginPromptOpen] = useState(false);
   const [showCountdown, setShowCountdown] = useState<{ seconds: number; topicId: string } | null>(null);
 
-  // Scroll to top on mount
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
-
   // Anti-cheat: block right-click & DevTools shortcuts on the topic page only (production)
   useEffect(() => {
     if (!import.meta.env.PROD) return;

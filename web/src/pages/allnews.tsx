@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useNavigationType } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/contexts/auth-context";
 import { UserLevelCard } from "@/components/user-level-card";
@@ -108,6 +108,7 @@ function NewsCard({
 export function AllNewsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const navType = useNavigationType();
 
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     categories: [],
@@ -227,14 +228,16 @@ export function AllNewsPage() {
   );
 
   useEffect(() => {
+    // Only restore prior scroll/count on POP (back/forward, reload).
+    // PUSH/REPLACE = fresh intent → start at top with a single page.
     const savedCount = sessionStorage.getItem("allnews_count");
-    if (savedCount && Number(savedCount) > PAGE_SIZE) {
+    if (navType === "POP" && savedCount && Number(savedCount) > PAGE_SIZE) {
       restoringRef.current = true;
       loadTopics(activeFilter, false, Number(savedCount));
     } else {
       loadTopics(activeFilter);
     }
-  }, [activeFilter, loadTopics]);
+  }, [activeFilter, loadTopics, navType]);
 
   const handleFilterChange = (type: FilterType, value: string) => {
     const next: ActiveFilter =

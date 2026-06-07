@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useNavigationType } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/contexts/auth-context";
 import { UserLevelCard } from "@/components/user-level-card";
@@ -202,6 +202,7 @@ function NewsItem({
 export function LatestPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const navType = useNavigationType();
 
   const [topics, setTopics] = useState<TopicPreview[]>([]);
   const [brainCategories, setBrainCategories] = useState<BrainCategory[]>([]);
@@ -248,6 +249,9 @@ export function LatestPage() {
       .catch(() => {})
       .finally(() => {
         setLoading(false);
+        // Only restore prior scroll on POP (back/forward, reload).
+        // PUSH/REPLACE = fresh intent → ScrollToTop already put us at top.
+        if (navType !== "POP") return;
         const saved = sessionStorage.getItem("latest_scroll");
         if (saved) {
           requestAnimationFrame(() => window.scrollTo(0, Number(saved)));
@@ -257,7 +261,7 @@ export function LatestPage() {
     if (user) {
       getSubscriptions().then(setSubscriptions).catch(() => {});
     }
-  }, [user]);
+  }, [user, navType]);
 
   // Derive the run date from topics
   const runDate = topics.length > 0 && topics[0].created_at

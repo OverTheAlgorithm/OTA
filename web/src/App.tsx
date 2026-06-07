@@ -1,4 +1,13 @@
-import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useSearchParams,
+  useLocation,
+  useNavigationType,
+} from "react-router-dom";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { CookieConsent } from "@/components/cookie-consent";
@@ -34,10 +43,33 @@ function LoginRedirect() {
   return <Navigate to={error ? `/?error=${error}` : "/"} replace />;
 }
 
+// Scroll to top on every new navigation (PUSH/REPLACE). POP (back/forward,
+// reload) is left alone so per-page sessionStorage restoration (allnews,
+// latest) can place the user where they were. Disables the browser's auto
+// scrollRestoration so it doesn't fight the manual restore.
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const navType = useNavigationType();
+
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+  }, []);
+
+  useEffect(() => {
+    if (navType === "POP") return;
+    window.scrollTo(0, 0);
+  }, [pathname, navType]);
+
+  return null;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ScrollToTop />
         <Routes>
           <Route path="/" element={<ErrorBoundary><MainPage /></ErrorBoundary>} />
           <Route path="/login" element={<LoginRedirect />} />
