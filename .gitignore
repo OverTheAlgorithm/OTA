@@ -28,6 +28,9 @@ mobile/android/
 mobile/ios/
 mobile/.expo/
 
+# Local manual test artifacts (Vertex adapter checks)
+server/vertex-test-*
+
 # OS
 .DS_Store
 Thumbs.db

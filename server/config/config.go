@@ -33,7 +33,20 @@ type Config struct {
 	OpenAIAPIKey string
 	OpenAIModel  string
 
-	ImageGenerationModel string // Gemini model for topic thumbnail generation
+	// Vertex AI (express / API-key mode). Selected via AI_PROVIDER=vertex (text)
+	// and/or IMAGE_PROVIDER=vertex (image). Key/model are config-only so the
+	// adapter can be re-pointed without code changes.
+	VertexAPIKey            string // VERTEX_API_KEY: express-mode API key (genai vertexai=true)
+	VertexTextModel         string // VERTEX_TEXT_MODEL: text model; default gemini-2.5-flash
+	VertexTextModelFallback string // VERTEX_TEXT_MODEL_FALLBACK: optional fallback text model on 5xx; default empty (disabled)
+	VertexImageModel        string // VERTEX_IMAGE_MODEL: image model; default gemini-3.1-flash-image
+
+	ImageProvider        string // IMAGE_PROVIDER: gemini | vertex; default gemini. Selected independently of AI_PROVIDER.
+	ImageGenerationModel string // IMAGE_GENERATION_MODEL: Gemini model for thumbnails (used when IMAGE_PROVIDER=gemini)
+
+	ImageGenThrottle    time.Duration // IMAGE_GEN_THROTTLE: delay between thumbnail generations to stay under per-minute quota (e.g. "20s"); default 0 (off)
+	ImageGenMaxAttempts int           // IMAGE_GEN_MAX_ATTEMPTS: total attempts per thumbnail on retryable errors (429/5xx); default 1 (no retry)
+	ImageGenBackoff     time.Duration // IMAGE_GEN_BACKOFF: initial backoff between thumbnail retries (doubles each attempt); default 5s
 
 	TurnstileSecretKey string // Cloudflare Turnstile Secret Key
 
@@ -110,7 +123,17 @@ func Load() (Config, error) {
 		OpenAIAPIKey: getEnv("OPENAI_API_KEY", ""),
 		OpenAIModel:  getEnv("OPENAI_MODEL", "gpt-4o"),
 
+		VertexAPIKey:            getEnv("VERTEX_API_KEY", ""),
+		VertexTextModel:         getEnv("VERTEX_TEXT_MODEL", "gemini-2.5-flash"),
+		VertexTextModelFallback: getEnv("VERTEX_TEXT_MODEL_FALLBACK", ""),
+		VertexImageModel:        getEnv("VERTEX_IMAGE_MODEL", "gemini-3.1-flash-image"),
+
+		ImageProvider:        getEnv("IMAGE_PROVIDER", "gemini"),
 		ImageGenerationModel: getEnv("IMAGE_GENERATION_MODEL", ""),
+
+		ImageGenThrottle:    getEnvDuration("IMAGE_GEN_THROTTLE", 0),
+		ImageGenMaxAttempts: getEnvInt("IMAGE_GEN_MAX_ATTEMPTS", 1),
+		ImageGenBackoff:     getEnvDuration("IMAGE_GEN_BACKOFF", 5*time.Second),
 
 		TurnstileSecretKey: getEnv("TURNSTILE_SECRET_KEY", "1x0000000000000000000000000000000AA"), // Default to test key if missing
 
@@ -170,8 +193,28 @@ func Load() (Config, error) {
 		if cfg.OpenAIAPIKey == "" {
 			return cfg, fmt.Errorf("OPENAI_API_KEY is required when AI_PROVIDER=openai")
 		}
+	case "vertex":
+		if cfg.VertexAPIKey == "" {
+			return cfg, fmt.Errorf("VERTEX_API_KEY is required when AI_PROVIDER=vertex")
+		}
 	default:
-		return cfg, fmt.Errorf("unsupported AI_PROVIDER: %s (must be \"gemini\" or \"openai\")", cfg.AIProvider)
+		return cfg, fmt.Errorf("unsupported AI_PROVIDER: %s (must be \"gemini\", \"openai\" or \"vertex\")", cfg.AIProvider)
+	}
+
+	switch cfg.ImageProvider {
+	case "gemini":
+		if cfg.GeminiAPIKey == "" {
+			return cfg, fmt.Errorf("GEMINI_API_KEY is required when IMAGE_PROVIDER=gemini")
+		}
+		if cfg.ImageGenerationModel == "" {
+			return cfg, fmt.Errorf("IMAGE_GENERATION_MODEL is required when IMAGE_PROVIDER=gemini")
+		}
+	case "vertex":
+		if cfg.VertexAPIKey == "" {
+			return cfg, fmt.Errorf("VERTEX_API_KEY is required when IMAGE_PROVIDER=vertex")
+		}
+	default:
+		return cfg, fmt.Errorf("unsupported IMAGE_PROVIDER: %s (must be \"gemini\" or \"vertex\")", cfg.ImageProvider)
 	}
 
 	if cfg.AppEnv == "production" && (cfg.TurnstileSecretKey == "" ||

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strings"
 )
 
 // AIError represents different types of AI client failures
@@ -69,8 +70,10 @@ func ClassifyError(err error) *AIError {
 		}
 	}
 
+	// Lowercased for case-insensitive matching (provider error strings vary in case).
+	errMsg := strings.ToLower(err.Error())
+
 	// Format errors: unmarshaling, parsing, missing fields
-	errMsg := err.Error()
 	if containsAny(errMsg, "unmarshal", "parsing", "no output text", "invalid json", "no candidates") {
 		return &AIError{
 			Type:    ErrorTypeFormat,
@@ -79,8 +82,9 @@ func ClassifyError(err error) *AIError {
 		}
 	}
 
-	// Infrastructure errors: HTTP 5xx, rate limits, API errors
-	if containsAny(errMsg, "status 5", "api error", "rate limit", "quota exceeded") {
+	// Infrastructure errors: HTTP 5xx, rate limits / quota (incl. 429), API errors
+	if containsAny(errMsg, "status 5", "api error", "rate limit", "quota exceeded",
+		"error 429", "resource_exhausted", "resource has been exhausted") {
 		return &AIError{
 			Type:    ErrorTypeInfrastructure,
 			Message: "AI service infrastructure error",

@@ -41,6 +41,7 @@ import (
 	"ota/platform/googletrends"
 	"ota/platform/kakao"
 	"ota/platform/openai"
+	"ota/platform/vertex"
 	"ota/scheduler"
 	"ota/storage"
 )
@@ -156,6 +157,21 @@ func main() {
 		}
 	case "openai":
 		aiClient = openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAIModel)
+	case "vertex":
+		vc, err := vertex.NewTextClient(ctx, cfg.VertexAPIKey, cfg.VertexTextModel)
+		if err != nil {
+			slog.Error("failed to initialize vertex text client", "error", err)
+			os.Exit(1)
+		}
+		aiClient = vc
+		if cfg.VertexTextModelFallback != "" {
+			fb, err := vertex.NewTextClient(ctx, cfg.VertexAPIKey, cfg.VertexTextModelFallback)
+			if err != nil {
+				slog.Error("failed to initialize vertex fallback text client", "error", err)
+				os.Exit(1)
+			}
+			fallbackAIClient = fb
+		}
 	}
 	collectorRepo := storage.NewCollectorRepository(pool)
 
@@ -231,19 +247,32 @@ func main() {
 	// Brain categories (for AI prompt + admin management)
 	brainCategoryRepo := storage.NewBrainCategoryRepository(pool)
 
-	// Image generation
+	// Image generation -- provider selected independently of the text provider.
 	const imageBaseDir = "data/images"
-	if cfg.ImageGenerationModel == "" {
-		slog.Error("IMAGE_GENERATION_MODEL is required")
+	var imgClient collector.ImageGeneratorClient
+	var imgErr error
+	var imageModel string
+	switch cfg.ImageProvider {
+	case "gemini":
+		imageModel = cfg.ImageGenerationModel
+		imgClient, imgErr = gemini.NewImageClient(ctx, cfg.GeminiAPIKey, cfg.ImageGenerationModel)
+	case "vertex":
+		imageModel = cfg.VertexImageModel
+		imgClient, imgErr = vertex.NewImageClient(ctx, cfg.VertexAPIKey, cfg.VertexImageModel)
+	default:
+		slog.Error("unsupported IMAGE_PROVIDER", "value", cfg.ImageProvider)
 		os.Exit(1)
 	}
-	imgClient, imgErr := gemini.NewImageClient(ctx, cfg.GeminiAPIKey, cfg.ImageGenerationModel)
 	if imgErr != nil {
 		slog.Error("failed to initialize image generation", "error", imgErr)
 		os.Exit(1)
 	}
-	imageGen := collector.NewImageGenerator(imgClient, imageBaseDir)
-	slog.Info("image generation initialized", "model", cfg.ImageGenerationModel)
+	imageGen := collector.NewImageGenerator(imgClient, imageBaseDir).
+		WithThrottle(cfg.ImageGenThrottle).
+		WithRetry(cfg.ImageGenMaxAttempts, cfg.ImageGenBackoff)
+	slog.Info("image generation initialized",
+		"provider", cfg.ImageProvider, "model", imageModel,
+		"throttle", cfg.ImageGenThrottle, "max_attempts", cfg.ImageGenMaxAttempts)
 
 	articleFetcher := collector.NewHTTPArticleFetcher()
 	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, articleFetcher, imageGen)
