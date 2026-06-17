@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { CommentSection } from "@/components/comments/CommentSection";
@@ -44,10 +43,23 @@ export function EditorPickDetailPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#ffffff]">
-      <Helmet>
-        <title>{post?.title ?? "에디터 픽"} | WizLetter</title>
-        {post && <meta name="description" content={post.title} />}
-      </Helmet>
+      {/* React 19 hoists these to <head>; Edge Middleware mirrors them
+          server-side so shared links preview the article image + title. */}
+      <title>{`${post?.title ?? "에디터 픽"} | WizLetter`}</title>
+      {post && <meta name="description" content={post.title} />}
+      {post && (
+        <>
+          <link rel="canonical" href={`https://wizletter.com/editor-picks/${post.id}`} />
+          <meta property="og:title" content={post.title} />
+          <meta property="og:description" content={post.title} />
+          <meta property="og:url" content={`https://wizletter.com/editor-picks/${post.id}`} />
+          <meta property="og:type" content="article" />
+          <meta
+            property="og:image"
+            content={post.first_image_url || "https://wizletter.com/w_logo.png"}
+          />
+        </>
+      )}
       <Header />
       <main className="flex-1 max-w-[800px] w-full mx-auto px-6 py-8">
         {loading ? (

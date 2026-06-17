@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
 import { Turnstile } from "@marsidev/react-turnstile";
 import {
   fetchTopicDetail,
@@ -501,17 +500,21 @@ export function TopicPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#ffffff]">
-      <Helmet>
-        <title>{topic.topic} - 위즈레터</title>
-        <meta name="description" content={topic.detail} />
-        <link rel="canonical" href={`https://wizletter.com/topic/${topic.id}`} />
-        <meta property="og:title" content={topic.topic} />
-        <meta property="og:description" content={topic.detail} />
-        <meta property="og:url" content={`https://wizletter.com/topic/${topic.id}`} />
-        <meta property="og:type" content="article" />
-        <meta property="og:image" content={topic.image_url || "https://wizletter.com/w_logo.png"} />
-        <script type="application/ld+json">
-          {JSON.stringify({
+      {/* React 19 natively hoists <title>/<meta>/<link> to <head>. The browser
+          tab and in-app navigation show the article headline; the Edge
+          Middleware sets the same tags server-side for fresh loads + crawlers. */}
+      <title>{`${topic.topic} - 위즈레터`}</title>
+      <meta name="description" content={topic.detail} />
+      <link rel="canonical" href={`https://wizletter.com/topic/${topic.id}`} />
+      <meta property="og:title" content={topic.topic} />
+      <meta property="og:description" content={topic.detail} />
+      <meta property="og:url" content={`https://wizletter.com/topic/${topic.id}`} />
+      <meta property="og:type" content="article" />
+      <meta property="og:image" content={topic.image_url || "https://wizletter.com/w_logo.png"} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "NewsArticle",
             "headline": topic.topic,
@@ -530,9 +533,9 @@ export function TopicPage() {
               "@type": "WebPage",
               "@id": `https://wizletter.com/topic/${topic.id}`,
             },
-          })}
-        </script>
-      </Helmet>
+          }),
+        }}
+      />
       {/* ── Header ── */}
       <Header />
 
