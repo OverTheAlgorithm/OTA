@@ -13,7 +13,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'if cat | grep -q \"git push\"; then cd /c/Users/BJS/Desktop/projects/OTA/web && npm run build 1>&2 || { echo \"Frontend build failed. Fix errors before pushing.\" 1>&2; exit 2; }; fi'"
+            "command": "bash -c 'if cat | grep -q \"git push\"; then cd \"$CLAUDE_PROJECT_DIR/web\" && npm run build 1>&2 || { echo \"Frontend build failed. Fix errors before pushing.\" 1>&2; exit 2; }; fi'"
           }
         ]
       }
