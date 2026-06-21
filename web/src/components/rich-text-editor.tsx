@@ -7,6 +7,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import CharacterCount from "@tiptap/extension-character-count";
 import TextAlign from "@tiptap/extension-text-align";
 import { Figure } from "./figure-extension";
+import { optimizeImage } from "@/lib/optimize-image";
 
 const MAX_CONTENT_CHARS = 50_000;
 
@@ -70,7 +71,9 @@ export function RichTextEditor({
     const ed = editorRef.current;
     if (!ed) return;
     try {
-      const url = await onImageUploadRef.current(file);
+      // Downscale + WebP-encode in the browser before upload (best-effort).
+      const optimized = await optimizeImage(file);
+      const url = await onImageUploadRef.current(optimized);
       const chain = ed.chain().focus();
       if (typeof pos === "number") chain.setTextSelection(pos);
       chain.setFigure({ src: url, alt: file.name }).run();
