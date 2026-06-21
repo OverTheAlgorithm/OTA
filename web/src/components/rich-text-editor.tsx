@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
@@ -9,6 +9,39 @@ import TextAlign from "@tiptap/extension-text-align";
 import { Figure } from "./figure-extension";
 
 const MAX_CONTENT_CHARS = 50_000;
+
+// Single source of truth for which image types we accept, shared by the file
+// picker, paste handler and drag-and-drop handler.
+const ACCEPTED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+] as const;
+const ACCEPTED_IMAGE_ACCEPT = ACCEPTED_IMAGE_TYPES.join(",");
+
+function isAcceptedImage(type: string): boolean {
+  return (ACCEPTED_IMAGE_TYPES as readonly string[]).includes(type);
+}
+
+// Pull accepted image files out of a clipboard or drag DataTransfer. Prefers
+// .items (reliable for pasted screenshots) and falls back to .files (some
+// drag-and-drop sources only populate that list).
+function extractImageFiles(data: DataTransfer | null): File[] {
+  if (!data) return [];
+  const files: File[] = [];
+  for (const item of Array.from(data.items ?? [])) {
+    if (item.kind !== "file") continue;
+    const file = item.getAsFile();
+    if (file && isAcceptedImage(file.type)) files.push(file);
+  }
+  if (files.length === 0) {
+    for (const file of Array.from(data.files ?? [])) {
+      if (isAcceptedImage(file.type)) files.push(file);
+    }
+  }
+  return files;
+}
 
 interface RichTextEditorProps {
   value: string;
@@ -24,6 +57,27 @@ export function RichTextEditor({
   placeholder = "여기에 내용을 입력하세요...",
 }: RichTextEditorProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // editorProps handlers are built when the editor is created (before the
+  // `editor` const exists) and onImageUpload may change between renders, so we
+  // reach both through refs to always use the latest values.
+  const editorRef = useRef<Editor | null>(null);
+  const onImageUploadRef = useRef(onImageUpload);
+  onImageUploadRef.current = onImageUpload;
+
+  // Upload one image file and insert it as a Figure. `pos`, when provided,
+  // moves the cursor there first so dropped images land where the user dropped.
+  const insertImageFile = useCallback(async (file: File, pos?: number) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    try {
+      const url = await onImageUploadRef.current(file);
+      const chain = ed.chain().focus();
+      if (typeof pos === "number") chain.setTextSelection(pos);
+      chain.setFigure({ src: url, alt: file.name }).run();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "이미지 업로드 실패");
+    }
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -58,8 +112,35 @@ export function RichTextEditor({
         class:
           "wl-editor-content max-w-none min-h-[400px] focus:outline-none px-4 py-3",
       },
+      // Paste an image straight from the clipboard (e.g. a screenshot or a
+      // copied image). Returning false for non-image pastes lets TipTap handle
+      // normal text/HTML pasting as before.
+      handlePaste: (_view, event) => {
+        const files = extractImageFiles(event.clipboardData);
+        if (files.length === 0) return false;
+        event.preventDefault();
+        files.forEach((file) => void insertImageFile(file));
+        return true;
+      },
+      // Drag-and-drop image files from the OS / another tab into the editor.
+      handleDrop: (view, event) => {
+        const files = extractImageFiles(event.dataTransfer);
+        if (files.length === 0) return false;
+        event.preventDefault();
+        const dropPos = view.posAtCoords({
+          left: event.clientX,
+          top: event.clientY,
+        });
+        files.forEach((file) => void insertImageFile(file, dropPos?.pos));
+        return true;
+      },
     },
   });
+
+  // Mirror the editor instance into a ref for the editorProps handlers above.
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   // Keep the editor in sync if the parent resets the value (e.g. after loading
   // an existing post). Only fire when the external value actually differs to
@@ -73,18 +154,11 @@ export function RichTextEditor({
   const handleImageSelect = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
-      if (!file || !editor) return;
-      try {
-        const url = await onImageUpload(file);
-        editor.chain().focus().setFigure({ src: url, alt: file.name }).run();
-      } catch (err) {
-        alert(err instanceof Error ? err.message : "이미지 업로드 실패");
-      } finally {
-        // Reset so the same file can be picked again.
-        event.target.value = "";
-      }
+      if (file) await insertImageFile(file);
+      // Reset so the same file can be picked again.
+      event.target.value = "";
     },
-    [editor, onImageUpload],
+    [insertImageFile],
   );
 
   const promptLink = useCallback(() => {
@@ -141,7 +215,7 @@ export function RichTextEditor({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
+          accept={ACCEPTED_IMAGE_ACCEPT}
           className="hidden"
           onChange={handleImageSelect}
         />
