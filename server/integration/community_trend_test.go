@@ -484,3 +484,92 @@ func TestCommunityTrend_WorksheetHTTP(t *testing.T) {
 		t.Fatalf("invalid source: expected 400, got %d", wb.Code)
 	}
 }
+
+func TestCommunityTrend_RobotsRepo(t *testing.T) {
+	db := SetupTestDB(t)
+	ctx := context.Background()
+	repo := storage.NewCTRobotsRepository(db.Pool)
+
+	var commID int
+	db.Pool.QueryRow(ctx, `SELECT id FROM ct_communities WHERE key='dogdrip'`).Scan(&commID)
+
+	// no status yet
+	if _, found, err := repo.LatestAllowed(ctx, commID); err != nil || found {
+		t.Fatalf("expected no prior status, found=%v err=%v", found, err)
+	}
+
+	// first record → transition recorded
+	changed, err := repo.Record(ctx, commID, true, "h1", "allow")
+	if err != nil || !changed {
+		t.Fatalf("first record: changed=%v err=%v", changed, err)
+	}
+	allowed, found, _ := repo.LatestAllowed(ctx, commID)
+	if !found || !allowed {
+		t.Fatalf("expected latest allowed=true found, got %v/%v", allowed, found)
+	}
+
+	// same allowance → no transition
+	changed, _ = repo.Record(ctx, commID, true, "h1", "allow")
+	if changed {
+		t.Fatal("expected no transition for unchanged allowance")
+	}
+
+	// flip to disallowed → transition
+	changed, _ = repo.Record(ctx, commID, false, "h2", "HTTP 429")
+	if !changed {
+		t.Fatal("expected transition on flip to disallowed")
+	}
+
+	var statusCount, transitionCount int
+	db.Pool.QueryRow(ctx, `SELECT count(*) FROM ct_robots_status WHERE community_id=$1`, commID).Scan(&statusCount)
+	db.Pool.QueryRow(ctx, `SELECT count(*) FROM ct_robots_transitions WHERE community_id=$1`, commID).Scan(&transitionCount)
+	if statusCount != 3 {
+		t.Fatalf("expected 3 status rows, got %d", statusCount)
+	}
+	if transitionCount != 2 {
+		t.Fatalf("expected 2 transitions, got %d", transitionCount)
+	}
+}
+
+func TestCommunityTrend_SeenRepo(t *testing.T) {
+	db := SetupTestDB(t)
+	ctx := context.Background()
+	repo := storage.NewCTSeenRepository(db.Pool)
+
+	var commID int
+	db.Pool.QueryRow(ctx, `SELECT id FROM ct_communities WHERE key='dogdrip'`).Scan(&commID)
+
+	today := time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC)
+	old := time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)
+	for _, row := range []struct {
+		fp   string
+		when time.Time
+	}{{"fp1", today}, {"fp2", today}, {"fp3", old}} {
+		if _, err := db.Pool.Exec(ctx,
+			`INSERT INTO ct_seen_posts (community_id, fingerprint, first_seen) VALUES ($1,$2,$3)`,
+			commID, row.fp, row.when); err != nil {
+			t.Fatalf("seed seen: %v", err)
+		}
+	}
+
+	seen, err := repo.LoadSeen(ctx, commID)
+	if err != nil {
+		t.Fatalf("load seen: %v", err)
+	}
+	if len(seen) != 3 || !seen["fp1"] || !seen["fp3"] {
+		t.Fatalf("expected 3 seen incl fp1/fp3, got %v", seen)
+	}
+
+	// prune rows older than 2026-06-22 → removes fp3
+	n, err := repo.Prune(ctx, time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("expected 1 pruned, got %d", n)
+	}
+	seen2, _ := repo.LoadSeen(ctx, commID)
+	if len(seen2) != 2 || seen2["fp3"] {
+		t.Fatalf("expected fp3 pruned, got %v", seen2)
+	}
+}
