@@ -120,5 +120,16 @@ func (r *CTWorksheetRepository) Confirm(ctx context.Context, conf communitytrend
 		}
 	}
 
+	// 5. confirmed-meme daily counts
+	for _, mm := range conf.MemeMatches {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO ct_meme_daily (meme_id, community_id, stat_date, count)
+			 VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (meme_id, community_id, stat_date) DO UPDATE SET count=$4`,
+			mm.MemeID, conf.CommunityID, conf.StatDate, mm.Count); err != nil {
+			return fmt.Errorf("upsert meme_daily (meme %d): %w", mm.MemeID, err)
+		}
+	}
+
 	return tx.Commit(ctx)
 }

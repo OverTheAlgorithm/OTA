@@ -37,6 +37,7 @@ type Confirmation struct {
 	Source       string  // 'ai' | 'human' | 'hybrid'
 	ConfirmedBy  *string // user id, nullable
 	Fingerprints []string
+	MemeMatches  []MemeMatch // confirmed-meme counts to record in ct_meme_daily
 }
 
 // WorksheetRepository persists worksheets and the atomic confirmation write.

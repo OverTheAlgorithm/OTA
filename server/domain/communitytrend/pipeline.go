@@ -53,6 +53,7 @@ type Pipeline struct {
 	fetcher     RobotsFetcher
 	tagger      Tagger
 	suggestions SuggestionStore
+	memes       MemeRepository
 	minCount    int
 }
 
@@ -61,13 +62,13 @@ func NewPipeline(
 	communities CommunityRepository, tags TagRepository, axes AxisRepository,
 	robotsRepo RobotsRepository, seen SeenRepository, worksheets WorksheetRepository,
 	registry *AdapterRegistry, fetcher RobotsFetcher, tagger Tagger,
-	suggestions SuggestionStore, minCount int,
+	suggestions SuggestionStore, memes MemeRepository, minCount int,
 ) *Pipeline {
 	return &Pipeline{
 		communities: communities, tags: tags, axes: axes,
 		robotsRepo: robotsRepo, seen: seen, worksheets: worksheets,
 		registry: registry, fetcher: fetcher, tagger: tagger,
-		suggestions: suggestions, minCount: minCount,
+		suggestions: suggestions, memes: memes, minCount: minCount,
 	}
 }
 
@@ -152,6 +153,15 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 	})
 	if aerr != nil {
 		return p.fallbackManual(ctx, c, date, "ai error: "+aerr.Error())
+	}
+
+	// Persist AI-discovered meme candidates so humans can review them (blacklisted
+	// expressions are ignored by the repo). Best-effort: a candidate write failure
+	// must not sink the whole community's run.
+	if p.memes != nil {
+		for _, mc := range out.MemeCandidates {
+			_ = p.memes.UpsertCandidate(ctx, mc.Expression, date)
+		}
 	}
 
 	if _, werr := p.worksheets.Ensure(ctx, c.ID, date, "auto"); werr != nil {

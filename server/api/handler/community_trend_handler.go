@@ -302,12 +302,15 @@ func (h *CommunityTrendAdminHandler) ConfirmWorksheet(c *gin.Context) {
 		confirmedBy = &uid
 	}
 
-	// For the auto path, pull the fresh-item fingerprints from the stored AI
-	// suggestion so confirming marks them seen (dedup carries to future days).
+	// For the auto path, pull the fresh-item fingerprints and confirmed-meme
+	// matches from the stored AI suggestion so confirming marks items seen and
+	// records meme counts.
 	var fingerprints []string
+	var memeMatches []communitytrend.MemeMatch
 	if h.suggestions != nil {
 		if s, ok, _ := h.suggestions.Get(c.Request.Context(), req.CommunityID, date); ok {
 			fingerprints = s.Fingerprints
+			memeMatches = s.Output.MemeMatches
 		}
 	}
 
@@ -320,6 +323,7 @@ func (h *CommunityTrendAdminHandler) ConfirmWorksheet(c *gin.Context) {
 		Counts:       req.Counts,
 		ConfirmedBy:  confirmedBy,
 		Fingerprints: fingerprints,
+		MemeMatches:  memeMatches,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
