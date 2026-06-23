@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ulule/limiter/v3/drivers/store/memory"
@@ -311,3 +312,90 @@ func TestCommunityTrend_AdminHTTP(t *testing.T) {
 
 // itoa is a tiny local helper to avoid importing strconv at call sites.
 func itoa(n int) string { return fmt.Sprintf("%d", n) }
+
+func TestCommunityTrend_ManualConfirm(t *testing.T) {
+	db := SetupTestDB(t)
+	ctx := context.Background()
+	wsRepo := storage.NewCTWorksheetRepository(db.Pool)
+	svc := communitytrend.NewWorksheetService(wsRepo)
+
+	// seed dogdrip community + two seed tags
+	var commID, tag1, tag2 int
+	db.Pool.QueryRow(ctx, `SELECT id FROM ct_communities WHERE key='dogdrip'`).Scan(&commID)
+	db.Pool.QueryRow(ctx, `SELECT id FROM ct_tags WHERE name='남성향'`).Scan(&tag1)
+	db.Pool.QueryRow(ctx, `SELECT id FROM ct_tags WHERE name='보수 성향'`).Scan(&tag2)
+
+	date := time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC)
+
+	// Ensure → pending worksheet
+	ws, err := svc.Ensure(ctx, commID, date, "manual")
+	if err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	if ws.Status != "pending" || ws.Mode != "manual" {
+		t.Fatalf("unexpected worksheet: %+v", ws)
+	}
+
+	list, err := svc.ListByDate(ctx, date)
+	if err != nil {
+		t.Fatalf("list by date: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1 worksheet, got %d", len(list))
+	}
+
+	// Confirm (manual path, no fingerprints)
+	err = svc.Confirm(ctx, communitytrend.Confirmation{
+		CommunityID: commID,
+		StatDate:    date,
+		Mode:        "manual",
+		Source:      "human",
+		TotalPosts:  12,
+		Counts:      []communitytrend.TagCount{{TagID: tag1, Count: 5}, {TagID: tag2, Count: 3}},
+	})
+	if err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+
+	// tag_daily has 2 rows with right counts
+	var c1, c2, total int
+	db.Pool.QueryRow(ctx, `SELECT post_count FROM ct_tag_daily WHERE community_id=$1 AND tag_id=$2 AND stat_date=$3`, commID, tag1, date).Scan(&c1)
+	db.Pool.QueryRow(ctx, `SELECT post_count FROM ct_tag_daily WHERE community_id=$1 AND tag_id=$2 AND stat_date=$3`, commID, tag2, date).Scan(&c2)
+	db.Pool.QueryRow(ctx, `SELECT total_posts FROM ct_community_daily WHERE community_id=$1 AND stat_date=$2`, commID, date).Scan(&total)
+	if c1 != 5 || c2 != 3 || total != 12 {
+		t.Fatalf("expected counts 5,3 total 12, got %d,%d total %d", c1, c2, total)
+	}
+
+	// worksheet now confirmed
+	var status string
+	db.Pool.QueryRow(ctx, `SELECT status FROM ct_worksheets WHERE community_id=$1 AND stat_date=$2`, commID, date).Scan(&status)
+	if status != "confirmed" {
+		t.Fatalf("expected confirmed, got %s", status)
+	}
+
+	// Re-confirm updates (idempotent upsert, no duplicate rows)
+	err = svc.Confirm(ctx, communitytrend.Confirmation{
+		CommunityID: commID, StatDate: date, Mode: "manual", Source: "human", TotalPosts: 15,
+		Counts: []communitytrend.TagCount{{TagID: tag1, Count: 7}},
+	})
+	if err != nil {
+		t.Fatalf("re-confirm: %v", err)
+	}
+	var c1b, rowCount int
+	db.Pool.QueryRow(ctx, `SELECT post_count FROM ct_tag_daily WHERE community_id=$1 AND tag_id=$2 AND stat_date=$3`, commID, tag1, date).Scan(&c1b)
+	db.Pool.QueryRow(ctx, `SELECT count(*) FROM ct_tag_daily WHERE community_id=$1 AND stat_date=$2`, commID, date).Scan(&rowCount)
+	if c1b != 7 {
+		t.Fatalf("expected updated count 7, got %d", c1b)
+	}
+	// tag2 row from first confirm still present (we only upsert provided counts) → 2 rows total
+	if rowCount != 2 {
+		t.Fatalf("expected 2 tag_daily rows, got %d", rowCount)
+	}
+
+	// invalid source rejected
+	if err := svc.Confirm(ctx, communitytrend.Confirmation{
+		CommunityID: commID, StatDate: date, Mode: "manual", Source: "bogus", TotalPosts: 1,
+	}); err == nil {
+		t.Fatal("expected error for invalid source")
+	}
+}
