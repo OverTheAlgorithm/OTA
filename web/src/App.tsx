@@ -23,6 +23,7 @@ import { AdminWithdrawalsPage } from "@/pages/admin-withdrawals";
 import { AdminTermsPage } from "@/pages/admin-terms";
 import { AdminCoinsPage } from "@/pages/admin-coins";
 import { AdminPushPage } from "@/pages/admin-push";
+import { AdminCommunityTrendPage } from "@/pages/admin-community-trend";
 import { TermsConsentPage } from "@/pages/terms-consent";
 import { AllNewsPage } from "@/pages/allnews";
 import { CookiePolicyPage } from "@/pages/cookie-policy";
@@ -84,6 +85,7 @@ function App() {
           <Route path="/admin/terms" element={<ErrorBoundary><AdminTermsPage /></ErrorBoundary>} />
           <Route path="/admin/coins" element={<ErrorBoundary><AdminCoinsPage /></ErrorBoundary>} />
           <Route path="/admin/push" element={<ErrorBoundary><AdminPushPage /></ErrorBoundary>} />
+          <Route path="/admin/community-trend" element={<ErrorBoundary><AdminCommunityTrendPage /></ErrorBoundary>} />
           <Route path="/admin/users" element={<ErrorBoundary><AdminUsersPage /></ErrorBoundary>} />
           <Route path="/editor-picks" element={<ErrorBoundary><EditorPicksPage /></ErrorBoundary>} />
           <Route path="/editor-picks/:id" element={<ErrorBoundary><EditorPickDetailPage /></ErrorBoundary>} />
