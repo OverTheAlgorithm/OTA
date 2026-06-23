@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS ct_meme_daily;
+DROP TABLE IF EXISTS ct_meme_blacklist;
+DROP TABLE IF EXISTS ct_meme_candidates;
+DROP TABLE IF EXISTS ct_memes;
+DROP TABLE IF EXISTS ct_seen_posts;
+DROP TABLE IF EXISTS ct_robots_transitions;
+DROP TABLE IF EXISTS ct_robots_status;
+DROP TABLE IF EXISTS ct_worksheets;
+DROP TABLE IF EXISTS ct_community_daily;
+DROP TABLE IF EXISTS ct_tag_daily;
+DROP TABLE IF EXISTS ct_community_tags;
+DROP TABLE IF EXISTS ct_communities;
+DROP TABLE IF EXISTS ct_tags;
+DROP TABLE IF EXISTS ct_axes;
