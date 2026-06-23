@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -173,6 +174,10 @@ func (r *EditorRepository) ListPublishedCards(ctx context.Context, limit, offset
 		if err := rows.Scan(&c.ID, &c.AuthorID, &c.AuthorName, &c.Title, &c.Excerpt, &c.FirstImageURL, &c.PublishedAt); err != nil {
 			return nil, fmt.Errorf("scan card: %w", err)
 		}
+		// content_text rows persisted before the Excerpt entity-decode fix still
+		// hold raw entities (&#34; etc.); decode on read so old posts render
+		// correctly without a backfill. No-op for already-clean rows.
+		c.Excerpt = html.UnescapeString(c.Excerpt)
 		out = append(out, c)
 	}
 	return out, rows.Err()
@@ -238,6 +243,8 @@ func (r *EditorRepository) SearchPublishedCards(ctx context.Context, query strin
 		if err := rows.Scan(&c.ID, &c.AuthorID, &c.AuthorName, &c.Title, &c.Excerpt, &c.FirstImageURL, &c.PublishedAt, &matchRank); err != nil {
 			return nil, false, fmt.Errorf("scan editor_post search row: %w", err)
 		}
+		// See ListPublishedCards: decode legacy entity-encoded content_text.
+		c.Excerpt = html.UnescapeString(c.Excerpt)
 		out = append(out, c)
 	}
 	if err := rows.Err(); err != nil {
