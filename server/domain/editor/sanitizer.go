@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"html"
 	"regexp"
 	"strings"
 	"sync"
@@ -55,11 +56,15 @@ var whitespacePattern = regexp.MustCompile(`\s+`)
 // Excerpt produces a short plain-text summary suitable for list previews.
 // It strips tags, collapses whitespace, and truncates to n runes. Returns an
 // empty string for empty input.
-func Excerpt(html string, n int) string {
-	if html == "" || n <= 0 {
+func Excerpt(content string, n int) string {
+	if content == "" || n <= 0 {
 		return ""
 	}
-	text := stripTagsPattern.ReplaceAllString(html, " ")
+	text := stripTagsPattern.ReplaceAllString(content, " ")
+	// Decode HTML entities (e.g. &#34; &amp; &nbsp;) left behind after tag
+	// stripping. Done after stripping tags so entity-encoded angle brackets
+	// can't reintroduce markup; output stays plain text.
+	text = html.UnescapeString(text)
 	text = strings.ReplaceAll(text, " ", " ")
 	text = whitespacePattern.ReplaceAllString(text, " ")
 	text = strings.TrimSpace(text)

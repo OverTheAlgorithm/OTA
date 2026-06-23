@@ -64,6 +64,8 @@ func TestExcerpt(t *testing.T) {
 		{"plain short", "<p>hello world</p>", 50, "hello world"},
 		{"truncated", "<p>" + strings.Repeat("a", 60) + "</p>", 10, "aaaaaaaaaa…"},
 		{"collapses whitespace", "<p>a</p>   <p>b</p>", 10, "a b"},
+		{"decodes entities", "<p>&#34;hi&#34; &amp; &lt;ok&gt;</p>", 50, `"hi" & <ok>`},
+		{"decodes nbsp", "<p>a&nbsp;&nbsp;b</p>", 10, "a b"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
