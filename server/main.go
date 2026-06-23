@@ -36,6 +36,7 @@ import (
 	"ota/domain/terms"
 	"ota/domain/user"
 	"ota/domain/withdrawal"
+	"ota/platform/communities"
 	"ota/platform/email"
 	"ota/platform/gemini"
 	"ota/platform/googlenews"
@@ -335,15 +336,33 @@ func main() {
 	termsRepo := storage.NewTermsRepository(pool)
 	termsService := terms.NewService(termsRepo)
 
-	communityTrendService := communitytrend.NewService(
-		storage.NewCTCommunityRepository(pool),
-		storage.NewCTTagRepository(pool),
-		storage.NewCTAxisRepository(pool),
+	ctCommunityRepo := storage.NewCTCommunityRepository(pool)
+	ctTagRepo := storage.NewCTTagRepository(pool)
+	ctAxisRepo := storage.NewCTAxisRepository(pool)
+	ctWorksheetRepo := storage.NewCTWorksheetRepository(pool)
+	ctRobotsRepo := storage.NewCTRobotsRepository(pool)
+	ctSeenRepo := storage.NewCTSeenRepository(pool)
+	ctSuggestionStore := storage.NewCTSuggestionStore(48 * time.Hour)
+
+	communityTrendService := communitytrend.NewService(ctCommunityRepo, ctTagRepo, ctAxisRepo)
+	communityTrendWorksheetService := communitytrend.NewWorksheetService(ctWorksheetRepo)
+	communityTrendAdminHandler := handler.NewCommunityTrendAdminHandler(
+		communityTrendService, communityTrendWorksheetService, ctSuggestionStore)
+
+	// Auto-collection pipeline: source-neutral adapters → robots gate → dedup →
+	// AI single-pass suggest. New adapters plug in by matching ct_communities.key.
+	ctAdapters := communitytrend.NewAdapterRegistry(communities.NewDogdrip())
+	ctTagger := gemini.NewCTTagger(cfg.GeminiAPIKey, cfg.GeminiModel)
+	communityTrendPipeline := communitytrend.NewPipeline(
+		ctCommunityRepo, ctTagRepo, ctAxisRepo, ctRobotsRepo, ctSeenRepo, ctWorksheetRepo,
+		ctAdapters, communities.NewRobotsHTTPFetcher(), ctTagger, ctSuggestionStore, cfg.CTMinTagCount,
 	)
-	communityTrendWorksheetService := communitytrend.NewWorksheetService(
-		storage.NewCTWorksheetRepository(pool),
-	)
-	communityTrendAdminHandler := handler.NewCommunityTrendAdminHandler(communityTrendService, communityTrendWorksheetService)
+	communityTrendScheduler := scheduler.NewCommunityTrend(communityTrendPipeline, shutdownCtx)
+	if err := communityTrendScheduler.Start(); err != nil {
+		slog.Error("failed to start community-trend scheduler", "error", err)
+		os.Exit(1)
+	}
+	defer communityTrendScheduler.Stop()
 	var signupCache cache.Cache
 	if rc, err := cache.NewRedisCache(redisCfg, "signup:"); err != nil {
 		slog.Warn("redis unavailable for signup cache, using in-process", "error", err)

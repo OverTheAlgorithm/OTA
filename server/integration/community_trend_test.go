@@ -219,7 +219,7 @@ func TestCommunityTrend_AdminHTTP(t *testing.T) {
 		storage.NewCTAxisRepository(db.Pool),
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil)
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -411,7 +411,7 @@ func TestCommunityTrend_WorksheetHTTP(t *testing.T) {
 		storage.NewCTAxisRepository(db.Pool),
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil)
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")

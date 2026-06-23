@@ -13,12 +13,13 @@ import (
 // CommunityTrendAdminHandler exposes admin CRUD for communities, axes, tags,
 // and the daily tagging worksheet flow.
 type CommunityTrendAdminHandler struct {
-	svc *communitytrend.Service
-	ws  *communitytrend.WorksheetService
+	svc         *communitytrend.Service
+	ws          *communitytrend.WorksheetService
+	suggestions communitytrend.SuggestionStore
 }
 
-func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService) *CommunityTrendAdminHandler {
-	return &CommunityTrendAdminHandler{svc: svc, ws: ws}
+func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService, suggestions communitytrend.SuggestionStore) *CommunityTrendAdminHandler {
+	return &CommunityTrendAdminHandler{svc: svc, ws: ws, suggestions: suggestions}
 }
 
 // RegisterRoutes registers admin routes under /api/v1/admin/community-trend.
@@ -37,8 +38,40 @@ func (h *CommunityTrendAdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.PATCH("/tags/:id", h.UpdateTag)
 	group.DELETE("/tags/:id", h.DeleteTag)
 
-	group.GET("/worksheets", h.ListWorksheets) // ?date=YYYY-MM-DD
+	group.GET("/worksheets", h.ListWorksheets)           // ?date=YYYY-MM-DD
+	group.GET("/worksheets/suggestion", h.GetSuggestion) // ?community_id=&date=
 	group.POST("/worksheets/confirm", h.ConfirmWorksheet)
+}
+
+// GetSuggestion returns the transient AI suggestion for a community-day, if any.
+func (h *CommunityTrendAdminHandler) GetSuggestion(c *gin.Context) {
+	cid, err := strconv.Atoi(c.Query("community_id"))
+	if err != nil || cid <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "community_id가 필요합니다"})
+		return
+	}
+	date, err := time.Parse(ctDateLayout, c.Query("date"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date 형식은 YYYY-MM-DD 입니다"})
+		return
+	}
+	if h.suggestions == nil {
+		c.JSON(http.StatusOK, gin.H{"data": nil})
+		return
+	}
+	s, ok, err := h.suggestions.Get(c.Request.Context(), cid, date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "제안을 불러올 수 없습니다"})
+		return
+	}
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{
+		"output":      s.Output,
+		"total_posts": s.TotalPosts,
+	}})
 }
 
 const ctDateLayout = "2006-01-02"
@@ -93,14 +126,24 @@ func (h *CommunityTrendAdminHandler) ConfirmWorksheet(c *gin.Context) {
 		confirmedBy = &uid
 	}
 
+	// For the auto path, pull the fresh-item fingerprints from the stored AI
+	// suggestion so confirming marks them seen (dedup carries to future days).
+	var fingerprints []string
+	if h.suggestions != nil {
+		if s, ok, _ := h.suggestions.Get(c.Request.Context(), req.CommunityID, date); ok {
+			fingerprints = s.Fingerprints
+		}
+	}
+
 	err = h.ws.Confirm(c.Request.Context(), communitytrend.Confirmation{
-		CommunityID: req.CommunityID,
-		StatDate:    date,
-		Mode:        req.Mode,
-		Source:      req.Source,
-		TotalPosts:  req.TotalPosts,
-		Counts:      req.Counts,
-		ConfirmedBy: confirmedBy,
+		CommunityID:  req.CommunityID,
+		StatDate:     date,
+		Mode:         req.Mode,
+		Source:       req.Source,
+		TotalPosts:   req.TotalPosts,
+		Counts:       req.Counts,
+		ConfirmedBy:  confirmedBy,
+		Fingerprints: fingerprints,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

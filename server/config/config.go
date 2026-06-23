@@ -72,6 +72,7 @@ type Config struct {
 	RateLimitPerMin        int // RATE_LIMIT_PER_MIN: max requests per minute per user/IP; default 300
 	QuizMaxBonusCoins      int // QUIZ_MAX_BONUS_COINS: max random bonus coins for correct quiz answer (range: 1~N); default 3
 	MinReferences          int // MIN_REFERENCES: minimum source URLs per topic to surface in user-facing lists, email, sitemap; default 1 (matches existing pipeline drop threshold). Set 2+ to hide single-source topics from new exposure. Topic detail page and personal history bypass this filter.
+	CTMinTagCount          int // CT_MIN_TAG_COUNT: community-trend conservative threshold — min posts for a topic tag to surface in stats; default 3 (decisions.md D-002).
 
 	RedisHost     string // REDIS_HOST: Redis server hostname; default "redis"
 	RedisPort     string // REDIS_PORT: Redis server port; default "6379"
@@ -145,10 +146,11 @@ func Load() (Config, error) {
 
 		SlackWebhookURL: getEnv("SLACK_WEBHOOK_URL", ""),
 
+		CTMinTagCount:          getEnvInt("CT_MIN_TAG_COUNT", 3),
 		DailyCoinLimit:         getEnvInt("DAILY_COIN_LIMIT", 10),
-		EarnMinDurationSec:    getEnvInt("EARN_MIN_DURATION_SEC", 10),
-		EarnCacheRetries:      getEnvInt("EARN_CACHE_RETRIES", 3),
-		MinWithdrawalAmount:   getEnvInt("MIN_WITHDRAWAL_AMOUNT", 1000),
+		EarnMinDurationSec:     getEnvInt("EARN_MIN_DURATION_SEC", 10),
+		EarnCacheRetries:       getEnvInt("EARN_CACHE_RETRIES", 3),
+		MinWithdrawalAmount:    getEnvInt("MIN_WITHDRAWAL_AMOUNT", 1000),
 		WithdrawalUnitAmount:   getEnvInt("WITHDRAWAL_UNIT_AMOUNT", 1000),
 		ExtraCoinLimitPerLevel: getEnvInt("EXTRA_COIN_LIMIT_PER_LEVEL", 0),
 		SignupBonusCoins:       getEnvInt("SIGNUP_BONUS_COINS", 0),
