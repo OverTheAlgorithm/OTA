@@ -26,6 +26,7 @@ import (
 	"ota/config"
 	"ota/domain/collector"
 	"ota/domain/comment"
+	"ota/domain/communitytrend"
 	"ota/domain/delivery"
 	"ota/domain/editor"
 	"ota/domain/level"
@@ -333,6 +334,13 @@ func main() {
 	// Terms of service
 	termsRepo := storage.NewTermsRepository(pool)
 	termsService := terms.NewService(termsRepo)
+
+	communityTrendService := communitytrend.NewService(
+		storage.NewCTCommunityRepository(pool),
+		storage.NewCTTagRepository(pool),
+		storage.NewCTAxisRepository(pool),
+	)
+	communityTrendAdminHandler := handler.NewCommunityTrendAdminHandler(communityTrendService)
 	var signupCache cache.Cache
 	if rc, err := cache.NewRedisCache(redisCfg, "signup:"); err != nil {
 		slog.Warn("redis unavailable for signup cache, using in-process", "error", err)
@@ -574,6 +582,11 @@ func main() {
 		{
 			GroupName:   "admin/terms",
 			Handler:     termsAdminHandler,
+			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
+		},
+		{
+			GroupName:   "admin/community-trend",
+			Handler:     communityTrendAdminHandler,
 			Middlewares: []gin.HandlerFunc{api.AuthMiddleware(jwtManager), api.AdminMiddleware(userRepo)},
 		},
 		{
