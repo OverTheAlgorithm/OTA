@@ -219,7 +219,7 @@ func TestCommunityTrend_AdminHTTP(t *testing.T) {
 		storage.NewCTAxisRepository(db.Pool),
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil)
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -411,7 +411,7 @@ func TestCommunityTrend_WorksheetHTTP(t *testing.T) {
 		storage.NewCTAxisRepository(db.Pool),
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil)
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -482,6 +482,65 @@ func TestCommunityTrend_WorksheetHTTP(t *testing.T) {
 	router.ServeHTTP(wb, reqb)
 	if wb.Code != http.StatusBadRequest {
 		t.Fatalf("invalid source: expected 400, got %d", wb.Code)
+	}
+}
+
+func TestCommunityTrend_TrendsHTTP(t *testing.T) {
+	db := SetupTestDB(t)
+	ctx := context.Background()
+
+	svc := communitytrend.NewService(
+		storage.NewCTCommunityRepository(db.Pool),
+		storage.NewCTTagRepository(db.Pool),
+		storage.NewCTAxisRepository(db.Pool),
+	)
+	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
+	aggSvc := communitytrend.NewAggregateService(storage.NewCTAggregateRepository(db.Pool), 3)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, aggSvc)
+
+	gin.SetMode(gin.TestMode)
+	jwtManager := auth.NewJWTManager("test-secret")
+	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, memory.NewStore(),
+		[]api.RouteModule{{GroupName: "admin/community-trend", Handler: adminHandler, Middlewares: []gin.HandlerFunc{}}})
+
+	var commID, tag1 int
+	db.Pool.QueryRow(ctx, `SELECT id FROM ct_communities WHERE key='dogdrip'`).Scan(&commID)
+	db.Pool.QueryRow(ctx, `SELECT id FROM ct_tags WHERE name='남성향'`).Scan(&tag1)
+
+	// two days of confirmed data for the same tag (rising 3 -> 5)
+	for _, day := range []struct {
+		date  string
+		count int
+	}{{"2026-06-23", 3}, {"2026-06-24", 5}} {
+		d, _ := time.Parse("2006-01-02", day.date)
+		if err := wsSvc.Confirm(ctx, communitytrend.Confirmation{
+			CommunityID: commID, StatDate: d, Mode: "manual", Source: "human", TotalPosts: 10,
+			Counts: []communitytrend.TagCount{{TagID: tag1, Count: day.count}},
+		}); err != nil {
+			t.Fatalf("confirm %s: %v", day.date, err)
+		}
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET",
+		"/api/v1/admin/community-trend/trends/community?community_id="+itoa(commID)+"&from=2026-06-17&to=2026-06-24", nil)
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("trends: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data []communitytrend.TagTrend `json:"data"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if len(resp.Data) != 1 {
+		t.Fatalf("expected 1 trend, got %d", len(resp.Data))
+	}
+	tt := resp.Data[0]
+	if tt.Latest != 5 || tt.DeltaPrevDay != 2 {
+		t.Fatalf("expected latest 5 / deltaPrevDay 2, got %d / %d", tt.Latest, tt.DeltaPrevDay)
+	}
+	if len(tt.Points) != 2 {
+		t.Fatalf("expected 2 points, got %d", len(tt.Points))
 	}
 }
 

@@ -346,8 +346,10 @@ func main() {
 
 	communityTrendService := communitytrend.NewService(ctCommunityRepo, ctTagRepo, ctAxisRepo)
 	communityTrendWorksheetService := communitytrend.NewWorksheetService(ctWorksheetRepo)
+	communityTrendAggregateService := communitytrend.NewAggregateService(
+		storage.NewCTAggregateRepository(pool), cfg.CTMinTagCount)
 	communityTrendAdminHandler := handler.NewCommunityTrendAdminHandler(
-		communityTrendService, communityTrendWorksheetService, ctSuggestionStore)
+		communityTrendService, communityTrendWorksheetService, ctSuggestionStore, communityTrendAggregateService)
 
 	// Auto-collection pipeline: source-neutral adapters → robots gate → dedup →
 	// AI single-pass suggest. New adapters plug in by matching ct_communities.key.

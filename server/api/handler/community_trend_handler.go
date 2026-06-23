@@ -16,10 +16,11 @@ type CommunityTrendAdminHandler struct {
 	svc         *communitytrend.Service
 	ws          *communitytrend.WorksheetService
 	suggestions communitytrend.SuggestionStore
+	agg         *communitytrend.AggregateService
 }
 
-func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService, suggestions communitytrend.SuggestionStore) *CommunityTrendAdminHandler {
-	return &CommunityTrendAdminHandler{svc: svc, ws: ws, suggestions: suggestions}
+func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService, suggestions communitytrend.SuggestionStore, agg *communitytrend.AggregateService) *CommunityTrendAdminHandler {
+	return &CommunityTrendAdminHandler{svc: svc, ws: ws, suggestions: suggestions, agg: agg}
 }
 
 // RegisterRoutes registers admin routes under /api/v1/admin/community-trend.
@@ -41,6 +42,66 @@ func (h *CommunityTrendAdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/worksheets", h.ListWorksheets)           // ?date=YYYY-MM-DD
 	group.GET("/worksheets/suggestion", h.GetSuggestion) // ?community_id=&date=
 	group.POST("/worksheets/confirm", h.ConfirmWorksheet)
+
+	group.GET("/trends/community", h.CommunityTrends) // ?community_id=&from=&to=
+	group.GET("/trends/cohort", h.CohortTrends)       // ?meta_tag_id=&from=&to=
+}
+
+// parseRange reads from/to (YYYY-MM-DD) query params; defaults to the last 7 days
+// ending today when omitted is not allowed — both are required for clarity.
+func parseRange(c *gin.Context) (time.Time, time.Time, bool) {
+	from, err1 := time.Parse(ctDateLayout, c.Query("from"))
+	to, err2 := time.Parse(ctDateLayout, c.Query("to"))
+	if err1 != nil || err2 != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "from/to (YYYY-MM-DD)가 필요합니다"})
+		return time.Time{}, time.Time{}, false
+	}
+	return from, to, true
+}
+
+// CommunityTrends returns per-tag trend series + deltas for one community.
+func (h *CommunityTrendAdminHandler) CommunityTrends(c *gin.Context) {
+	cid, err := strconv.Atoi(c.Query("community_id"))
+	if err != nil || cid <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "community_id가 필요합니다"})
+		return
+	}
+	from, to, ok := parseRange(c)
+	if !ok {
+		return
+	}
+	trends, err := h.agg.CommunityTrends(c.Request.Context(), cid, from, to)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "트렌드를 불러올 수 없습니다"})
+		return
+	}
+	if trends == nil {
+		trends = []communitytrend.TagTrend{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": trends})
+}
+
+// CohortTrends returns per-tag trend series + deltas summed across a cohort
+// (communities carrying the given meta tag).
+func (h *CommunityTrendAdminHandler) CohortTrends(c *gin.Context) {
+	mid, err := strconv.Atoi(c.Query("meta_tag_id"))
+	if err != nil || mid <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "meta_tag_id가 필요합니다"})
+		return
+	}
+	from, to, ok := parseRange(c)
+	if !ok {
+		return
+	}
+	trends, err := h.agg.CohortTrends(c.Request.Context(), mid, from, to)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "트렌드를 불러올 수 없습니다"})
+		return
+	}
+	if trends == nil {
+		trends = []communitytrend.TagTrend{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": trends})
 }
 
 // GetSuggestion returns the transient AI suggestion for a community-day, if any.
