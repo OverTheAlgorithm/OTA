@@ -219,7 +219,7 @@ func TestCommunityTrend_AdminHTTP(t *testing.T) {
 		storage.NewCTAxisRepository(db.Pool),
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil, nil)
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -411,7 +411,7 @@ func TestCommunityTrend_WorksheetHTTP(t *testing.T) {
 		storage.NewCTAxisRepository(db.Pool),
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil, nil)
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -496,7 +496,7 @@ func TestCommunityTrend_TrendsHTTP(t *testing.T) {
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
 	aggSvc := communitytrend.NewAggregateService(storage.NewCTAggregateRepository(db.Pool), 3)
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, aggSvc)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, aggSvc, nil)
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -541,6 +541,95 @@ func TestCommunityTrend_TrendsHTTP(t *testing.T) {
 	}
 	if len(tt.Points) != 2 {
 		t.Fatalf("expected 2 points, got %d", len(tt.Points))
+	}
+}
+
+func TestCommunityTrend_MemeEngine(t *testing.T) {
+	db := SetupTestDB(t)
+	ctx := context.Background()
+	svc := communitytrend.NewMemeService(storage.NewCTMemeRepository(db.Pool))
+	date := time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC)
+
+	repo := storage.NewCTMemeRepository(db.Pool)
+
+	// AI proposes candidates
+	if err := repo.UpsertCandidate(ctx, "킹받다", date); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if err := repo.UpsertCandidate(ctx, "킹받다", date); err != nil { // hit++
+		t.Fatalf("upsert2: %v", err)
+	}
+	if err := repo.UpsertCandidate(ctx, "노잼", date); err != nil {
+		t.Fatalf("upsert3: %v", err)
+	}
+
+	cands, _ := svc.ListCandidates(ctx)
+	if len(cands) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(cands))
+	}
+	// hottest first → 킹받다 with hit 2
+	if cands[0].Expression != "킹받다" || cands[0].HitCount != 2 {
+		t.Fatalf("expected 킹받다 hit 2 first, got %+v", cands[0])
+	}
+
+	// reject 노잼 → permanent blacklist
+	var nojaemID int
+	for _, c := range cands {
+		if c.Expression == "노잼" {
+			nojaemID = c.ID
+		}
+	}
+	if err := svc.RejectCandidate(ctx, nojaemID); err != nil {
+		t.Fatalf("reject: %v", err)
+	}
+	// AI re-proposes 노잼 → ignored (blacklisted)
+	if err := repo.UpsertCandidate(ctx, "노잼", date); err != nil {
+		t.Fatalf("re-upsert blacklisted: %v", err)
+	}
+	cands2, _ := svc.ListCandidates(ctx)
+	if len(cands2) != 1 {
+		t.Fatalf("expected 1 candidate after reject+reupsert, got %d", len(cands2))
+	}
+
+	// promote 킹받다 → confirmed meme with alias
+	m, err := svc.PromoteCandidate(ctx, cands2[0].ID, "킹받다", []string{"킹받네"})
+	if err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+	if m.CreatedVia != "promote" || len(m.Aliases) != 1 {
+		t.Fatalf("unexpected promoted meme: %+v", m)
+	}
+	cands3, _ := svc.ListCandidates(ctx)
+	if len(cands3) != 0 {
+		t.Fatalf("expected 0 candidates after promote, got %d", len(cands3))
+	}
+
+	// manual create
+	if _, err := svc.CreateMeme(ctx, "에바", nil); err != nil {
+		t.Fatalf("create meme: %v", err)
+	}
+	active, _ := svc.ListMemes(ctx, false)
+	if len(active) != 2 {
+		t.Fatalf("expected 2 active memes, got %d", len(active))
+	}
+
+	// update aliases
+	upd, err := svc.UpdateMeme(ctx, m.ID, "킹받다", []string{"킹받네", "킹받쥬"})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if len(upd.Aliases) != 2 {
+		t.Fatalf("expected 2 aliases, got %d", len(upd.Aliases))
+	}
+
+	// retire (not hard delete) → excluded from active, present with includeRetired
+	if err := svc.RetireMeme(ctx, m.ID); err != nil {
+		t.Fatalf("retire: %v", err)
+	}
+	active2, _ := svc.ListMemes(ctx, false)
+	all, _ := svc.ListMemes(ctx, true)
+	if len(active2) != 1 || len(all) != 2 {
+		t.Fatalf("expected active=1 all=2 after retire, got %d / %d", len(active2), len(all))
 	}
 }
 

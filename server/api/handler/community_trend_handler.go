@@ -17,10 +17,11 @@ type CommunityTrendAdminHandler struct {
 	ws          *communitytrend.WorksheetService
 	suggestions communitytrend.SuggestionStore
 	agg         *communitytrend.AggregateService
+	memes       *communitytrend.MemeService
 }
 
-func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService, suggestions communitytrend.SuggestionStore, agg *communitytrend.AggregateService) *CommunityTrendAdminHandler {
-	return &CommunityTrendAdminHandler{svc: svc, ws: ws, suggestions: suggestions, agg: agg}
+func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService, suggestions communitytrend.SuggestionStore, agg *communitytrend.AggregateService, memes *communitytrend.MemeService) *CommunityTrendAdminHandler {
+	return &CommunityTrendAdminHandler{svc: svc, ws: ws, suggestions: suggestions, agg: agg, memes: memes}
 }
 
 // RegisterRoutes registers admin routes under /api/v1/admin/community-trend.
@@ -45,6 +46,120 @@ func (h *CommunityTrendAdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 
 	group.GET("/trends/community", h.CommunityTrends) // ?community_id=&from=&to=
 	group.GET("/trends/cohort", h.CohortTrends)       // ?meta_tag_id=&from=&to=
+
+	group.GET("/memes", h.ListMemes) // ?include_retired=true
+	group.POST("/memes", h.CreateMeme)
+	group.PATCH("/memes/:id", h.UpdateMeme)
+	group.DELETE("/memes/:id", h.RetireMeme)
+	group.GET("/meme-candidates", h.ListMemeCandidates)
+	group.POST("/meme-candidates/:id/promote", h.PromoteMemeCandidate)
+	group.DELETE("/meme-candidates/:id", h.RejectMemeCandidate)
+}
+
+type memeRequest struct {
+	Name    string   `json:"name"`
+	Aliases []string `json:"aliases"`
+}
+
+func (h *CommunityTrendAdminHandler) ListMemes(c *gin.Context) {
+	includeRetired := c.Query("include_retired") == "true"
+	list, err := h.memes.ListMemes(c.Request.Context(), includeRetired)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "밈 목록을 불러올 수 없습니다"})
+		return
+	}
+	if list == nil {
+		list = []communitytrend.Meme{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
+func (h *CommunityTrendAdminHandler) CreateMeme(c *gin.Context) {
+	var req memeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
+		return
+	}
+	m, err := h.memes.CreateMeme(c.Request.Context(), req.Name, req.Aliases)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": m})
+}
+
+func (h *CommunityTrendAdminHandler) UpdateMeme(c *gin.Context) {
+	id, ok := parseCTIDParam(c)
+	if !ok {
+		return
+	}
+	var req memeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
+		return
+	}
+	m, err := h.memes.UpdateMeme(c.Request.Context(), id, req.Name, req.Aliases)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": m})
+}
+
+// RetireMeme soft-deletes (status=retired) to preserve historical counts.
+func (h *CommunityTrendAdminHandler) RetireMeme(c *gin.Context) {
+	id, ok := parseCTIDParam(c)
+	if !ok {
+		return
+	}
+	if err := h.memes.RetireMeme(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "ok"})
+}
+
+func (h *CommunityTrendAdminHandler) ListMemeCandidates(c *gin.Context) {
+	list, err := h.memes.ListCandidates(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "밈 후보를 불러올 수 없습니다"})
+		return
+	}
+	if list == nil {
+		list = []communitytrend.CandidateRow{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
+func (h *CommunityTrendAdminHandler) PromoteMemeCandidate(c *gin.Context) {
+	id, ok := parseCTIDParam(c)
+	if !ok {
+		return
+	}
+	var req memeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
+		return
+	}
+	m, err := h.memes.PromoteCandidate(c.Request.Context(), id, req.Name, req.Aliases)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": m})
+}
+
+// RejectMemeCandidate deletes the candidate and blacklists it permanently.
+func (h *CommunityTrendAdminHandler) RejectMemeCandidate(c *gin.Context) {
+	id, ok := parseCTIDParam(c)
+	if !ok {
+		return
+	}
+	if err := h.memes.RejectCandidate(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "ok"})
 }
 
 // parseRange reads from/to (YYYY-MM-DD) query params; defaults to the last 7 days
