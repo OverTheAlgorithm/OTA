@@ -3,19 +3,22 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"ota/domain/communitytrend"
 )
 
-// CommunityTrendAdminHandler exposes admin CRUD for communities, axes, and tags.
+// CommunityTrendAdminHandler exposes admin CRUD for communities, axes, tags,
+// and the daily tagging worksheet flow.
 type CommunityTrendAdminHandler struct {
 	svc *communitytrend.Service
+	ws  *communitytrend.WorksheetService
 }
 
-func NewCommunityTrendAdminHandler(svc *communitytrend.Service) *CommunityTrendAdminHandler {
-	return &CommunityTrendAdminHandler{svc: svc}
+func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService) *CommunityTrendAdminHandler {
+	return &CommunityTrendAdminHandler{svc: svc, ws: ws}
 }
 
 // RegisterRoutes registers admin routes under /api/v1/admin/community-trend.
@@ -33,6 +36,77 @@ func (h *CommunityTrendAdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/tags", h.CreateTag)
 	group.PATCH("/tags/:id", h.UpdateTag)
 	group.DELETE("/tags/:id", h.DeleteTag)
+
+	group.GET("/worksheets", h.ListWorksheets) // ?date=YYYY-MM-DD
+	group.POST("/worksheets/confirm", h.ConfirmWorksheet)
+}
+
+const ctDateLayout = "2006-01-02"
+
+// ListWorksheets returns the per-community worksheet status board for a date.
+func (h *CommunityTrendAdminHandler) ListWorksheets(c *gin.Context) {
+	raw := c.Query("date")
+	if raw == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date 파라미터(YYYY-MM-DD)가 필요합니다"})
+		return
+	}
+	date, err := time.Parse(ctDateLayout, raw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date 형식은 YYYY-MM-DD 입니다"})
+		return
+	}
+	list, err := h.ws.ListByDate(c.Request.Context(), date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "워크시트를 불러올 수 없습니다"})
+		return
+	}
+	if list == nil {
+		list = []communitytrend.Worksheet{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
+type confirmWorksheetRequest struct {
+	CommunityID int                       `json:"community_id"`
+	StatDate    string                    `json:"stat_date"`
+	Mode        string                    `json:"mode"`
+	Source      string                    `json:"source"`
+	TotalPosts  int                       `json:"total_posts"`
+	Counts      []communitytrend.TagCount `json:"counts"`
+}
+
+// ConfirmWorksheet writes the day's confirmed tag counts atomically.
+func (h *CommunityTrendAdminHandler) ConfirmWorksheet(c *gin.Context) {
+	var req confirmWorksheetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
+		return
+	}
+	date, err := time.Parse(ctDateLayout, req.StatDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "stat_date 형식은 YYYY-MM-DD 입니다"})
+		return
+	}
+
+	var confirmedBy *string
+	if uid := c.GetString("userID"); uid != "" {
+		confirmedBy = &uid
+	}
+
+	err = h.ws.Confirm(c.Request.Context(), communitytrend.Confirmation{
+		CommunityID: req.CommunityID,
+		StatDate:    date,
+		Mode:        req.Mode,
+		Source:      req.Source,
+		TotalPosts:  req.TotalPosts,
+		Counts:      req.Counts,
+		ConfirmedBy: confirmedBy,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "ok"})
 }
 
 func parseCTIDParam(c *gin.Context) (int, bool) {

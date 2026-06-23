@@ -218,7 +218,8 @@ func TestCommunityTrend_AdminHTTP(t *testing.T) {
 		storage.NewCTTagRepository(db.Pool),
 		storage.NewCTAxisRepository(db.Pool),
 	)
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc)
+	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc)
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -397,5 +398,89 @@ func TestCommunityTrend_ManualConfirm(t *testing.T) {
 		CommunityID: commID, StatDate: date, Mode: "manual", Source: "bogus", TotalPosts: 1,
 	}); err == nil {
 		t.Fatal("expected error for invalid source")
+	}
+}
+
+func TestCommunityTrend_WorksheetHTTP(t *testing.T) {
+	db := SetupTestDB(t)
+	ctx := context.Background()
+
+	svc := communitytrend.NewService(
+		storage.NewCTCommunityRepository(db.Pool),
+		storage.NewCTTagRepository(db.Pool),
+		storage.NewCTAxisRepository(db.Pool),
+	)
+	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc)
+
+	gin.SetMode(gin.TestMode)
+	jwtManager := auth.NewJWTManager("test-secret")
+	router := api.NewRouter("api", "v1", "http://localhost:5173", jwtManager, 10000, memory.NewStore(),
+		[]api.RouteModule{
+			{GroupName: "admin/community-trend", Handler: adminHandler, Middlewares: []gin.HandlerFunc{}},
+		})
+
+	var commID, tag1 int
+	db.Pool.QueryRow(ctx, `SELECT id FROM ct_communities WHERE key='clien'`).Scan(&commID)
+	db.Pool.QueryRow(ctx, `SELECT id FROM ct_tags WHERE name='진보 성향'`).Scan(&tag1)
+
+	// missing date → 400
+	wBad := httptest.NewRecorder()
+	reqBad, _ := http.NewRequest("GET", "/api/v1/admin/community-trend/worksheets", nil)
+	router.ServeHTTP(wBad, reqBad)
+	if wBad.Code != http.StatusBadRequest {
+		t.Fatalf("missing date: expected 400, got %d", wBad.Code)
+	}
+
+	// confirm via HTTP (manual)
+	body, _ := json.Marshal(map[string]any{
+		"community_id": commID,
+		"stat_date":    "2026-06-24",
+		"mode":         "manual",
+		"source":       "human",
+		"total_posts":  20,
+		"counts":       []map[string]int{{"tag_id": tag1, "count": 8}},
+	})
+	wc := httptest.NewRecorder()
+	reqc, _ := http.NewRequest("POST", "/api/v1/admin/community-trend/worksheets/confirm", bytes.NewReader(body))
+	reqc.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(wc, reqc)
+	if wc.Code != http.StatusOK {
+		t.Fatalf("confirm: expected 200, got %d: %s", wc.Code, wc.Body.String())
+	}
+
+	// list worksheets for that date → 1 confirmed
+	wl := httptest.NewRecorder()
+	reql, _ := http.NewRequest("GET", "/api/v1/admin/community-trend/worksheets?date=2026-06-24", nil)
+	router.ServeHTTP(wl, reql)
+	if wl.Code != http.StatusOK {
+		t.Fatalf("list worksheets: expected 200, got %d: %s", wl.Code, wl.Body.String())
+	}
+	var wsResp struct {
+		Data []communitytrend.Worksheet `json:"data"`
+	}
+	json.Unmarshal(wl.Body.Bytes(), &wsResp)
+	if len(wsResp.Data) != 1 || wsResp.Data[0].Status != "confirmed" {
+		t.Fatalf("expected 1 confirmed worksheet, got %+v", wsResp.Data)
+	}
+
+	// tag_daily persisted
+	var cnt, total int
+	db.Pool.QueryRow(ctx, `SELECT post_count FROM ct_tag_daily WHERE community_id=$1 AND tag_id=$2`, commID, tag1).Scan(&cnt)
+	db.Pool.QueryRow(ctx, `SELECT total_posts FROM ct_community_daily WHERE community_id=$1`, commID).Scan(&total)
+	if cnt != 8 || total != 20 {
+		t.Fatalf("expected count 8 total 20, got %d / %d", cnt, total)
+	}
+
+	// invalid source via HTTP → 400
+	badBody, _ := json.Marshal(map[string]any{
+		"community_id": commID, "stat_date": "2026-06-24", "mode": "manual", "source": "nope", "total_posts": 1,
+	})
+	wb := httptest.NewRecorder()
+	reqb, _ := http.NewRequest("POST", "/api/v1/admin/community-trend/worksheets/confirm", bytes.NewReader(badBody))
+	reqb.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(wb, reqb)
+	if wb.Code != http.StatusBadRequest {
+		t.Fatalf("invalid source: expected 400, got %d", wb.Code)
 	}
 }

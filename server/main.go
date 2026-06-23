@@ -340,7 +340,10 @@ func main() {
 		storage.NewCTTagRepository(pool),
 		storage.NewCTAxisRepository(pool),
 	)
-	communityTrendAdminHandler := handler.NewCommunityTrendAdminHandler(communityTrendService)
+	communityTrendWorksheetService := communitytrend.NewWorksheetService(
+		storage.NewCTWorksheetRepository(pool),
+	)
+	communityTrendAdminHandler := handler.NewCommunityTrendAdminHandler(communityTrendService, communityTrendWorksheetService)
 	var signupCache cache.Cache
 	if rc, err := cache.NewRedisCache(redisCfg, "signup:"); err != nil {
 		slog.Warn("redis unavailable for signup cache, using in-process", "error", err)
