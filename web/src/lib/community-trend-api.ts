@@ -122,10 +122,16 @@ export const setMetaTags = (id: number, tag_ids: number[]) =>
   req<{ message: string }>(`/communities/${id}/meta-tags`, { method: "PUT", body: JSON.stringify({ tag_ids }) });
 
 export const listAxes = () => req<CTAxis[]>("/axes");
+export const createAxis = (key: string, label: string, display_order: number) =>
+  req<CTAxis>("/axes", { method: "POST", body: JSON.stringify({ key, label, display_order }) });
 export const listTags = (axisId?: number) =>
   req<CTTag[]>(`/tags${axisId ? `?axis_id=${axisId}` : ""}`);
 export const createTag = (axis_id: number, name: string, description: string) =>
   req<CTTag>("/tags", { method: "POST", body: JSON.stringify({ axis_id, name, description }) });
+export const updateTag = (id: number, name: string, description: string) =>
+  req<CTTag>(`/tags/${id}`, { method: "PATCH", body: JSON.stringify({ name, description }) });
+export const deleteTag = (id: number) =>
+  req<{ message: string }>(`/tags/${id}`, { method: "DELETE" });
 
 // ── worksheets ────────────────────────────────────────────────────────────────
 

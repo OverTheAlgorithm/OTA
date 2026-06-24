@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { LoadingState } from "@/components/spinner";
 import * as ct from "@/lib/community-trend-api";
 
-type Tab = "communities" | "worksheets" | "memes" | "trends" | "robots";
+type Tab = "communities" | "worksheets" | "memes" | "trends" | "robots" | "tags";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -31,6 +31,7 @@ export function AdminCommunityTrendPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "worksheets", label: "워크시트" },
     { key: "communities", label: "커뮤니티" },
+    { key: "tags", label: "태그/축" },
     { key: "memes", label: "밈" },
     { key: "trends", label: "트렌드" },
     { key: "robots", label: "Robots" },
@@ -62,6 +63,7 @@ export function AdminCommunityTrendPage() {
 
         {tab === "worksheets" && <WorksheetsTab />}
         {tab === "communities" && <CommunitiesTab />}
+        {tab === "tags" && <TagsTab />}
         {tab === "memes" && <MemesTab />}
         {tab === "trends" && <TrendsTab />}
         {tab === "robots" && <RobotsTab />}
@@ -619,6 +621,304 @@ function RobotsTab() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Tags & Axes ───────────────────────────────────────────────────────────────
+
+function TagsTab() {
+  const [axes, setAxes] = useState<ct.CTAxis[]>([]);
+  const [tags, setTags] = useState<ct.CTTag[]>([]);
+  const [selectedAxisId, setSelectedAxisId] = useState<number | "all">("all");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Forms
+  const [axisForm, setAxisForm] = useState({ key: "", label: "", displayOrder: 0 });
+  const [tagForm, setTagForm] = useState({ axisId: "", name: "", description: "" });
+
+  // Inline editing state
+  const [editingTagId, setEditingTagId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", description: "" });
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    Promise.all([ct.listAxes(), ct.listTags()])
+      .then(([a, t]) => {
+        setAxes(a);
+        setTags(t);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "불러오기 실패"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const createAxis = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!axisForm.key.trim() || !axisForm.label.trim()) {
+      setError("축 키와 레이블을 입력하세요.");
+      return;
+    }
+    setError(null);
+    try {
+      await ct.createAxis(axisForm.key.trim(), axisForm.label.trim(), axisForm.displayOrder);
+      setAxisForm({ key: "", label: "", displayOrder: 0 });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "축 생성 실패");
+    }
+  };
+
+  const createTag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const axisId = Number(tagForm.axisId);
+    if (!axisId || !tagForm.name.trim()) {
+      setError("축을 선택하고 태그 이름을 입력하세요.");
+      return;
+    }
+    setError(null);
+    try {
+      await ct.createTag(axisId, tagForm.name.trim(), tagForm.description.trim());
+      setTagForm((prev) => ({ ...prev, name: "", description: "" }));
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "태그 생성 실패");
+    }
+  };
+
+  const updateTag = async (id: number) => {
+    if (!editForm.name.trim()) {
+      setError("태그 이름을 입력하세요.");
+      return;
+    }
+    setError(null);
+    try {
+      await ct.updateTag(id, editForm.name.trim(), editForm.description.trim());
+      setEditingTagId(null);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "태그 수정 실패");
+    }
+  };
+
+  const deleteTag = async (id: number) => {
+    if (!confirm("정말 이 태그를 삭제하시겠습니까?")) return;
+    setError(null);
+    try {
+      await ct.deleteTag(id);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "태그 삭제 실패");
+    }
+  };
+
+  const filteredTags = selectedAxisId === "all"
+    ? tags
+    : tags.filter((t) => t.axis_id === selectedAxisId);
+
+  const getAxisLabel = (axisId: number) => {
+    return axes.find((a) => a.id === axisId)?.label ?? `축 #${axisId}`;
+  };
+
+  const startEdit = (tag: ct.CTTag) => {
+    setEditingTagId(tag.id);
+    setEditForm({ name: tag.name, description: tag.description });
+  };
+
+  return (
+    <div className="space-y-6">
+      <ErrorBar msg={error} />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Axis Creation Form */}
+        <form onSubmit={createAxis} className="border rounded p-4 space-y-3 text-sm">
+          <h3 className="font-semibold text-base text-[#1e3a5f]">분류 축 추가</h3>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">축 고유 키</label>
+            <input
+              value={axisForm.key}
+              onChange={(e) => setAxisForm({ ...axisForm, key: e.target.value })}
+              className="border rounded px-2 py-1 w-full bg-white text-black"
+              placeholder="e.g. leaning, gender, political"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">축 레이블</label>
+            <input
+              value={axisForm.label}
+              onChange={(e) => setAxisForm({ ...axisForm, label: e.target.value })}
+              className="border rounded px-2 py-1 w-full bg-white text-black"
+              placeholder="e.g. 성향, 성별, 정치 성향"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">정렬 순서</label>
+            <input
+              type="number"
+              value={axisForm.displayOrder}
+              onChange={(e) => setAxisForm({ ...axisForm, displayOrder: Number(e.target.value) })}
+              className="border rounded px-2 py-1 w-full bg-white text-black"
+            />
+          </div>
+          <button type="submit" className="bg-[#1e3a5f] text-white rounded px-4 py-2 w-full font-medium hover:bg-[#152a45] transition-colors">
+            축 추가
+          </button>
+        </form>
+
+        {/* Tag Creation Form */}
+        <form onSubmit={createTag} className="border rounded p-4 space-y-3 text-sm">
+          <h3 className="font-semibold text-base text-[#1e3a5f]">공통 태그 추가</h3>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">소속 축</label>
+            <select
+              value={tagForm.axisId}
+              onChange={(e) => setTagForm({ ...tagForm, axisId: e.target.value })}
+              className="border rounded px-2 py-1 w-full bg-white text-black"
+            >
+              <option value="">축을 선택하세요</option>
+              {axes.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label} ({a.key})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">태그 이름</label>
+            <input
+              value={tagForm.name}
+              onChange={(e) => setTagForm({ ...tagForm, name: e.target.value })}
+              className="border rounded px-2 py-1 w-full bg-white text-black"
+              placeholder="e.g. 남성향, 여성향, 진보, 보수"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">설명</label>
+            <input
+              value={tagForm.description}
+              onChange={(e) => setTagForm({ ...tagForm, description: e.target.value })}
+              className="border rounded px-2 py-1 w-full bg-white text-black"
+              placeholder="태그에 대한 간략한 설명"
+            />
+          </div>
+          <button type="submit" className="bg-[#1e3a5f] text-white rounded px-4 py-2 w-full font-medium hover:bg-[#152a45] transition-colors">
+            태그 추가
+          </button>
+        </form>
+      </div>
+
+      {/* Tags List */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-base text-[#1e3a5f]">등록된 태그 목록</h3>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500">축 필터:</span>
+            <select
+              value={selectedAxisId}
+              onChange={(e) => setSelectedAxisId(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="border rounded px-2 py-1 bg-white text-black"
+            >
+              <option value="all">전체보기</option>
+              {axes.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {loading ? (
+          <LoadingState label="로딩 중" />
+        ) : filteredTags.length === 0 ? (
+          <p className="text-sm text-gray-500 border rounded p-8 text-center bg-gray-50/50">등록된 태그가 없습니다.</p>
+        ) : (
+          <div className="border rounded overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b bg-gray-50">
+                  <th className="p-3">소속 축</th>
+                  <th className="p-3">태그 이름</th>
+                  <th className="p-3">설명</th>
+                  <th className="p-3">생성자</th>
+                  <th className="p-3 text-right">작업</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTags.map((t) => {
+                  const isEditing = editingTagId === t.id;
+                  return (
+                    <tr key={t.id} className="border-b hover:bg-gray-50/30">
+                      <td className="p-3 font-medium text-[#1e3a5f]">{getAxisLabel(t.axis_id)}</td>
+                      <td className="p-3">
+                        {isEditing ? (
+                          <input
+                            value={editForm.name}
+                            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                            className="border rounded px-2 py-0.5 bg-white text-black w-full"
+                          />
+                        ) : (
+                          <span className="font-semibold text-gray-800">{t.name}</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {isEditing ? (
+                          <input
+                            value={editForm.description}
+                            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                            className="border rounded px-2 py-0.5 bg-white text-black w-full"
+                          />
+                        ) : (
+                          <span className="text-gray-600">{t.description || "—"}</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-xs text-gray-400">{t.created_by}</td>
+                      <td className="p-3 text-right space-x-2">
+                        {isEditing ? (
+                          <>
+                            <button
+                              onClick={() => updateTag(t.id)}
+                              className="text-green-600 hover:text-green-800 font-semibold"
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => setEditingTagId(null)}
+                              className="text-gray-500 hover:text-gray-700 font-semibold"
+                            >
+                              취소
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startEdit(t)}
+                              className="text-[#6b8db5] hover:text-[#1e3a5f] font-semibold"
+                            >
+                              수정
+                            </button>
+                            <button
+                              onClick={() => deleteTag(t.id)}
+                              className="text-red-500 hover:text-red-700 font-semibold"
+                            >
+                              삭제
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
