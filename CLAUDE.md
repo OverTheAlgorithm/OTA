@@ -184,3 +184,17 @@ contexts/         # auth-context (AuthProvider with JWT cookie)
 - `FRONTEND_URL` (default: http://localhost:5173), `SERVER_PORT` (default: 8080)
 - `APP_ENV` (development|production)
 - Frontend: `VITE_API_URL`, `VITE_TURNSTILE_SITE_KEY`
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs for this repo live as markdown files in `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+State machine roles mapped to needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout with CONTEXT.md and docs/adr/ at root. See `docs/agents/domain.md`.

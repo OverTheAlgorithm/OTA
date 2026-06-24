@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"ota/domain/communitytrend"
 )
 
 // CTRobotsRepository implements communitytrend.RobotsRepository.
@@ -81,4 +83,77 @@ func (r *CTRobotsRepository) LatestAllowed(ctx context.Context, communityID int)
 		return false, false, fmt.Errorf("latest allowed: %w", err)
 	}
 	return allowed, true, nil
+}
+
+func (r *CTRobotsRepository) ListStatus(ctx context.Context) ([]communitytrend.RobotsStatus, error) {
+	query := `
+		SELECT DISTINCT ON (s.community_id)
+		       s.community_id,
+		       c.key,
+		       c.name,
+		       s.checked_at,
+		       s.allowed,
+		       s.snapshot_hash,
+		       s.note
+		FROM ct_robots_status s
+		JOIN ct_communities c ON s.community_id = c.id
+		ORDER BY s.community_id, s.checked_at DESC`
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list robots status: %w", err)
+	}
+	defer rows.Close()
+
+	var result []communitytrend.RobotsStatus
+	for rows.Next() {
+		var s communitytrend.RobotsStatus
+		err := rows.Scan(
+			&s.CommunityID, &s.CommunityKey, &s.CommunityName,
+			&s.CheckedAt, &s.Allowed, &s.SnapshotHash, &s.Note,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan robots status: %w", err)
+		}
+		result = append(result, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate robots status: %w", err)
+	}
+	return result, nil
+}
+
+func (r *CTRobotsRepository) ListTransitions(ctx context.Context, limit int) ([]communitytrend.RobotsTransition, error) {
+	query := `
+		SELECT t.id,
+		       t.community_id,
+		       c.name,
+		       t.from_allowed,
+		       t.to_allowed,
+		       t.changed_at
+		FROM ct_robots_transitions t
+		JOIN ct_communities c ON t.community_id = c.id
+		ORDER BY t.changed_at DESC
+		LIMIT $1`
+	rows, err := r.pool.Query(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list robots transitions: %w", err)
+	}
+	defer rows.Close()
+
+	var result []communitytrend.RobotsTransition
+	for rows.Next() {
+		var t communitytrend.RobotsTransition
+		err := rows.Scan(
+			&t.ID, &t.CommunityID, &t.CommunityName,
+			&t.FromAllowed, &t.ToAllowed, &t.ChangedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan robots transition: %w", err)
+		}
+		result = append(result, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate robots transitions: %w", err)
+	}
+	return result, nil
 }

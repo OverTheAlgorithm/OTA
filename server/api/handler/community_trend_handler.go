@@ -18,10 +18,11 @@ type CommunityTrendAdminHandler struct {
 	suggestions communitytrend.SuggestionStore
 	agg         *communitytrend.AggregateService
 	memes       *communitytrend.MemeService
+	robots      communitytrend.RobotsRepository
 }
 
-func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService, suggestions communitytrend.SuggestionStore, agg *communitytrend.AggregateService, memes *communitytrend.MemeService) *CommunityTrendAdminHandler {
-	return &CommunityTrendAdminHandler{svc: svc, ws: ws, suggestions: suggestions, agg: agg, memes: memes}
+func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService, suggestions communitytrend.SuggestionStore, agg *communitytrend.AggregateService, memes *communitytrend.MemeService, robots communitytrend.RobotsRepository) *CommunityTrendAdminHandler {
+	return &CommunityTrendAdminHandler{svc: svc, ws: ws, suggestions: suggestions, agg: agg, memes: memes, robots: robots}
 }
 
 // RegisterRoutes registers admin routes under /api/v1/admin/community-trend.
@@ -54,6 +55,8 @@ func (h *CommunityTrendAdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/meme-candidates", h.ListMemeCandidates)
 	group.POST("/meme-candidates/:id/promote", h.PromoteMemeCandidate)
 	group.DELETE("/meme-candidates/:id", h.RejectMemeCandidate)
+
+	group.GET("/robots-status", h.ListRobotsStatus)
 }
 
 type memeRequest struct {
@@ -561,4 +564,29 @@ func (h *CommunityTrendAdminHandler) DeleteTag(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
+}
+
+func (h *CommunityTrendAdminHandler) ListRobotsStatus(c *gin.Context) {
+	status, err := h.robots.ListStatus(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "robots 상태 목록을 불러올 수 없습니다"})
+		return
+	}
+	transitions, err := h.robots.ListTransitions(c.Request.Context(), 50)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "robots 전이 내역을 불러올 수 없습니다"})
+		return
+	}
+
+	if status == nil {
+		status = []communitytrend.RobotsStatus{}
+	}
+	if transitions == nil {
+		transitions = []communitytrend.RobotsTransition{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{
+		"status":      status,
+		"transitions": transitions,
+	}})
 }

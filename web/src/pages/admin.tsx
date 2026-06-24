@@ -401,6 +401,20 @@ export function AdminPage() {
         </section>
 
         <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
+          <h2 className="text-lg font-semibold">커뮤니티 트렌드 관리</h2>
+          <p className="text-sm text-[#6b8db5]">
+            대형 커뮤니티(개드립, 클리앙 등)의 일일 수집 워크시트를 태깅하거나 확정하며, 밈 후보 및 트렌드 현황을 관리합니다.
+          </p>
+          <Link
+            to="/admin/community-trend"
+            className="inline-block px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors"
+            style={{ background: "var(--color-button-primary)", color: "white" }}
+          >
+            트렌드 관리
+          </Link>
+        </section>
+
+        <section className="rounded-2xl border border-[#d4e6f5] bg-[#f0f7ff] p-6 space-y-4">
           <h2 className="text-lg font-semibold">데이터 수집</h2>
           <p className="text-sm text-[#6b8db5]">
             AI를 통해 오늘의 한국 트렌드를 즉시 수집합니다. 이 작업은 1시간까지 소요될 수 있습니다.

@@ -219,7 +219,7 @@ func TestCommunityTrend_AdminHTTP(t *testing.T) {
 		storage.NewCTAxisRepository(db.Pool),
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil, nil)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil, nil, storage.NewCTRobotsRepository(db.Pool))
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -411,7 +411,7 @@ func TestCommunityTrend_WorksheetHTTP(t *testing.T) {
 		storage.NewCTAxisRepository(db.Pool),
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil, nil)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, nil, nil, storage.NewCTRobotsRepository(db.Pool))
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -496,7 +496,7 @@ func TestCommunityTrend_TrendsHTTP(t *testing.T) {
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
 	aggSvc := communitytrend.NewAggregateService(storage.NewCTAggregateRepository(db.Pool), 3)
-	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, aggSvc, nil)
+	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, aggSvc, nil, storage.NewCTRobotsRepository(db.Pool))
 
 	gin.SetMode(gin.TestMode)
 	jwtManager := auth.NewJWTManager("test-secret")
@@ -677,6 +677,33 @@ func TestCommunityTrend_RobotsRepo(t *testing.T) {
 	if transitionCount != 2 {
 		t.Fatalf("expected 2 transitions, got %d", transitionCount)
 	}
+
+	// ListStatus
+	status, err := repo.ListStatus(ctx)
+	if err != nil {
+		t.Fatalf("list status: %v", err)
+	}
+	foundStatus := false
+	for _, s := range status {
+		if s.CommunityID == commID {
+			foundStatus = true
+			if s.Allowed != false || s.SnapshotHash != "h2" || s.Note != "HTTP 429" {
+				t.Fatalf("unexpected status values: %+v", s)
+			}
+		}
+	}
+	if !foundStatus {
+		t.Fatal("dogdrip status not found in ListStatus")
+	}
+
+	// ListTransitions
+	transitions, err := repo.ListTransitions(ctx, 10)
+	if err != nil {
+		t.Fatalf("list transitions: %v", err)
+	}
+	if len(transitions) < 2 {
+		t.Fatalf("expected at least 2 transitions recorded, got %d", len(transitions))
+	}
 }
 
 func TestCommunityTrend_SeenRepo(t *testing.T) {
@@ -721,3 +748,4 @@ func TestCommunityTrend_SeenRepo(t *testing.T) {
 		t.Fatalf("expected fp3 pruned, got %v", seen2)
 	}
 }
+

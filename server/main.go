@@ -352,7 +352,7 @@ func main() {
 	communityTrendMemeService := communitytrend.NewMemeService(ctMemeRepo)
 	communityTrendAdminHandler := handler.NewCommunityTrendAdminHandler(
 		communityTrendService, communityTrendWorksheetService, ctSuggestionStore,
-		communityTrendAggregateService, communityTrendMemeService)
+		communityTrendAggregateService, communityTrendMemeService, ctRobotsRepo)
 
 	// Auto-collection pipeline: source-neutral adapters → robots gate → dedup →
 	// AI single-pass suggest. New adapters plug in by matching ct_communities.key.

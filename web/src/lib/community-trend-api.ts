@@ -164,3 +164,29 @@ export const promoteMemeCandidate = (id: number, name: string, aliases: string[]
   req<CTMeme>(`/meme-candidates/${id}/promote`, { method: "POST", body: JSON.stringify({ name, aliases }) });
 export const rejectMemeCandidate = (id: number) =>
   req<{ message: string }>(`/meme-candidates/${id}`, { method: "DELETE" });
+
+export interface CTRobotsStatus {
+  community_id: number;
+  community_key: string;
+  community_name: string;
+  checked_at: string;
+  allowed: boolean;
+  snapshot_hash: string;
+  note: string;
+}
+
+export interface CTRobotsTransition {
+  id: number;
+  community_id: number;
+  community_name: string;
+  from_allowed: boolean | null;
+  to_allowed: boolean;
+  changed_at: string;
+}
+
+export interface CTRobotsData {
+  status: CTRobotsStatus[];
+  transitions: CTRobotsTransition[];
+}
+
+export const listRobotsStatus = () => req<CTRobotsData>("/robots-status");

@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { LoadingState } from "@/components/spinner";
 import * as ct from "@/lib/community-trend-api";
 
-type Tab = "communities" | "worksheets" | "memes" | "trends";
+type Tab = "communities" | "worksheets" | "memes" | "trends" | "robots";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -33,6 +33,7 @@ export function AdminCommunityTrendPage() {
     { key: "communities", label: "커뮤니티" },
     { key: "memes", label: "밈" },
     { key: "trends", label: "트렌드" },
+    { key: "robots", label: "Robots" },
   ];
 
   return (
@@ -63,6 +64,7 @@ export function AdminCommunityTrendPage() {
         {tab === "communities" && <CommunitiesTab />}
         {tab === "memes" && <MemesTab />}
         {tab === "trends" && <TrendsTab />}
+        {tab === "robots" && <RobotsTab />}
       </div>
     </div>
   );
@@ -504,4 +506,119 @@ function Badge({ text, tone = "blue" }: { text: string; tone?: "blue" | "green" 
     gray: "bg-gray-100 text-gray-500",
   };
   return <span className={`text-xs rounded-full px-2 py-0.5 ${tones[tone]}`}>{text}</span>;
+}
+
+function RobotsTab() {
+  const [data, setData] = useState<ct.CTRobotsData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    ct.listRobotsStatus()
+      .then(setData)
+      .catch((e) => setError(e instanceof Error ? e.message : "불러오기 실패"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-base text-[#1e3a5f]">현재 robots.txt 상태</h2>
+        <button onClick={load} className="text-sm text-[#6b8db5] hover:underline">새로고침</button>
+      </div>
+      <ErrorBar msg={error} />
+
+      {loading ? (
+        <LoadingState label="로딩 중" />
+      ) : !data ? (
+        <p className="text-sm text-gray-500">데이터가 없습니다.</p>
+      ) : (
+        <div className="space-y-6">
+          <div className="border rounded overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b bg-gray-50">
+                  <th className="p-3">커뮤니티</th>
+                  <th className="p-3">수집 허용 여부</th>
+                  <th className="p-3">확인 시각</th>
+                  <th className="p-3">메모</th>
+                  <th className="p-3">해시값</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.status.map((s) => (
+                  <tr key={s.community_id} className="border-b hover:bg-gray-50/50">
+                    <td className="p-3 font-medium text-[#1e3a5f]">{s.community_name}</td>
+                    <td className="p-3">
+                      <Badge
+                        text={s.allowed ? "허용" : "차단됨 (수동 모드)"}
+                        tone={s.allowed ? "green" : "gray"}
+                      />
+                    </td>
+                    <td className="p-3 text-xs text-gray-500">
+                      {new Date(s.checked_at).toLocaleString()}
+                    </td>
+                    <td className="p-3 text-gray-700">{s.note || "—"}</td>
+                    <td className="p-3 text-xs font-mono text-gray-400 max-w-[120px] truncate" title={s.snapshot_hash}>
+                      {s.snapshot_hash ? s.snapshot_hash.slice(0, 10) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="font-semibold text-base text-[#1e3a5f]">최근 상태 전이 이력</h2>
+            <div className="border rounded overflow-hidden max-h-96 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b bg-gray-50">
+                    <th className="p-3">커뮤니티</th>
+                    <th className="p-3">상태 변경</th>
+                    <th className="p-3">변경 시각</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.transitions.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="p-3 text-center text-gray-500">기록된 상태 변경이 없습니다.</td>
+                    </tr>
+                  ) : (
+                    data.transitions.map((t) => (
+                      <tr key={t.id} className="border-b hover:bg-gray-50/50">
+                        <td className="p-3 font-medium text-[#1e3a5f]">{t.community_name}</td>
+                        <td className="p-3">
+                          <span className="flex items-center gap-2">
+                            <Badge
+                              text={t.from_allowed === null ? "최초" : t.from_allowed ? "허용" : "차단"}
+                              tone={t.from_allowed === null ? "blue" : t.from_allowed ? "green" : "gray"}
+                            />
+                            <span className="text-gray-400">→</span>
+                            <Badge
+                              text={t.to_allowed ? "허용" : "차단"}
+                              tone={t.to_allowed ? "green" : "gray"}
+                            />
+                          </span>
+                        </td>
+                        <td className="p-3 text-xs text-gray-500">
+                          {new Date(t.changed_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
