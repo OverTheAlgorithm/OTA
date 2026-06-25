@@ -30,25 +30,28 @@ type TaggerInput struct {
 // TagSuggestion is a proposed topic tag. Existing tags carry TagID>0; brand-new
 // proposals carry TagID==0 with NewAxisKey set, pending human creation+confirm.
 type TagSuggestion struct {
-	TagID      int    `json:"tag_id"`
-	Name       string `json:"name"`
-	AxisKey    string `json:"axis_key"`
-	Count      int    `json:"count"`
-	IsNew      bool   `json:"is_new"`
-	NewAxisKey string `json:"new_axis_key"`
+	TagID      int     `json:"tag_id"`
+	Name       string  `json:"name"`
+	AxisKey    string  `json:"axis_key"`
+	Count      float64 `json:"count"`
+	IsNew      bool    `json:"is_new"`
+	NewAxisKey string  `json:"new_axis_key"`
+	PostIndices []int  `json:"post_indices"`
 }
 
 // MemeMatch is a confirmed meme detected in the titles.
 type MemeMatch struct {
-	MemeID int    `json:"meme_id"`
-	Name   string `json:"name"`
-	Count  int    `json:"count"`
+	MemeID      int   `json:"meme_id"`
+	Name        string `json:"name"`
+	Count       int    `json:"count"`
+	PostIndices []int  `json:"post_indices"`
 }
 
 // MemeCandidate is a novel repeated expression not in the taxonomy/memes/blacklist.
 type MemeCandidate struct {
-	Expression string `json:"expression"`
-	HitCount   int    `json:"hit_count"`
+	Expression  string `json:"expression"`
+	HitCount    int    `json:"hit_count"`
+	PostIndices []int  `json:"post_indices"`
 }
 
 // TaggerOutput is the structured single-pass result.

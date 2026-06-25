@@ -21,8 +21,8 @@ type Worksheet struct {
 
 // TagCount is one confirmed (tag, count) pair for a community-day.
 type TagCount struct {
-	TagID int `json:"tag_id"`
-	Count int `json:"count"`
+	TagID int     `json:"tag_id"`
+	Count float64 `json:"count"`
 }
 
 // Confirmation is the atomic payload written when a worksheet is confirmed.

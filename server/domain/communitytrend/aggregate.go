@@ -12,13 +12,13 @@ type DailyTagCount struct {
 	TagName   string    `json:"tag_name"`
 	AxisKey   string    `json:"axis_key"`
 	StatDate  time.Time `json:"stat_date"`
-	PostCount int       `json:"post_count"`
+	PostCount float64   `json:"post_count"`
 }
 
 // TrendPoint is a single day's count within a tag's series.
 type TrendPoint struct {
 	StatDate  time.Time `json:"stat_date"`
-	PostCount int       `json:"post_count"`
+	PostCount float64   `json:"post_count"`
 }
 
 // TagTrend is a tag's time series plus computed deltas, ready for graphing.
@@ -27,9 +27,9 @@ type TagTrend struct {
 	TagName       string       `json:"tag_name"`
 	AxisKey       string       `json:"axis_key"`
 	Points        []TrendPoint `json:"points"`
-	Latest        int          `json:"latest"`          // count on the most recent day in range
-	DeltaPrevDay  int          `json:"delta_prev_day"`  // latest − previous day
-	DeltaPrevWeek int          `json:"delta_prev_week"` // latest − 7 days before latest
+	Latest        float64      `json:"latest"`          // count on the most recent day in range
+	DeltaPrevDay  float64      `json:"delta_prev_day"`  // latest − previous day
+	DeltaPrevWeek float64      `json:"delta_prev_week"` // latest − 7 days before latest
 }
 
 // AggregateRepository reads daily tag aggregates for a community or cohort.
@@ -74,13 +74,13 @@ func (s *AggregateService) build(rows []DailyTagCount, latestDate time.Time) []T
 	type acc struct {
 		name    string
 		axisKey string
-		byDate  map[string]int
+		byDate  map[string]float64
 	}
 	grouped := map[int]*acc{}
 	for _, r := range rows {
 		a := grouped[r.TagID]
 		if a == nil {
-			a = &acc{name: r.TagName, axisKey: r.AxisKey, byDate: map[string]int{}}
+			a = &acc{name: r.TagName, axisKey: r.AxisKey, byDate: map[string]float64{}}
 			grouped[r.TagID] = a
 		}
 		a.byDate[r.StatDate.Format("2006-01-02")] += r.PostCount
@@ -93,7 +93,7 @@ func (s *AggregateService) build(rows []DailyTagCount, latestDate time.Time) []T
 	var out []TagTrend
 	for tagID, a := range grouped {
 		latest := a.byDate[latestKey]
-		if latest < s.minCount {
+		if latest < float64(s.minCount) {
 			continue // conservative surface filter
 		}
 		dates := make([]string, 0, len(a.byDate))

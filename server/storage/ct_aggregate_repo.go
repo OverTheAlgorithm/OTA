@@ -57,7 +57,7 @@ func (r *CTAggregateRepository) CommunitySeries(ctx context.Context, communityID
 // the summed topic tag is ct_tag_daily.tag_id.
 func (r *CTAggregateRepository) CohortSeries(ctx context.Context, metaTagID int, from, to time.Time) ([]communitytrend.DailyTagCount, error) {
 	return r.scan(ctx, `
-		SELECT td.tag_id, t.name, ax.key, td.stat_date, SUM(td.post_count)::int
+		SELECT td.tag_id, t.name, ax.key, td.stat_date, SUM(td.post_count)::numeric(10,2)
 		FROM ct_tag_daily td
 		JOIN ct_community_tags cm ON cm.community_id = td.community_id AND cm.tag_id = $1
 		JOIN ct_tags t  ON t.id = td.tag_id

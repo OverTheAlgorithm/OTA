@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -137,7 +138,13 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 
 	titles := make([]string, len(fresh))
 	for i, it := range fresh {
-		titles[i] = it.TextUnit
+		comments := it.Engagement["comments"]
+		upvotes := it.Engagement["upvotes"]
+		if comments > 0 || upvotes > 0 {
+			titles[i] = fmt.Sprintf("%s (댓글 %d, 추천 %d)", it.TextUnit, comments, upvotes)
+		} else {
+			titles[i] = it.TextUnit
+		}
 	}
 
 	taxonomy, terr := p.buildTaxonomy(ctx)
@@ -153,6 +160,63 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 	})
 	if aerr != nil {
 		return p.fallbackManual(ctx, c, date, "ai error: "+aerr.Error())
+	}
+
+	// Go-side deterministic weight calculation
+	commentDenom := 30.0
+	upvoteDenom := 50.0
+	if c.Key == "clien" {
+		commentDenom = 20.0
+		upvoteDenom = 30.0
+	} else if c.Key == "fmkorea" {
+		commentDenom = 150.0
+		upvoteDenom = 300.0
+	} else if c.Key == "theqoo" {
+		commentDenom = 100.0
+		upvoteDenom = 1.0
+	}
+
+	for i := range out.Tags {
+		tag := &out.Tags[i]
+		var sum float64
+		for _, idx := range tag.PostIndices {
+			if idx >= 1 && idx <= len(fresh) {
+				item := fresh[idx-1]
+				comments := float64(item.Engagement["comments"])
+				upvotes := float64(item.Engagement["upvotes"])
+				var val float64
+				if c.Key == "theqoo" {
+					val = comments / commentDenom
+				} else {
+					val = comments/commentDenom + upvotes/upvoteDenom
+				}
+				weight := 1.0 + math.Log10(1.0+val)
+				sum += weight
+			}
+		}
+		tag.Count = math.Round(sum*100) / 100
+	}
+
+	for i := range out.MemeMatches {
+		m := &out.MemeMatches[i]
+		count := 0
+		for _, idx := range m.PostIndices {
+			if idx >= 1 && idx <= len(fresh) {
+				count++
+			}
+		}
+		m.Count = count
+	}
+
+	for i := range out.MemeCandidates {
+		mc := &out.MemeCandidates[i]
+		count := 0
+		for _, idx := range mc.PostIndices {
+			if idx >= 1 && idx <= len(fresh) {
+				count++
+			}
+		}
+		mc.HitCount = count
 	}
 
 	// Persist AI-discovered meme candidates so humans can review them (blacklisted

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ulule/limiter/v3/drivers/store/memory"
@@ -71,6 +72,22 @@ func TestAPI_AdminCollectEndpoint(t *testing.T) {
 
 	if w2.Code != http.StatusConflict {
 		t.Errorf("expected second call to return 409 (collection in progress), got %d", w2.Code)
+	}
+
+	// Wait for the background collection run to finish before cleaning up the test database
+	ctx := context.Background()
+	finished := false
+	for i := 0; i < 50; i++ {
+		var count int
+		_ = db.Pool.QueryRow(ctx, `SELECT count(*) FROM collection_runs WHERE status IN ('success', 'failed')`).Scan(&count)
+		if count > 0 {
+			finished = true
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !finished {
+		t.Log("Warning: background collection did not finish within timeout")
 	}
 }
 

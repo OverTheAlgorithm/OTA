@@ -43,11 +43,11 @@ func TestAggregate_DeltasAndThreshold(t *testing.T) {
 	if tt.TagID != 1 || tt.Latest != 5 {
 		t.Fatalf("unexpected trend: %+v", tt)
 	}
-	if tt.DeltaPrevDay != 2 { // 5 - 3
-		t.Fatalf("DeltaPrevDay = %d, want 2", tt.DeltaPrevDay)
+	if tt.DeltaPrevDay != 2.0 { // 5 - 3
+		t.Fatalf("DeltaPrevDay = %f, want 2.0", tt.DeltaPrevDay)
 	}
-	if tt.DeltaPrevWeek != 4 { // 5 - 1
-		t.Fatalf("DeltaPrevWeek = %d, want 4", tt.DeltaPrevWeek)
+	if tt.DeltaPrevWeek != 4.0 { // 5 - 1
+		t.Fatalf("DeltaPrevWeek = %f, want 4.0", tt.DeltaPrevWeek)
 	}
 	if len(tt.Points) != 3 {
 		t.Fatalf("expected 3 points, got %d", len(tt.Points))

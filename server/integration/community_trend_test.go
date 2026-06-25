@@ -359,12 +359,13 @@ func TestCommunityTrend_ManualConfirm(t *testing.T) {
 	}
 
 	// tag_daily has 2 rows with right counts
-	var c1, c2, total int
+	var c1, c2 float64
+	var total int
 	db.Pool.QueryRow(ctx, `SELECT post_count FROM ct_tag_daily WHERE community_id=$1 AND tag_id=$2 AND stat_date=$3`, commID, tag1, date).Scan(&c1)
 	db.Pool.QueryRow(ctx, `SELECT post_count FROM ct_tag_daily WHERE community_id=$1 AND tag_id=$2 AND stat_date=$3`, commID, tag2, date).Scan(&c2)
 	db.Pool.QueryRow(ctx, `SELECT total_posts FROM ct_community_daily WHERE community_id=$1 AND stat_date=$2`, commID, date).Scan(&total)
-	if c1 != 5 || c2 != 3 || total != 12 {
-		t.Fatalf("expected counts 5,3 total 12, got %d,%d total %d", c1, c2, total)
+	if c1 != 5.0 || c2 != 3.0 || total != 12 {
+		t.Fatalf("expected counts 5,3 total 12, got %f,%f total %d", c1, c2, total)
 	}
 
 	// worksheet now confirmed
@@ -382,11 +383,12 @@ func TestCommunityTrend_ManualConfirm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-confirm: %v", err)
 	}
-	var c1b, rowCount int
+	var c1b float64
+	var rowCount int
 	db.Pool.QueryRow(ctx, `SELECT post_count FROM ct_tag_daily WHERE community_id=$1 AND tag_id=$2 AND stat_date=$3`, commID, tag1, date).Scan(&c1b)
 	db.Pool.QueryRow(ctx, `SELECT count(*) FROM ct_tag_daily WHERE community_id=$1 AND stat_date=$2`, commID, date).Scan(&rowCount)
-	if c1b != 7 {
-		t.Fatalf("expected updated count 7, got %d", c1b)
+	if c1b != 7.0 {
+		t.Fatalf("expected updated count 7, got %f", c1b)
 	}
 	// tag2 row from first confirm still present (we only upsert provided counts) → 2 rows total
 	if rowCount != 2 {
@@ -465,11 +467,12 @@ func TestCommunityTrend_WorksheetHTTP(t *testing.T) {
 	}
 
 	// tag_daily persisted
-	var cnt, total int
+	var cnt float64
+	var total int
 	db.Pool.QueryRow(ctx, `SELECT post_count FROM ct_tag_daily WHERE community_id=$1 AND tag_id=$2`, commID, tag1).Scan(&cnt)
 	db.Pool.QueryRow(ctx, `SELECT total_posts FROM ct_community_daily WHERE community_id=$1`, commID).Scan(&total)
-	if cnt != 8 || total != 20 {
-		t.Fatalf("expected count 8 total 20, got %d / %d", cnt, total)
+	if cnt != 8.0 || total != 20 {
+		t.Fatalf("expected count 8 total 20, got %f / %d", cnt, total)
 	}
 
 	// invalid source via HTTP → 400
@@ -507,11 +510,11 @@ func TestCommunityTrend_TrendsHTTP(t *testing.T) {
 	db.Pool.QueryRow(ctx, `SELECT id FROM ct_communities WHERE key='dogdrip'`).Scan(&commID)
 	db.Pool.QueryRow(ctx, `SELECT id FROM ct_tags WHERE name='남성향'`).Scan(&tag1)
 
-	// two days of confirmed data for the same tag (rising 3 -> 5)
+	// two days of confirmed data for the same tag (rising 3.0 -> 5.0)
 	for _, day := range []struct {
 		date  string
-		count int
-	}{{"2026-06-23", 3}, {"2026-06-24", 5}} {
+		count float64
+	}{{"2026-06-23", 3.0}, {"2026-06-24", 5.0}} {
 		d, _ := time.Parse("2006-01-02", day.date)
 		if err := wsSvc.Confirm(ctx, communitytrend.Confirmation{
 			CommunityID: commID, StatDate: d, Mode: "manual", Source: "human", TotalPosts: 10,
@@ -536,8 +539,8 @@ func TestCommunityTrend_TrendsHTTP(t *testing.T) {
 		t.Fatalf("expected 1 trend, got %d", len(resp.Data))
 	}
 	tt := resp.Data[0]
-	if tt.Latest != 5 || tt.DeltaPrevDay != 2 {
-		t.Fatalf("expected latest 5 / deltaPrevDay 2, got %d / %d", tt.Latest, tt.DeltaPrevDay)
+	if tt.Latest != 5.0 || tt.DeltaPrevDay != 2.0 {
+		t.Fatalf("expected latest 5.0 / deltaPrevDay 2.0, got %f / %f", tt.Latest, tt.DeltaPrevDay)
 	}
 	if len(tt.Points) != 2 {
 		t.Fatalf("expected 2 points, got %d", len(tt.Points))

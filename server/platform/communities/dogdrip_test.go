@@ -10,7 +10,7 @@ import (
 
 // TestDogdrip_ParseFixture verifies parsing against a saved real page (no network).
 func TestDogdrip_ParseFixture(t *testing.T) {
-	f, err := os.Open("fixtures/dogdrip_boomupbest.html")
+	f, err := os.Open("fixtures/dogdrip_main.html")
 	if err != nil {
 		t.Fatalf("open fixture: %v", err)
 	}

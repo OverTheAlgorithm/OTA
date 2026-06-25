@@ -32,6 +32,12 @@ func (f *fakeRobotsRepo) Record(_ context.Context, _ int, allowed bool, _, _ str
 func (f *fakeRobotsRepo) LatestAllowed(context.Context, int) (bool, bool, error) {
 	return false, false, nil
 }
+func (f *fakeRobotsRepo) ListStatus(context.Context) ([]RobotsStatus, error) {
+	return nil, nil
+}
+func (f *fakeRobotsRepo) ListTransitions(context.Context, int) ([]RobotsTransition, error) {
+	return nil, nil
+}
 
 type fakeSeenRepo struct{ seen map[int]map[string]bool }
 
@@ -87,7 +93,7 @@ type fakeTagger struct{ gotTitles int }
 
 func (f *fakeTagger) Analyze(_ context.Context, in TaggerInput) (TaggerOutput, error) {
 	f.gotTitles = len(in.Titles)
-	return TaggerOutput{Tags: []TagSuggestion{{Name: "남성 인권", AxisKey: "gender_topic", Count: 3}}}, nil
+	return TaggerOutput{Tags: []TagSuggestion{{Name: "남성 인권", AxisKey: "gender_topic", PostIndices: []int{1, 2}}}}, nil
 }
 
 type fakeSuggestionStore struct{ stored map[int]Suggestion }
