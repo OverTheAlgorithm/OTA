@@ -362,6 +362,7 @@ func main() {
 		ctCommunityRepo, ctTagRepo, ctAxisRepo, ctRobotsRepo, ctSeenRepo, ctWorksheetRepo,
 		ctAdapters, communities.NewRobotsHTTPFetcher(), ctTagger, ctSuggestionStore, ctMemeRepo, cfg.CTMinTagCount,
 	)
+	communityTrendAdminHandler.WithPipeline(communityTrendPipeline)
 	communityTrendScheduler := scheduler.NewCommunityTrend(communityTrendPipeline, shutdownCtx)
 	if err := communityTrendScheduler.Start(); err != nil {
 		slog.Error("failed to start community-trend scheduler", "error", err)

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
 )
@@ -90,15 +91,18 @@ func (p *Pipeline) RunDaily(ctx context.Context, date time.Time) ([]CommunityRes
 }
 
 func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time) CommunityResult {
+	slog.Info("starting community-trend pipeline for community", "community", c.Key, "date", date.Format("2006-01-02"))
 	res := CommunityResult{Key: c.Key}
 
 	adapter, ok := p.registry.Get(c.Key)
 	if !ok {
+		slog.Warn("community-trend skip: no adapter registered", "community", c.Key)
 		return p.fallbackManual(ctx, c, date, "no adapter")
 	}
 
 	// robots gate
 	if url := adapter.RobotsURL(); url != "" {
+		slog.Info("fetching robots.txt for community", "community", c.Key, "url", url)
 		body, accessible, ferr := p.fetcher.Fetch(ctx, url)
 		allowed := accessible
 		note := "accessible"
@@ -108,6 +112,7 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 			if ferr != nil {
 				note = "fetch error: " + ferr.Error()
 			}
+			slog.Warn("robots.txt not accessible, falling back to manual", "community", c.Key, "error", ferr)
 		} else {
 			rules := ParseRobots(body)
 			allowed = rules.AllPathsAllowed(adapter.BestBoardPaths())
@@ -115,9 +120,11 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 			hash = hex.EncodeToString(sum[:])
 			if !allowed {
 				note = "disallowed by robots"
+				slog.Warn("community path disallowed by robots.txt, falling back to manual", "community", c.Key)
 			}
 		}
 		if _, rerr := p.robotsRepo.Record(ctx, c.ID, allowed, hash, note); rerr != nil {
+			slog.Error("failed to record robots status", "community", c.Key, "error", rerr)
 			return p.errorResult(ctx, c, date, "robots record: "+rerr.Error())
 		}
 		if !allowed {
@@ -125,16 +132,21 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 		}
 	}
 
+	slog.Info("fetching recent items for community", "community", c.Key)
 	items, ferr := adapter.FetchRecent(ctx)
 	if ferr != nil {
+		slog.Error("failed to fetch recent items, falling back to manual", "community", c.Key, "error", ferr)
 		return p.fallbackManual(ctx, c, date, "fetch error: "+ferr.Error())
 	}
+	slog.Info("fetched recent items successfully", "community", c.Key, "count", len(items))
 
 	seen, serr := p.seen.LoadSeen(ctx, c.ID)
 	if serr != nil {
+		slog.Error("failed to load seen posts from DB", "community", c.Key, "error", serr)
 		return p.errorResult(ctx, c, date, "load seen: "+serr.Error())
 	}
 	fresh, fps := FilterUnseen(c.Key, items, seen)
+	slog.Info("filtered items with seen posts", "community", c.Key, "total", len(items), "fresh", len(fresh))
 
 	titles := make([]string, len(fresh))
 	for i, it := range fresh {
@@ -149,9 +161,11 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 
 	taxonomy, terr := p.buildTaxonomy(ctx)
 	if terr != nil {
+		slog.Error("failed to build taxonomy", "community", c.Key, "error", terr)
 		return p.errorResult(ctx, c, date, terr.Error())
 	}
 
+	slog.Info("running AI analysis for tagging and meme extraction", "community", c.Key, "titles_count", len(titles))
 	out, aerr := p.tagger.Analyze(ctx, TaggerInput{
 		CommunityKey: c.Key,
 		Titles:       titles,
@@ -159,8 +173,10 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 		MinCount:     p.minCount,
 	})
 	if aerr != nil {
+		slog.Error("AI tagger analysis failed, falling back to manual", "community", c.Key, "error", aerr)
 		return p.fallbackManual(ctx, c, date, "ai error: "+aerr.Error())
 	}
+	slog.Info("AI analysis completed successfully", "community", c.Key, "tags_suggested", len(out.Tags), "meme_matches", len(out.MemeMatches), "meme_candidates", len(out.MemeCandidates))
 
 	// Go-side deterministic weight calculation
 	commentDenom := 30.0
@@ -229,14 +245,17 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 	}
 
 	if _, werr := p.worksheets.Ensure(ctx, c.ID, date, "auto"); werr != nil {
+		slog.Error("failed to ensure auto worksheet", "community", c.Key, "error", werr)
 		return p.errorResult(ctx, c, date, "ensure worksheet: "+werr.Error())
 	}
 	if perr := p.suggestions.Put(ctx, Suggestion{
 		CommunityID: c.ID, StatDate: date, Output: out, Fingerprints: fps, TotalPosts: len(fresh),
 	}); perr != nil {
+		slog.Error("failed to store AI suggestion", "community", c.Key, "error", perr)
 		return p.errorResult(ctx, c, date, "store suggestion: "+perr.Error())
 	}
 
+	slog.Info("community-trend pipeline completed successfully", "community", c.Key, "fresh", len(fresh), "tags", len(out.Tags))
 	res.Mode = "auto"
 	res.Status = "suggested"
 	res.Reason = fmt.Sprintf("%d fresh items, %d tag suggestions", len(fresh), len(out.Tags))

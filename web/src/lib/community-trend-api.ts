@@ -196,3 +196,16 @@ export interface CTRobotsData {
 }
 
 export const listRobotsStatus = () => req<CTRobotsData>("/robots-status");
+
+export interface CTCommunityResult {
+  key: string;
+  mode: string;
+  status: string;
+  reason: string;
+}
+
+export const triggerCollect = (date?: string) =>
+  req<CTCommunityResult[]>("/collect", {
+    method: "POST",
+    body: JSON.stringify({ date }),
+  });

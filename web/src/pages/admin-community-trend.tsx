@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { LoadingState } from "@/components/spinner";
 import * as ct from "@/lib/community-trend-api";
 
-type Tab = "communities" | "worksheets" | "memes" | "trends" | "robots" | "tags";
+type Tab = "communities" | "worksheets" | "memes" | "trends" | "robots" | "tags" | "collect";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -35,6 +35,7 @@ export function AdminCommunityTrendPage() {
     { key: "memes", label: "밈" },
     { key: "trends", label: "트렌드" },
     { key: "robots", label: "Robots" },
+    { key: "collect", label: "수동 실행" },
   ];
 
   return (
@@ -67,6 +68,7 @@ export function AdminCommunityTrendPage() {
         {tab === "memes" && <MemesTab />}
         {tab === "trends" && <TrendsTab />}
         {tab === "robots" && <RobotsTab />}
+        {tab === "collect" && <CollectTab />}
       </div>
     </div>
   );
@@ -919,6 +921,107 @@ function TagsTab() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function CollectTab() {
+  const [date, setDate] = useState<string>(todayISO());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<ct.CTCommunityResult[] | null>(null);
+
+  const runCollection = () => {
+    setLoading(true);
+    setError(null);
+    setResults(null);
+    ct.triggerCollect(date)
+      .then((res) => {
+        setResults(res);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "수집 실행 중 오류가 발생했습니다.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "suggested":
+        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Suggested (자동 제안)</span>;
+      case "pending":
+        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending (수동 대기)</span>;
+      case "error":
+        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Error (에러)</span>;
+      default:
+        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{status}</span>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded text-sm space-y-1">
+        <p className="font-semibold">💡 수동 수집 프로세스 안내</p>
+        <p>수집 실행 시 어댑터 크롤링과 AI 분석(Gemini)이 진행되며 약 15~30초 가량 소요됩니다.</p>
+        <p className="font-medium text-blue-900 mt-1">※ 수동 실행이 완료되더라도 임시 제안 상태일 뿐이며, <strong>'워크시트'</strong> 탭에서 최종적으로 <strong>[승인(Confirm)]</strong> 버튼을 클릭해야 최종 통계 데이터가 DB에 반영됩니다.</p>
+      </div>
+
+      <div className="flex items-center gap-4 bg-white p-4 border rounded shadow-sm">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-gray-500">수집 대상 날짜</label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="border rounded px-3 py-1.5 text-sm outline-none focus:border-[#1e3a5f]"
+          />
+        </div>
+        <button
+          onClick={runCollection}
+          disabled={loading}
+          className="self-end px-5 py-2 text-sm font-semibold rounded text-white bg-[#1e3a5f] hover:bg-[#152943] disabled:bg-gray-300 transition-colors"
+        >
+          {loading ? "수집 분석 진행 중..." : "수집 분석 실행"}
+        </button>
+      </div>
+
+      <ErrorBar msg={error} />
+
+      {loading && (
+        <div className="py-12 flex justify-center">
+          <LoadingState label="커뮤니티 트렌드 수집 및 AI 태깅 분석을 수행 중입니다. 잠시만 기다려 주세요..." />
+        </div>
+      )}
+
+      {results && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-base text-[#1e3a5f]">수집 실행 결과</h3>
+          <div className="border rounded overflow-hidden bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">커뮤니티 키</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">작동 모드</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">결과 상태</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">상세 이유 / 결과</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {results.map((r) => (
+                  <tr key={r.key} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-semibold text-[#1e3a5f]">{r.key}</td>
+                    <td className="px-4 py-3 text-gray-600">{r.mode === "auto" ? "자동 (AI)" : "수동"}</td>
+                    <td className="px-4 py-3">{getStatusBadge(r.status)}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

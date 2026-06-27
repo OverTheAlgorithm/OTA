@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,10 +20,17 @@ type CommunityTrendAdminHandler struct {
 	agg         *communitytrend.AggregateService
 	memes       *communitytrend.MemeService
 	robots      communitytrend.RobotsRepository
+	pipeline    *communitytrend.Pipeline
 }
 
 func NewCommunityTrendAdminHandler(svc *communitytrend.Service, ws *communitytrend.WorksheetService, suggestions communitytrend.SuggestionStore, agg *communitytrend.AggregateService, memes *communitytrend.MemeService, robots communitytrend.RobotsRepository) *CommunityTrendAdminHandler {
 	return &CommunityTrendAdminHandler{svc: svc, ws: ws, suggestions: suggestions, agg: agg, memes: memes, robots: robots}
+}
+
+// WithPipeline sets the community-trend collection pipeline for manual runs.
+func (h *CommunityTrendAdminHandler) WithPipeline(pipeline *communitytrend.Pipeline) *CommunityTrendAdminHandler {
+	h.pipeline = pipeline
+	return h
 }
 
 // RegisterRoutes registers admin routes under /api/v1/admin/community-trend.
@@ -57,6 +65,7 @@ func (h *CommunityTrendAdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.DELETE("/meme-candidates/:id", h.RejectMemeCandidate)
 
 	group.GET("/robots-status", h.ListRobotsStatus)
+	group.POST("/collect", h.TriggerCollect)
 }
 
 type memeRequest struct {
@@ -589,4 +598,45 @@ func (h *CommunityTrendAdminHandler) ListRobotsStatus(c *gin.Context) {
 		"status":      status,
 		"transitions": transitions,
 	}})
+}
+
+type collectRequest struct {
+	Date string `json:"date"`
+}
+
+func (h *CommunityTrendAdminHandler) TriggerCollect(c *gin.Context) {
+	if h.pipeline == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "수집 파이프라인이 설정되지 않았습니다"})
+		return
+	}
+
+	var req collectRequest
+	// Body is optional, ignore EOF error if body is empty
+	_ = c.ShouldBindJSON(&req)
+
+	var date time.Time
+	var err error
+	if req.Date != "" {
+		date, err = time.Parse(ctDateLayout, req.Date)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "date 형식은 YYYY-MM-DD 입니다"})
+			return
+		}
+	} else {
+		// Use today KST
+		kst := time.FixedZone("KST", 9*3600)
+		now := time.Now().In(kst)
+		date = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	}
+
+	slog.Info("manual community trend collection triggered", "date", date.Format("2006-01-02"))
+	results, err := h.pipeline.RunDaily(c.Request.Context(), date)
+	if err != nil {
+		slog.Error("manual community trend collection failed", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "수집 실행 중 오류가 발생했습니다: " + err.Error()})
+		return
+	}
+
+	slog.Info("manual community trend collection completed", "communities", len(results))
+	c.JSON(http.StatusOK, gin.H{"data": results})
 }
