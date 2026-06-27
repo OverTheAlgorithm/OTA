@@ -637,6 +637,24 @@ func (h *CommunityTrendAdminHandler) TriggerCollect(c *gin.Context) {
 		return
 	}
 
-	slog.Info("manual community trend collection completed", "communities", len(results))
+	var suggested, manual, errored int
+	for _, r := range results {
+		switch r.Status {
+		case "suggested":
+			suggested++
+		case "pending":
+			manual++
+		case "error":
+			errored++
+			slog.Error("community collection failed during manual run", "community", r.Key, "reason", r.Reason)
+		}
+	}
+
+	slog.Info("manual community trend collection completed",
+		"total", len(results),
+		"suggested", suggested,
+		"manual", manual,
+		"errored", errored,
+	)
 	c.JSON(http.StatusOK, gin.H{"data": results})
 }

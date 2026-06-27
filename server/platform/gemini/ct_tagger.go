@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -49,37 +50,87 @@ func (t *CTTagger) Analyze(ctx context.Context, in communitytrend.TaggerInput) (
 	}
 
 	url := baseURL + t.model + ":generateContent"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
-	if err != nil {
-		return communitytrend.TaggerOutput{}, fmt.Errorf("create tagger request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-goog-api-key", t.apiKey)
 
-	resp, err := t.httpClient.Do(req)
-	if err != nil {
-		return communitytrend.TaggerOutput{}, fmt.Errorf("send tagger request: %w", err)
-	}
-	defer resp.Body.Close()
+	maxAttempts := 4
+	baseDelay := 1 * time.Second
 
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return communitytrend.TaggerOutput{}, fmt.Errorf("read tagger response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return communitytrend.TaggerOutput{}, fmt.Errorf("gemini tagger error (status %d): %s", resp.StatusCode, string(raw))
+	var lastErr error
+	var respBody []byte
+	var statusCode int
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Respect context cancellation
+		if err := ctx.Err(); err != nil {
+			return communitytrend.TaggerOutput{}, err
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
+		if err != nil {
+			return communitytrend.TaggerOutput{}, fmt.Errorf("create tagger request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("x-goog-api-key", t.apiKey)
+
+		resp, err := t.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			statusCode = 0
+		} else {
+			statusCode = resp.StatusCode
+			respBody, err = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				lastErr = err
+				statusCode = 0
+			} else if resp.StatusCode == http.StatusOK {
+				// Success!
+				text, err := extractText(respBody)
+				if err != nil {
+					return communitytrend.TaggerOutput{}, err
+				}
+
+				var out communitytrend.TaggerOutput
+				if err := json.Unmarshal([]byte(stripCodeFence(text)), &out); err != nil {
+					return communitytrend.TaggerOutput{}, fmt.Errorf("parse tagger json: %w (raw: %s)", err, text)
+				}
+				return out, nil
+			} else {
+				lastErr = fmt.Errorf("gemini tagger error (status %d): %s", resp.StatusCode, string(respBody))
+			}
+		}
+
+		// If it's a non-retryable error (e.g. 400 Bad Request, 401 Unauthorized, 403 Forbidden), don't retry.
+		// Retryable: 429 Too Many Requests, 500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout, or client connection errors (statusCode == 0).
+		isRetryable := statusCode == 0 ||
+			statusCode == http.StatusTooManyRequests ||
+			statusCode == http.StatusInternalServerError ||
+			statusCode == http.StatusBadGateway ||
+			statusCode == http.StatusServiceUnavailable ||
+			statusCode == http.StatusGatewayTimeout
+
+		if !isRetryable || attempt == maxAttempts {
+			break
+		}
+
+		// Exponential backoff
+		delay := baseDelay * time.Duration(1<<(attempt-1))
+		slog.Warn("AI call failed, retrying with backoff",
+			"community", in.CommunityKey,
+			"attempt", attempt,
+			"max_attempts", maxAttempts,
+			"delay", delay.String(),
+			"status_code", statusCode,
+			"error", lastErr.Error(),
+		)
+
+		select {
+		case <-ctx.Done():
+			return communitytrend.TaggerOutput{}, ctx.Err()
+		case <-time.After(delay):
+		}
 	}
 
-	text, err := extractText(raw)
-	if err != nil {
-		return communitytrend.TaggerOutput{}, err
-	}
-
-	var out communitytrend.TaggerOutput
-	if err := json.Unmarshal([]byte(stripCodeFence(text)), &out); err != nil {
-		return communitytrend.TaggerOutput{}, fmt.Errorf("parse tagger json: %w (raw: %s)", err, text)
-	}
-	return out, nil
+	return communitytrend.TaggerOutput{}, fmt.Errorf("AI call failed after %d attempts: %w", maxAttempts, lastErr)
 }
 
 // extractText reuses the same response shape as the collector client.
