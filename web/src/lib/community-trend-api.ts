@@ -125,6 +125,8 @@ export const setMetaTags = (id: number, tag_ids: number[]) =>
 export const listAxes = () => req<CTAxis[]>("/axes");
 export const createAxis = (key: string, label: string, display_order: number, type: string) =>
   req<CTAxis>("/axes", { method: "POST", body: JSON.stringify({ key, label, display_order, type }) });
+export const deleteAxis = (id: number) =>
+  req<{ message: string }>(`/axes/${id}`, { method: "DELETE" });
 export const listTags = (axisId?: number) =>
   req<CTTag[]>(`/tags${axisId ? `?axis_id=${axisId}` : ""}`);
 export const createTag = (axis_id: number, name: string, description: string) =>

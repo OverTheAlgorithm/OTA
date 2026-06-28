@@ -73,6 +73,10 @@ func (s *Service) CreateAxis(ctx context.Context, a Axis) (Axis, error) {
 	return s.axes.Create(ctx, a)
 }
 
+func (s *Service) DeleteAxis(ctx context.Context, id int) error {
+	return s.axes.Delete(ctx, id)
+}
+
 // --- tags ---
 
 func (s *Service) ListTags(ctx context.Context) ([]Tag, error) { return s.tags.List(ctx) }

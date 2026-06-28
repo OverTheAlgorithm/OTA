@@ -6,6 +6,7 @@ import "context"
 type AxisRepository interface {
 	Create(ctx context.Context, a Axis) (Axis, error)
 	List(ctx context.Context) ([]Axis, error)
+	Delete(ctx context.Context, id int) error
 }
 
 // TagRepository persists the shared tag pool.

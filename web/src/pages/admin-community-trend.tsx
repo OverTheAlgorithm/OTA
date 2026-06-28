@@ -676,6 +676,19 @@ function TagsTab() {
     }
   };
 
+  const deleteAxis = async (id: number) => {
+    if (!window.confirm("정말로 이 분류 축을 삭제하시겠습니까? 소속된 태그가 있다면 삭제되지 않습니다.")) {
+      return;
+    }
+    setError(null);
+    try {
+      await ct.deleteAxis(id);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "축 삭제 실패");
+    }
+  };
+
   const createTag = async (e: React.FormEvent) => {
     e.preventDefault();
     const axisId = Number(tagForm.axisId);
@@ -739,51 +752,83 @@ function TagsTab() {
       <ErrorBar msg={error} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Axis Creation Form */}
-        <form onSubmit={createAxis} className="border rounded p-4 space-y-3 text-sm">
-          <h3 className="font-semibold text-base text-[#1e3a5f]">분류 축 추가</h3>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">축 고유 키</label>
-            <input
-              value={axisForm.key}
-              onChange={(e) => setAxisForm({ ...axisForm, key: e.target.value })}
-              className="border rounded px-2 py-1 w-full bg-white text-black"
-              placeholder="e.g. leaning, gender, political"
-            />
+        {/* Axis Column */}
+        <div className="space-y-4">
+          {/* Axis Creation Form */}
+          <form onSubmit={createAxis} className="border rounded p-4 space-y-3 text-sm bg-white">
+            <h3 className="font-semibold text-base text-[#1e3a5f]">분류 축 추가</h3>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">축 고유 키</label>
+              <input
+                value={axisForm.key}
+                onChange={(e) => setAxisForm({ ...axisForm, key: e.target.value })}
+                className="border rounded px-2 py-1 w-full bg-white text-black"
+                placeholder="e.g. leaning, gender, political"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">축 레이블</label>
+              <input
+                value={axisForm.label}
+                onChange={(e) => setAxisForm({ ...axisForm, label: e.target.value })}
+                className="border rounded px-2 py-1 w-full bg-white text-black"
+                placeholder="e.g. 성향, 성별, 정치 성향"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">정렬 순서</label>
+              <input
+                type="number"
+                value={axisForm.displayOrder}
+                onChange={(e) => setAxisForm({ ...axisForm, displayOrder: Number(e.target.value) })}
+                className="border rounded px-2 py-1 w-full bg-white text-black"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">축 분류 용도</label>
+              <select
+                value={axisForm.type}
+                onChange={(e) => setAxisForm({ ...axisForm, type: e.target.value })}
+                className="border rounded px-2 py-1 w-full bg-white text-black"
+              >
+                <option value="topic">일반 게시글 논제 (topic)</option>
+                <option value="meta">커뮤니티 메타 성향 (meta)</option>
+              </select>
+            </div>
+            <button type="submit" className="bg-[#1e3a5f] text-white rounded px-4 py-2 w-full font-medium hover:bg-[#152a45] transition-colors">
+              축 추가
+            </button>
+          </form>
+
+          {/* Registered Axes List */}
+          <div className="border rounded p-4 space-y-3 text-sm bg-white">
+            <h3 className="font-semibold text-base text-[#1e3a5f]">등록된 분류 축 목록</h3>
+            {axes.length === 0 ? (
+              <p className="text-gray-500 text-xs">등록된 분류 축이 없습니다.</p>
+            ) : (
+              <div className="divide-y max-h-60 overflow-y-auto pr-1">
+                {axes.map((a) => (
+                  <div key={a.id} className="py-2 flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-gray-800">
+                        {a.label} ({a.key})
+                      </div>
+                      <div className="text-[10px] text-gray-400">
+                        순서: {a.display_order} | 용도: <span className="font-medium text-[#1e3a5f]">{a.type}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => deleteAxis(a.id)}
+                      className="text-red-500 hover:text-red-700 text-xs font-semibold px-2 py-1 rounded hover:bg-red-50"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">축 레이블</label>
-            <input
-              value={axisForm.label}
-              onChange={(e) => setAxisForm({ ...axisForm, label: e.target.value })}
-              className="border rounded px-2 py-1 w-full bg-white text-black"
-              placeholder="e.g. 성향, 성별, 정치 성향"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">정렬 순서</label>
-            <input
-              type="number"
-              value={axisForm.displayOrder}
-              onChange={(e) => setAxisForm({ ...axisForm, displayOrder: Number(e.target.value) })}
-              className="border rounded px-2 py-1 w-full bg-white text-black"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">축 분류 용도</label>
-            <select
-              value={axisForm.type}
-              onChange={(e) => setAxisForm({ ...axisForm, type: e.target.value })}
-              className="border rounded px-2 py-1 w-full bg-white text-black"
-            >
-              <option value="topic">일반 게시글 논제 (topic)</option>
-              <option value="meta">커뮤니티 메타 성향 (meta)</option>
-            </select>
-          </div>
-          <button type="submit" className="bg-[#1e3a5f] text-white rounded px-4 py-2 w-full font-medium hover:bg-[#152a45] transition-colors">
-            축 추가
-          </button>
-        </form>
+        </div>
 
         {/* Tag Creation Form */}
         <form onSubmit={createTag} className="border rounded p-4 space-y-3 text-sm">

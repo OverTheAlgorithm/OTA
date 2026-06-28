@@ -43,6 +43,7 @@ func (h *CommunityTrendAdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 
 	group.GET("/axes", h.ListAxes)
 	group.POST("/axes", h.CreateAxis)
+	group.DELETE("/axes/:id", h.DeleteAxis)
 
 	group.GET("/tags", h.ListTags) // optional ?axis_id=
 	group.POST("/tags", h.CreateTag)
@@ -492,6 +493,19 @@ func (h *CommunityTrendAdminHandler) CreateAxis(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": created})
+}
+
+func (h *CommunityTrendAdminHandler) DeleteAxis(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 ID 형식입니다"})
+		return
+	}
+	if err := h.svc.DeleteAxis(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "축이 성공적으로 삭제되었습니다"})
 }
 
 // --- tags ---

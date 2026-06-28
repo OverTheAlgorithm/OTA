@@ -22,6 +22,7 @@ type fakeAxisRepo struct{ axes []Axis }
 
 func (f *fakeAxisRepo) Create(context.Context, Axis) (Axis, error) { return Axis{}, nil }
 func (f *fakeAxisRepo) List(context.Context) ([]Axis, error)       { return f.axes, nil }
+func (f *fakeAxisRepo) Delete(context.Context, int) error          { return nil }
 
 type fakeRobotsRepo struct{ recorded []bool }
 

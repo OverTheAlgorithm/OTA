@@ -54,3 +54,11 @@ func (r *CTAxisRepository) List(ctx context.Context) ([]communitytrend.Axis, err
 	}
 	return result, nil
 }
+
+func (r *CTAxisRepository) Delete(ctx context.Context, id int) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM ct_axes WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete axis: %w", err)
+	}
+	return nil
+}
