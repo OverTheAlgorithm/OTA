@@ -796,7 +796,7 @@ function TagsTab() {
               <option value="">축을 선택하세요</option>
               {axes.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.label} ({a.key})
+                  {a.label} ({a.key}) [{a.type === "meta" ? "메타" : "논제"}]
                 </option>
               ))}
             </select>
@@ -839,7 +839,7 @@ function TagsTab() {
               <option value="all">전체보기</option>
               {axes.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.label}
+                  {a.label} [{a.type === "meta" ? "메타" : "논제"}]
                 </option>
               ))}
             </select>
