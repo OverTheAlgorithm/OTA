@@ -262,16 +262,20 @@ func (p *Pipeline) buildTaxonomy(ctx context.Context) ([]TaxonomyTag, error) {
 		return nil, fmt.Errorf("list axes: %w", err)
 	}
 	axisKey := make(map[int]string, len(axes))
+	axisType := make(map[int]string, len(axes))
 	for _, a := range axes {
 		axisKey[a.ID] = a.Key
+		axisType[a.ID] = a.Type
 	}
 	tags, err := p.tags.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list tags: %w", err)
 	}
-	out := make([]TaxonomyTag, len(tags))
-	for i, t := range tags {
-		out[i] = TaxonomyTag{ID: t.ID, AxisKey: axisKey[t.AxisID], Name: t.Name}
+	var out []TaxonomyTag
+	for _, t := range tags {
+		if axisType[t.AxisID] == "topic" {
+			out = append(out, TaxonomyTag{ID: t.ID, AxisKey: axisKey[t.AxisID], Name: t.Name})
+		}
 	}
 	return out, nil
 }

@@ -1,0 +1,1 @@
+ALTER TABLE ct_axes DROP COLUMN type;

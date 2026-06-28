@@ -637,7 +637,7 @@ function TagsTab() {
   const [loading, setLoading] = useState(false);
 
   // Forms
-  const [axisForm, setAxisForm] = useState({ key: "", label: "", displayOrder: 0 });
+  const [axisForm, setAxisForm] = useState({ key: "", label: "", displayOrder: 0, type: "topic" });
   const [tagForm, setTagForm] = useState({ axisId: "", name: "", description: "" });
 
   // Inline editing state
@@ -668,8 +668,8 @@ function TagsTab() {
     }
     setError(null);
     try {
-      await ct.createAxis(axisForm.key.trim(), axisForm.label.trim(), axisForm.displayOrder);
-      setAxisForm({ key: "", label: "", displayOrder: 0 });
+      await ct.createAxis(axisForm.key.trim(), axisForm.label.trim(), axisForm.displayOrder, axisForm.type);
+      setAxisForm({ key: "", label: "", displayOrder: 0, type: "topic" });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "축 생성 실패");
@@ -766,6 +766,17 @@ function TagsTab() {
               onChange={(e) => setAxisForm({ ...axisForm, displayOrder: Number(e.target.value) })}
               className="border rounded px-2 py-1 w-full bg-white text-black"
             />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">축 분류 용도</label>
+            <select
+              value={axisForm.type}
+              onChange={(e) => setAxisForm({ ...axisForm, type: e.target.value })}
+              className="border rounded px-2 py-1 w-full bg-white text-black"
+            >
+              <option value="topic">일반 게시글 논제 (topic)</option>
+              <option value="meta">커뮤니티 메타 성향 (meta)</option>
+            </select>
           </div>
           <button type="submit" className="bg-[#1e3a5f] text-white rounded px-4 py-2 w-full font-medium hover:bg-[#152a45] transition-colors">
             축 추가

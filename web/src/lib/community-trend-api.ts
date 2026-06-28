@@ -38,6 +38,7 @@ export interface CTAxis {
   key: string;
   label: string;
   display_order: number;
+  type: "meta" | "topic";
 }
 
 export interface CTTag {
@@ -122,8 +123,8 @@ export const setMetaTags = (id: number, tag_ids: number[]) =>
   req<{ message: string }>(`/communities/${id}/meta-tags`, { method: "PUT", body: JSON.stringify({ tag_ids }) });
 
 export const listAxes = () => req<CTAxis[]>("/axes");
-export const createAxis = (key: string, label: string, display_order: number) =>
-  req<CTAxis>("/axes", { method: "POST", body: JSON.stringify({ key, label, display_order }) });
+export const createAxis = (key: string, label: string, display_order: number, type: string) =>
+  req<CTAxis>("/axes", { method: "POST", body: JSON.stringify({ key, label, display_order, type }) });
 export const listTags = (axisId?: number) =>
   req<CTTag[]>(`/tags${axisId ? `?axis_id=${axisId}` : ""}`);
 export const createTag = (axis_id: number, name: string, description: string) =>

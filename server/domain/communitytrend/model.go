@@ -11,6 +11,7 @@ type Axis struct {
 	Key          string `json:"key"`
 	Label        string `json:"label"`
 	DisplayOrder int    `json:"display_order"`
+	Type         string `json:"type"` // 'meta' | 'topic'
 }
 
 // Tag is a single classification label belonging to one axis.

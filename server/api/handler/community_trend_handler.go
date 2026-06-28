@@ -468,6 +468,7 @@ type createAxisRequest struct {
 	Key          string `json:"key"`
 	Label        string `json:"label"`
 	DisplayOrder int    `json:"display_order"`
+	Type         string `json:"type"`
 }
 
 func (h *CommunityTrendAdminHandler) CreateAxis(c *gin.Context) {
@@ -476,8 +477,15 @@ func (h *CommunityTrendAdminHandler) CreateAxis(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
 		return
 	}
+	if req.Type == "" {
+		req.Type = "topic" // default
+	}
+	if req.Type != "meta" && req.Type != "topic" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "type은 meta 또는 topic이어야 합니다"})
+		return
+	}
 	created, err := h.svc.CreateAxis(c.Request.Context(), communitytrend.Axis{
-		Key: req.Key, Label: req.Label, DisplayOrder: req.DisplayOrder,
+		Key: req.Key, Label: req.Label, DisplayOrder: req.DisplayOrder, Type: req.Type,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
