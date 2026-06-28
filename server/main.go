@@ -342,7 +342,17 @@ func main() {
 	ctWorksheetRepo := storage.NewCTWorksheetRepository(pool)
 	ctRobotsRepo := storage.NewCTRobotsRepository(pool)
 	ctSeenRepo := storage.NewCTSeenRepository(pool)
-	ctSuggestionStore := storage.NewCTSuggestionStore(48 * time.Hour)
+	var suggestionsCache cache.Cache
+	if rc, err := cache.NewRedisCache(redisCfg, "suggestion:"); err != nil {
+		slog.Warn("redis unavailable for suggestion cache, using in-process", "error", err)
+		suggestionsCache = cache.NewInProcess()
+	} else {
+		suggestionsCache = rc
+		slog.Info("suggestion cache connected to redis")
+	}
+	defer suggestionsCache.Close()
+
+	ctSuggestionStore := storage.NewCTSuggestionStore(suggestionsCache, 48 * time.Hour)
 
 	communityTrendService := communitytrend.NewService(ctCommunityRepo, ctTagRepo, ctAxisRepo)
 	communityTrendWorksheetService := communitytrend.NewWorksheetService(ctWorksheetRepo)

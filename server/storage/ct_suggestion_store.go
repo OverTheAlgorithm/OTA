@@ -2,35 +2,25 @@ package storage
 
 import (
 	"context"
-	"sync"
 	"time"
 
+	"ota/cache"
 	"ota/domain/communitytrend"
 )
 
-// CTSuggestionStore is an in-process store for transient AI suggestions held
-// between the daily pipeline run and human confirmation. It deliberately keeps
-// no titles/posts — only derived tag/meme data and fingerprints.
-//
-// In-process (not Redis) is acceptable: suggestions are regenerated each daily
-// run and only needed for that day's review window. Entries older than the TTL
-// are dropped on access.
+// CTSuggestionStore wraps a cache.Cache (which could be RedisCache or InProcessCache)
+// to hold transient AI suggestions between the daily pipeline run and human confirmation.
+// It deliberately keeps no titles/posts — only derived tag/meme data and fingerprints.
 type CTSuggestionStore struct {
-	mu  sync.Mutex
-	ttl time.Duration
-	m   map[string]entry
+	cache cache.Cache
+	ttl   time.Duration
 }
 
-type entry struct {
-	s       communitytrend.Suggestion
-	expires time.Time
-}
-
-func NewCTSuggestionStore(ttl time.Duration) *CTSuggestionStore {
+func NewCTSuggestionStore(c cache.Cache, ttl time.Duration) *CTSuggestionStore {
 	if ttl <= 0 {
 		ttl = 48 * time.Hour
 	}
-	return &CTSuggestionStore{ttl: ttl, m: map[string]entry{}}
+	return &CTSuggestionStore{cache: c, ttl: ttl}
 }
 
 func suggestionKey(communityID int, date time.Time) string {
@@ -60,26 +50,12 @@ func itoaCT(n int) string {
 }
 
 func (s *CTSuggestionStore) Put(_ context.Context, sug communitytrend.Suggestion) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[suggestionKey(sug.CommunityID, sug.StatDate)] = entry{s: sug, expires: nowCT().Add(s.ttl)}
-	return nil
+	k := suggestionKey(sug.CommunityID, sug.StatDate)
+	return s.cache.Set(k, sug, s.ttl)
 }
 
 func (s *CTSuggestionStore) Get(_ context.Context, communityID int, date time.Time) (communitytrend.Suggestion, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	k := suggestionKey(communityID, date)
-	e, ok := s.m[k]
-	if !ok {
-		return communitytrend.Suggestion{}, false, nil
-	}
-	if nowCT().After(e.expires) {
-		delete(s.m, k)
-		return communitytrend.Suggestion{}, false, nil
-	}
-	return e.s, true, nil
+	sug, ok := cache.GetTyped[communitytrend.Suggestion](s.cache, k)
+	return sug, ok, nil
 }
-
-// nowCT is a seam kept tiny; time.Now is fine here (not a workflow script).
-func nowCT() time.Time { return time.Now() }
