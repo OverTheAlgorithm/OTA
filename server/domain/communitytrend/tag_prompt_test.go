@@ -10,7 +10,7 @@ func TestBuildTagPrompt_InjectsTaxonomyAndRules(t *testing.T) {
 		CommunityKey: "fmkorea",
 		Titles:       []string{"여성 무고 사건 또 터졌다", "정부 규제 비판"},
 		Taxonomy: []TaxonomyTag{
-			{ID: 11, AxisKey: "gender_topic", Name: "남성 인권"},
+			{ID: 11, AxisKey: "gender_topic", Name: "남성 인권", Description: "남성 인권과 무고죄 관련 논제"},
 			{ID: 22, AxisKey: "political_topic", Name: "우파 지지"},
 		},
 		Memes:     []MemeRef{{ID: 1, Name: "킹받다", Aliases: []string{"킹받네"}}},
@@ -20,6 +20,7 @@ func TestBuildTagPrompt_InjectsTaxonomyAndRules(t *testing.T) {
 	p := BuildTagPrompt(in)
 
 	mustContain := []string{
+		"남성 인권과 무고죄 관련 논제", // tag description
 		"남성 인권", "우파 지지", // taxonomy tags
 		"gender_topic", // axis key
 		"우파 지지",        // precise naming example

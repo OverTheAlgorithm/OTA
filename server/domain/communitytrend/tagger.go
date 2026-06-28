@@ -4,9 +4,10 @@ import "context"
 
 // TaxonomyTag is one tag presented to the AI, with its axis for context.
 type TaxonomyTag struct {
-	ID      int
-	AxisKey string
-	Name    string
+	ID          int
+	AxisKey     string
+	Name        string
+	Description string
 }
 
 // MemeRef is a confirmed meme (name + aliases) the AI matches against.

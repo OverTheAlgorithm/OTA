@@ -28,7 +28,11 @@ func BuildTagPrompt(in TaggerInput) string {
 		b.WriteString("(없음)\n")
 	}
 	for _, t := range in.Taxonomy {
-		b.WriteString(fmt.Sprintf("- [%s] %s (id=%d)\n", t.AxisKey, t.Name, t.ID))
+		if t.Description != "" {
+			b.WriteString(fmt.Sprintf("- [%s] %s (id=%d, 설명: %s)\n", t.AxisKey, t.Name, t.ID, t.Description))
+		} else {
+			b.WriteString(fmt.Sprintf("- [%s] %s (id=%d)\n", t.AxisKey, t.Name, t.ID))
+		}
 	}
 	b.WriteString("\n")
 

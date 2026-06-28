@@ -275,7 +275,12 @@ func (p *Pipeline) buildTaxonomy(ctx context.Context) ([]TaxonomyTag, error) {
 	var out []TaxonomyTag
 	for _, t := range tags {
 		if axisType[t.AxisID] == "topic" {
-			out = append(out, TaxonomyTag{ID: t.ID, AxisKey: axisKey[t.AxisID], Name: t.Name})
+			out = append(out, TaxonomyTag{
+				ID:          t.ID,
+				AxisKey:     axisKey[t.AxisID],
+				Name:        t.Name,
+				Description: t.Description,
+			})
 		}
 	}
 	return out, nil
