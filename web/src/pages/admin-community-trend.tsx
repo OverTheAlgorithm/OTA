@@ -921,14 +921,14 @@ function TagsTab() {
           <p className="text-sm text-gray-500 border rounded p-8 text-center bg-gray-50/50">등록된 태그가 없습니다.</p>
         ) : (
           <div className="border rounded overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="text-left text-gray-500 border-b bg-gray-50">
-                  <th className="p-3">소속 축</th>
-                  <th className="p-3">태그 이름</th>
+                  <th className="p-3 w-[220px] min-w-[220px]">소속 축</th>
+                  <th className="p-3 w-[150px] min-w-[150px]">태그 이름</th>
                   <th className="p-3">설명</th>
-                  <th className="p-3">생성자</th>
-                  <th className="p-3 text-right">작업</th>
+                  <th className="p-3 w-[100px] min-w-[100px]">생성자</th>
+                  <th className="p-3 w-[120px] min-w-[120px] text-right">작업</th>
                 </tr>
               </thead>
               <tbody>
@@ -936,8 +936,10 @@ function TagsTab() {
                   const isEditing = editingTagId === t.id;
                   return (
                     <tr key={t.id} className="border-b hover:bg-gray-50/30">
-                      <td className="p-3 font-medium text-[#1e3a5f]">{getAxisLabel(t.axis_id)}</td>
-                      <td className="p-3">
+                      <td className="p-3 font-medium text-[#1e3a5f] whitespace-nowrap overflow-hidden text-ellipsis" title={getAxisLabel(t.axis_id)}>
+                        {getAxisLabel(t.axis_id)}
+                      </td>
+                      <td className="p-3 whitespace-nowrap overflow-hidden text-ellipsis" title={t.name}>
                         {isEditing ? (
                           <input
                             value={editForm.name}
@@ -948,7 +950,7 @@ function TagsTab() {
                           <span className="font-semibold text-gray-800">{t.name}</span>
                         )}
                       </td>
-                      <td className="p-3">
+                      <td className="p-3 break-words text-gray-600">
                         {isEditing ? (
                           <input
                             value={editForm.description}
@@ -956,10 +958,11 @@ function TagsTab() {
                             className="border rounded px-2 py-0.5 bg-white text-black w-full"
                           />
                         ) : (
-                          <span className="text-gray-600">{t.description || "—"}</span>
+                          <span>{t.description || "—"}</span>
                         )}
                       </td>
-                      <td className="p-3 text-xs text-gray-400">{t.created_by}</td>
+                      <td className="p-3 text-xs text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis" title={t.created_by}>
+                        {t.created_by}</td>
                       <td className="p-3 text-right space-x-2">
                         {isEditing ? (
                           <>
