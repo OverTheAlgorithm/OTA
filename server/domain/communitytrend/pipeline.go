@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -160,17 +161,52 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 		return p.errorResult(ctx, c, date, terr.Error())
 	}
 
+	var taggerMemes []MemeRef
+	existingMemes := make(map[string]bool)
+	if p.memes != nil {
+		memes, err := p.memes.ListMemes(ctx, false)
+		if err == nil {
+			taggerMemes = make([]MemeRef, len(memes))
+			for i, m := range memes {
+				taggerMemes[i] = MemeRef{
+					ID:      m.ID,
+					Name:    m.Name,
+					Aliases: m.Aliases,
+				}
+				existingMemes[strings.ToLower(strings.TrimSpace(m.Name))] = true
+				for _, alias := range m.Aliases {
+					existingMemes[strings.ToLower(strings.TrimSpace(alias))] = true
+				}
+			}
+		} else {
+			slog.Warn("failed to list memes", "community", c.Key, "error", err)
+		}
+	}
+
 	slog.Info("running AI analysis for tagging and meme extraction", "community", c.Key, "titles_count", len(titles))
 	out, aerr := p.tagger.Analyze(ctx, TaggerInput{
 		CommunityKey: c.Key,
 		Titles:       titles,
 		Taxonomy:     taxonomy,
+		Memes:        taggerMemes,
 		MinScore:     p.minScore,
 	})
 	if aerr != nil {
 		slog.Error("AI tagger analysis failed, falling back to manual", "community", c.Key, "error", aerr)
 		return p.fallbackManual(ctx, c, date, "ai error: "+aerr.Error())
 	}
+
+	// Statically filter out meme candidates that are already confirmed memes (name or aliases)
+	var filteredCandidates []MemeCandidate
+	for _, mc := range out.MemeCandidates {
+		lowerExp := strings.ToLower(strings.TrimSpace(mc.Expression))
+		if existingMemes[lowerExp] {
+			slog.Debug("statically filtered out confirmed meme from candidates", "expression", mc.Expression)
+			continue
+		}
+		filteredCandidates = append(filteredCandidates, mc)
+	}
+	out.MemeCandidates = filteredCandidates
 	slog.Info("AI analysis completed successfully", "community", c.Key, "tags_suggested", len(out.Tags), "meme_matches", len(out.MemeMatches), "meme_candidates", len(out.MemeCandidates))
 
 	// Go-side deterministic weight calculation
