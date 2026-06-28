@@ -63,6 +63,7 @@ func (f *fakeWorksheetRepo) ListByDate(context.Context, time.Time) ([]Worksheet,
 	return nil, nil
 }
 func (f *fakeWorksheetRepo) Confirm(context.Context, Confirmation) error { return nil }
+func (f *fakeWorksheetRepo) Reset(context.Context, int, time.Time) error  { return nil }
 
 type fakeAdapter struct {
 	key, robotsURL string
@@ -109,6 +110,12 @@ func (f *fakeSuggestionStore) Put(_ context.Context, s Suggestion) error {
 func (f *fakeSuggestionStore) Get(_ context.Context, communityID int, _ time.Time) (Suggestion, bool, error) {
 	s, ok := f.stored[communityID]
 	return s, ok, nil
+}
+func (f *fakeSuggestionStore) Delete(_ context.Context, communityID int, _ time.Time) error {
+	if f.stored != nil {
+		delete(f.stored, communityID)
+	}
+	return nil
 }
 
 // --- test ---

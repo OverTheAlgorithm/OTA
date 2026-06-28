@@ -31,6 +31,7 @@ type Suggestion struct {
 type SuggestionStore interface {
 	Put(ctx context.Context, s Suggestion) error
 	Get(ctx context.Context, communityID int, date time.Time) (Suggestion, bool, error)
+	Delete(ctx context.Context, communityID int, date time.Time) error
 }
 
 // CommunityResult records the per-community outcome of a daily run.

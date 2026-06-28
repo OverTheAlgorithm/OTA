@@ -48,6 +48,7 @@ type WorksheetRepository interface {
 	// Confirm atomically writes tag_daily + community_daily + seen fingerprints
 	// and marks the worksheet confirmed.
 	Confirm(ctx context.Context, conf Confirmation) error
+	Reset(ctx context.Context, communityID int, date time.Time) error
 }
 
 // WorksheetService validates and orchestrates worksheet confirmation.
@@ -57,6 +58,10 @@ type WorksheetService struct {
 
 func NewWorksheetService(worksheets WorksheetRepository) *WorksheetService {
 	return &WorksheetService{worksheets: worksheets}
+}
+
+func (s *WorksheetService) Reset(ctx context.Context, communityID int, date time.Time) error {
+	return s.worksheets.Reset(ctx, communityID, date)
 }
 
 func (s *WorksheetService) ListByDate(ctx context.Context, date time.Time) ([]Worksheet, error) {

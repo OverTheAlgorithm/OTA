@@ -151,6 +151,12 @@ export const confirmWorksheet = (payload: {
   counts: CTTagCount[];
 }) => req<{ message: string }>("/worksheets/confirm", { method: "POST", body: JSON.stringify(payload) });
 
+export const resetWorksheet = (community_id: number, date: string) =>
+  req<{ message: string }>("/worksheets/reset", {
+    method: "POST",
+    body: JSON.stringify({ community_id, date }),
+  });
+
 // ── trends ────────────────────────────────────────────────────────────────────
 
 export const communityTrends = (communityId: number, from: string, to: string) =>

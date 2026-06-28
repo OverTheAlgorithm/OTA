@@ -53,6 +53,7 @@ func (h *CommunityTrendAdminHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/worksheets", h.ListWorksheets)           // ?date=YYYY-MM-DD
 	group.GET("/worksheets/suggestion", h.GetSuggestion) // ?community_id=&date=
 	group.POST("/worksheets/confirm", h.ConfirmWorksheet)
+	group.POST("/worksheets/reset", h.ResetWorksheet)
 
 	group.GET("/trends/community", h.CommunityTrends) // ?community_id=&from=&to=
 	group.GET("/trends/cohort", h.CohortTrends)       // ?meta_tag_id=&from=&to=
@@ -343,6 +344,39 @@ func (h *CommunityTrendAdminHandler) ConfirmWorksheet(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
+}
+
+type resetWorksheetRequest struct {
+	CommunityID int    `json:"community_id"`
+	StatDate    string `json:"date"`
+}
+
+func (h *CommunityTrendAdminHandler) ResetWorksheet(c *gin.Context) {
+	var req resetWorksheetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청 형식입니다"})
+		return
+	}
+	date, err := time.Parse(ctDateLayout, req.StatDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date 형식은 YYYY-MM-DD 입니다"})
+		return
+	}
+
+	// 1. Reset database entries
+	if err := h.ws.Reset(c.Request.Context(), req.CommunityID, date); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 2. Clear transient suggestion cache
+	if h.suggestions != nil {
+		if err := h.suggestions.Delete(c.Request.Context(), req.CommunityID, date); err != nil {
+			slog.Warn("failed to delete suggestion cache on reset", "error", err, "community_id", req.CommunityID, "date", req.StatDate)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "워크시트가 정상적으로 초기화되었습니다"})
 }
 
 func parseCTIDParam(c *gin.Context) (int, bool) {

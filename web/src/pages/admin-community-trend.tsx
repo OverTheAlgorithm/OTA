@@ -103,6 +103,20 @@ function WorksheetsTab() {
       .finally(() => setLoading(false));
   }, [date]);
 
+  const handleReset = async (communityId: number) => {
+    if (!window.confirm("정말로 이 커뮤니티의 일일 통계 및 수집 기록을 초기화하시겠습니까? 관련 데이터가 모두 삭제되며 완전히 새롭게 재수집할 수 있게 됩니다.")) {
+      return;
+    }
+    setError(null);
+    try {
+      await ct.resetWorksheet(communityId, date);
+      setOpenId(null);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "초기화 실패");
+    }
+  };
+
   useEffect(() => {
     load();
   }, [load]);
@@ -130,9 +144,17 @@ function WorksheetsTab() {
                   <Badge text={s.mode} />
                   <Badge text={s.status} tone={s.status === "confirmed" ? "green" : s.status === "suggested" ? "blue" : "gray"} />
                 </div>
-                <button onClick={() => setOpenId(openId === s.id ? null : s.id)} className="text-sm text-[#6b8db5]">
-                  {openId === s.id ? "닫기" : "태깅"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleReset(s.community_id)}
+                    className="text-xs text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100/50 px-2 py-1 rounded transition-colors font-medium"
+                  >
+                    초기화 (재수집)
+                  </button>
+                  <button onClick={() => setOpenId(openId === s.id ? null : s.id)} className="text-sm text-[#6b8db5]">
+                    {openId === s.id ? "닫기" : "태깅"}
+                  </button>
+                </div>
               </div>
               {openId === s.id && (
                 <TaggingPanel community_id={s.community_id} date={date} mode={s.mode} tags={tags} onDone={load} />

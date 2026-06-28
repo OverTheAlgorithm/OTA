@@ -59,3 +59,9 @@ func (s *CTSuggestionStore) Get(_ context.Context, communityID int, date time.Ti
 	sug, ok := cache.GetTyped[communitytrend.Suggestion](s.cache, k)
 	return sug, ok, nil
 }
+
+func (s *CTSuggestionStore) Delete(_ context.Context, communityID int, date time.Time) error {
+	k := suggestionKey(communityID, date)
+	s.cache.Delete(k)
+	return nil
+}

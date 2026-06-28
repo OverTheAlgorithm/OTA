@@ -133,3 +133,38 @@ func (r *CTWorksheetRepository) Confirm(ctx context.Context, conf communitytrend
 
 	return tx.Commit(ctx)
 }
+
+func (r *CTWorksheetRepository) Reset(ctx context.Context, communityID int, date time.Time) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// 1. Delete daily tags
+	if _, err := tx.Exec(ctx, `DELETE FROM ct_tag_daily WHERE community_id = $1 AND stat_date = $2`, communityID, date); err != nil {
+		return fmt.Errorf("delete tag_daily: %w", err)
+	}
+
+	// 2. Delete community daily stats
+	if _, err := tx.Exec(ctx, `DELETE FROM ct_community_daily WHERE community_id = $1 AND stat_date = $2`, communityID, date); err != nil {
+		return fmt.Errorf("delete community_daily: %w", err)
+	}
+
+	// 3. Delete meme daily counts
+	if _, err := tx.Exec(ctx, `DELETE FROM ct_meme_daily WHERE community_id = $1 AND stat_date = $2`, communityID, date); err != nil {
+		return fmt.Errorf("delete meme_daily: %w", err)
+	}
+
+	// 4. Delete fingerprints so we can re-process posts
+	if _, err := tx.Exec(ctx, `DELETE FROM ct_seen_posts WHERE community_id = $1 AND first_seen = $2`, communityID, date); err != nil {
+		return fmt.Errorf("delete seen_posts: %w", err)
+	}
+
+	// 5. Delete worksheet row
+	if _, err := tx.Exec(ctx, `DELETE FROM ct_worksheets WHERE community_id = $1 AND stat_date = $2`, communityID, date); err != nil {
+		return fmt.Errorf("delete worksheet: %w", err)
+	}
+
+	return tx.Commit(ctx)
+}
