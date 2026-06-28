@@ -35,6 +35,7 @@ func (t *CTTagger) Analyze(ctx context.Context, in communitytrend.TaggerInput) (
 	if len(in.Titles) == 0 {
 		return communitytrend.TaggerOutput{}, nil
 	}
+	slog.Info("sending tagger request to Gemini", "community", in.CommunityKey, "titles_count", len(in.Titles), "titles", in.Titles)
 	prompt := communitytrend.BuildTagPrompt(in)
 
 	reqBody := ctRequest{
@@ -84,6 +85,7 @@ func (t *CTTagger) Analyze(ctx context.Context, in communitytrend.TaggerInput) (
 				statusCode = 0
 			} else if resp.StatusCode == http.StatusOK {
 				// Success!
+				slog.Info("received tagger response from Gemini", "community", in.CommunityKey, "raw_response", string(respBody))
 				text, err := extractText(respBody)
 				if err != nil {
 					return communitytrend.TaggerOutput{}, err
