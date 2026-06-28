@@ -56,7 +56,7 @@ type Pipeline struct {
 	tagger      Tagger
 	suggestions SuggestionStore
 	memes       MemeRepository
-	minCount    int
+	minScore    float64
 }
 
 // NewPipeline wires the daily-run dependencies.
@@ -64,13 +64,13 @@ func NewPipeline(
 	communities CommunityRepository, tags TagRepository, axes AxisRepository,
 	robotsRepo RobotsRepository, seen SeenRepository, worksheets WorksheetRepository,
 	registry *AdapterRegistry, fetcher RobotsFetcher, tagger Tagger,
-	suggestions SuggestionStore, memes MemeRepository, minCount int,
+	suggestions SuggestionStore, memes MemeRepository, minScore float64,
 ) *Pipeline {
 	return &Pipeline{
 		communities: communities, tags: tags, axes: axes,
 		robotsRepo: robotsRepo, seen: seen, worksheets: worksheets,
 		registry: registry, fetcher: fetcher, tagger: tagger,
-		suggestions: suggestions, memes: memes, minCount: minCount,
+		suggestions: suggestions, memes: memes, minScore: minScore,
 	}
 }
 
@@ -164,7 +164,7 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 		CommunityKey: c.Key,
 		Titles:       titles,
 		Taxonomy:     taxonomy,
-		MinCount:     p.minCount,
+		MinScore:     p.minScore,
 	})
 	if aerr != nil {
 		slog.Error("AI tagger analysis failed, falling back to manual", "community", c.Key, "error", aerr)

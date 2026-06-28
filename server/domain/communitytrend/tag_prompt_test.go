@@ -15,7 +15,7 @@ func TestBuildTagPrompt_InjectsTaxonomyAndRules(t *testing.T) {
 		},
 		Memes:     []MemeRef{{ID: 1, Name: "킹받다", Aliases: []string{"킹받네"}}},
 		Blacklist: []string{"노잼"},
-		MinCount:  3,
+		MinScore:  3.0,
 	}
 	p := BuildTagPrompt(in)
 
@@ -38,7 +38,7 @@ func TestBuildTagPrompt_InjectsTaxonomyAndRules(t *testing.T) {
 }
 
 func TestBuildTagPrompt_EmptyTaxonomy(t *testing.T) {
-	p := BuildTagPrompt(TaggerInput{Titles: []string{"x"}, MinCount: 5})
+	p := BuildTagPrompt(TaggerInput{Titles: []string{"x"}, MinScore: 5.0})
 	if !strings.Contains(p, "(없음)") {
 		t.Fatal("expected (없음) for empty taxonomy/memes")
 	}

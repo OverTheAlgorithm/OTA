@@ -30,7 +30,7 @@ func TestAggregate_DeltasAndThreshold(t *testing.T) {
 		// tag 2 below threshold (latest 2 < 3) → filtered
 		{TagID: 2, TagName: "노잼", AxisKey: "x", StatDate: d("2026-06-24"), PostCount: 2},
 	}
-	svc := NewAggregateService(&fakeAggRepo{rows: rows}, 3)
+	svc := NewAggregateService(&fakeAggRepo{rows: rows}, 3.0)
 
 	trends, err := svc.CommunityTrends(context.Background(), 1, d("2026-06-17"), to)
 	if err != nil {
@@ -65,7 +65,7 @@ func TestAggregate_CohortSumsAcrossCommunities(t *testing.T) {
 		{TagID: 9, TagName: "우파 지지", AxisKey: "political_topic", StatDate: to, PostCount: 4},
 		{TagID: 9, TagName: "우파 지지", AxisKey: "political_topic", StatDate: to, PostCount: 6},
 	}
-	svc := NewAggregateService(&fakeAggRepo{rows: rows}, 3)
+	svc := NewAggregateService(&fakeAggRepo{rows: rows}, 3.0)
 	trends, err := svc.CohortTrends(context.Background(), 100, to, to)
 	if err != nil {
 		t.Fatalf("cohort: %v", err)

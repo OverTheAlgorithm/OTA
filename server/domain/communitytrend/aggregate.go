@@ -42,14 +42,14 @@ type AggregateRepository interface {
 }
 
 // AggregateService groups flat rows into per-tag trends and computes deltas,
-// applying the conservative surface threshold (CT_MIN_TAG_COUNT, D-002).
+// applying the conservative surface threshold (CT_MIN_TAG_SCORE, D-002).
 type AggregateService struct {
 	repo     AggregateRepository
-	minCount int
+	minScore float64
 }
 
-func NewAggregateService(repo AggregateRepository, minCount int) *AggregateService {
-	return &AggregateService{repo: repo, minCount: minCount}
+func NewAggregateService(repo AggregateRepository, minScore float64) *AggregateService {
+	return &AggregateService{repo: repo, minScore: minScore}
 }
 
 func (s *AggregateService) CommunityTrends(ctx context.Context, communityID int, from, to time.Time) ([]TagTrend, error) {
@@ -93,7 +93,7 @@ func (s *AggregateService) build(rows []DailyTagCount, latestDate time.Time) []T
 	var out []TagTrend
 	for tagID, a := range grouped {
 		latest := a.byDate[latestKey]
-		if latest < float64(s.minCount) {
+		if latest < s.minScore {
 			continue // conservative surface filter
 		}
 		dates := make([]string, 0, len(a.byDate))

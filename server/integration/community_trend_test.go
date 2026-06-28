@@ -498,7 +498,7 @@ func TestCommunityTrend_TrendsHTTP(t *testing.T) {
 		storage.NewCTAxisRepository(db.Pool),
 	)
 	wsSvc := communitytrend.NewWorksheetService(storage.NewCTWorksheetRepository(db.Pool))
-	aggSvc := communitytrend.NewAggregateService(storage.NewCTAggregateRepository(db.Pool), 3)
+	aggSvc := communitytrend.NewAggregateService(storage.NewCTAggregateRepository(db.Pool), 3.0)
 	adminHandler := handler.NewCommunityTrendAdminHandler(svc, wsSvc, nil, aggSvc, nil, storage.NewCTRobotsRepository(db.Pool))
 
 	gin.SetMode(gin.TestMode)

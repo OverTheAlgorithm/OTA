@@ -146,7 +146,7 @@ func TestPipeline_RunDaily(t *testing.T) {
 
 	p := NewPipeline(
 		commRepo, &fakeTagRepo{}, &fakeAxisRepo{}, &fakeRobotsRepo{}, seen, wsRepo,
-		registry, fetcher, tagger, store, nil, 3,
+		registry, fetcher, tagger, store, nil, 3.0,
 	)
 
 	results, err := p.RunDaily(ctx, date)

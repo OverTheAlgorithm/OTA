@@ -24,7 +24,7 @@ type TaggerInput struct {
 	Taxonomy     []TaxonomyTag
 	Memes        []MemeRef
 	Blacklist    []string // expressions never to re-propose as meme candidates
-	MinCount     int      // conservative threshold (CT_MIN_TAG_COUNT)
+	MinScore     float64  // conservative threshold (CT_MIN_TAG_SCORE)
 }
 
 // TagSuggestion is a proposed topic tag. Existing tags carry TagID>0; brand-new

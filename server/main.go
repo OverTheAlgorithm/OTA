@@ -357,7 +357,7 @@ func main() {
 	communityTrendService := communitytrend.NewService(ctCommunityRepo, ctTagRepo, ctAxisRepo)
 	communityTrendWorksheetService := communitytrend.NewWorksheetService(ctWorksheetRepo)
 	communityTrendAggregateService := communitytrend.NewAggregateService(
-		storage.NewCTAggregateRepository(pool), cfg.CTMinTagCount)
+		storage.NewCTAggregateRepository(pool), cfg.CTMinTagScore)
 	ctMemeRepo := storage.NewCTMemeRepository(pool)
 	communityTrendMemeService := communitytrend.NewMemeService(ctMemeRepo)
 	communityTrendAdminHandler := handler.NewCommunityTrendAdminHandler(
@@ -370,7 +370,7 @@ func main() {
 	ctTagger := gemini.NewCTTagger(cfg.GeminiAPIKey, cfg.GeminiModel)
 	communityTrendPipeline := communitytrend.NewPipeline(
 		ctCommunityRepo, ctTagRepo, ctAxisRepo, ctRobotsRepo, ctSeenRepo, ctWorksheetRepo,
-		ctAdapters, communities.NewRobotsHTTPFetcher(), ctTagger, ctSuggestionStore, ctMemeRepo, cfg.CTMinTagCount,
+		ctAdapters, communities.NewRobotsHTTPFetcher(), ctTagger, ctSuggestionStore, ctMemeRepo, cfg.CTMinTagScore,
 	)
 	communityTrendAdminHandler.WithPipeline(communityTrendPipeline)
 	communityTrendScheduler := scheduler.NewCommunityTrend(communityTrendPipeline, shutdownCtx)
