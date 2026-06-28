@@ -150,13 +150,7 @@ func (p *Pipeline) runCommunity(ctx context.Context, c Community, date time.Time
 
 	titles := make([]string, len(fresh))
 	for i, it := range fresh {
-		comments := it.Engagement["comments"]
-		upvotes := it.Engagement["upvotes"]
-		if comments > 0 || upvotes > 0 {
-			titles[i] = fmt.Sprintf("%s (댓글 %d, 추천 %d)", it.TextUnit, comments, upvotes)
-		} else {
-			titles[i] = it.TextUnit
-		}
+		titles[i] = it.TextUnit
 	}
 
 	taxonomy, terr := p.buildTaxonomy(ctx)

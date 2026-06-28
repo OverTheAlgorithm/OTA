@@ -22,13 +22,13 @@ func TestBuildTagPrompt_InjectsTaxonomyAndRules(t *testing.T) {
 	mustContain := []string{
 		"남성 인권", "우파 지지", // taxonomy tags
 		"gender_topic", // axis key
-		"3건 이상",        // conservative threshold from MinCount
 		"우파 지지",        // precise naming example
 		"킹받다", "킹받네",   // meme + alias
 		"노잼",              // blacklist
 		"여성 무고 사건 또 터졌다",  // a title
 		"meme_candidates", // output schema
 		"JSON",            // output instruction
+		"보수적",           // conservative rule for new tags
 	}
 	for _, s := range mustContain {
 		if !strings.Contains(p, s) {
@@ -41,8 +41,5 @@ func TestBuildTagPrompt_EmptyTaxonomy(t *testing.T) {
 	p := BuildTagPrompt(TaggerInput{Titles: []string{"x"}, MinCount: 5})
 	if !strings.Contains(p, "(없음)") {
 		t.Fatal("expected (없음) for empty taxonomy/memes")
-	}
-	if !strings.Contains(p, "5건 이상") {
-		t.Fatal("expected threshold 5건 이상")
 	}
 }
