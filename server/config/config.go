@@ -72,6 +72,7 @@ type Config struct {
 	RateLimitPerMin        int // RATE_LIMIT_PER_MIN: max requests per minute per user/IP; default 300
 	QuizMaxBonusCoins      int // QUIZ_MAX_BONUS_COINS: max random bonus coins for correct quiz answer (range: 1~N); default 3
 	MinReferences          int // MIN_REFERENCES: minimum source URLs per topic to surface in user-facing lists, email, sitemap; default 1 (matches existing pipeline drop threshold). Set 2+ to hide single-source topics from new exposure. Topic detail page and personal history bypass this filter.
+	MaxCollectedItems      int // MAX_COLLECTED_ITEMS: maximum number of articles to collect in a single run; default 8
 	CTMinTagScore          float64 // CT_MIN_TAG_SCORE: community-trend conservative threshold — min score for a topic tag to surface in stats; default 3.0 (decisions.md D-002).
 
 	RedisHost     string // REDIS_HOST: Redis server hostname; default "redis"
@@ -159,6 +160,7 @@ func Load() (Config, error) {
 		RateLimitPerMin:        getEnvInt("RATE_LIMIT_PER_MIN", 300),
 		QuizMaxBonusCoins:      getEnvInt("QUIZ_MAX_BONUS_COINS", 3),
 		MinReferences:          getEnvInt("MIN_REFERENCES", 1),
+		MaxCollectedItems:      getEnvInt("MAX_COLLECTED_ITEMS", 8),
 
 		RedisHost:     getEnv("REDIS_HOST", "redis"),
 		RedisPort:     getEnv("REDIS_PORT", "6379"),
@@ -234,6 +236,9 @@ func Load() (Config, error) {
 	}
 	if cfg.MinReferences < 0 {
 		return cfg, fmt.Errorf("MIN_REFERENCES must be >= 0 (got %d)", cfg.MinReferences)
+	}
+	if cfg.MaxCollectedItems <= 0 {
+		return cfg, fmt.Errorf("MAX_COLLECTED_ITEMS must be greater than 0")
 	}
 	if cfg.MinWithdrawalAmount%cfg.WithdrawalUnitAmount != 0 {
 		return cfg, fmt.Errorf("MIN_WITHDRAWAL_AMOUNT (%d) must be a multiple of WITHDRAWAL_UNIT_AMOUNT (%d)", cfg.MinWithdrawalAmount, cfg.WithdrawalUnitAmount)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -43,7 +44,8 @@ type Service struct {
 	checkpointRepo CheckpointRepository // optional: enables checkpoint/resume
 	urlDecoder     URLDecoder
 	articleFetcher ArticleFetcher
-	imageGen       *ImageGenerator
+	imageGen          *ImageGenerator
+	maxCollectedItems int
 }
 
 func NewService(
@@ -62,10 +64,19 @@ func NewService(
 		aggregator:     aggregator,
 		trendingRepo:   trendingRepo,
 		brainCatRepo:   brainCatRepo,
-		urlDecoder:     urlDecoder,
-		articleFetcher: articleFetcher,
-		imageGen:       imageGen,
+		urlDecoder:        urlDecoder,
+		articleFetcher:    articleFetcher,
+		imageGen:          imageGen,
+		maxCollectedItems: 8,
 	}
+}
+
+// WithMaxCollectedItems sets the maximum number of items to collect in a single run.
+func (s *Service) WithMaxCollectedItems(n int) *Service {
+	if n > 0 {
+		s.maxCollectedItems = n
+	}
+	return s
 }
 
 // WithFallback sets a fallback AI client to use when the primary model returns
@@ -192,6 +203,9 @@ func (s *Service) CollectFromSources(ctx context.Context) (CollectionResult, err
 		return failRun(fmt.Errorf("all topics dropped after source validation/fetch"), &rawResp)
 	}
 	slog.Info("collection run stage 3 done", "run_id", run.ID, "topics", len(topics))
+
+	// Limit topics based on MAX_COLLECTED_ITEMS
+	topics, articleMap = s.limitTopicsAndArticles(topics, articleMap)
 
 	// Checkpoint: Stage 3 complete — save topics + articles + raw JSON for resume.
 	s.saveCheckpoint(ctx, run.ID, 3, Stage3Data{Topics: topics, ArticleMap: articleMap, Phase1RawJSON: phase1Resp.RawJSON})
@@ -373,6 +387,9 @@ func (s *Service) resumeFromCheckpoint(ctx context.Context, startAfterStage int,
 		}
 		slog.Info("resumed run stage 3 done", "run_id", run.ID, "topics", len(topics))
 
+		// Limit topics based on MAX_COLLECTED_ITEMS
+		topics, articleMap = s.limitTopicsAndArticles(topics, articleMap)
+
 		s.saveCheckpoint(ctx, run.ID, 3, Stage3Data{Topics: topics, ArticleMap: articleMap, Phase1RawJSON: phase1RawJSON})
 	}
 
@@ -512,6 +529,68 @@ func rankForTopic(topic Phase1Topic, allTopics []Phase1Topic) int {
 		}
 	}
 	return rank
+}
+
+func priorityValue(p string) int {
+	switch strings.ToLower(p) {
+	case "high":
+		return 3
+	case "medium":
+		return 2
+	case "low":
+		return 1
+	default:
+		return 0
+	}
+}
+
+// limitTopicsAndArticles sorts the topics by Priority (descending) and BuzzScore (descending),
+// slices them to maxCount, and rebuilds the articleMap with the new indices.
+func (s *Service) limitTopicsAndArticles(
+	topics []Phase1Topic,
+	articleMap map[int][]FetchedArticle,
+) ([]Phase1Topic, map[int][]FetchedArticle) {
+	limit := s.maxCollectedItems
+	if limit <= 0 {
+		limit = 8
+	}
+	if len(topics) <= limit {
+		return topics, articleMap
+	}
+
+	type topicWithArticles struct {
+		topic    Phase1Topic
+		articles []FetchedArticle
+	}
+
+	combined := make([]topicWithArticles, len(topics))
+	for i, t := range topics {
+		combined[i] = topicWithArticles{
+			topic:    t,
+			articles: articleMap[i],
+		}
+	}
+
+	sort.Slice(combined, func(i, j int) bool {
+		pI := priorityValue(combined[i].topic.Priority)
+		pJ := priorityValue(combined[j].topic.Priority)
+		if pI != pJ {
+			return pI > pJ
+		}
+		return combined[i].topic.BuzzScore > combined[j].topic.BuzzScore
+	})
+
+	limitedCombined := combined[:limit]
+
+	newTopics := make([]Phase1Topic, len(limitedCombined))
+	newArticleMap := make(map[int][]FetchedArticle, len(limitedCombined))
+
+	for i, item := range limitedCombined {
+		newTopics[i] = item.topic
+		newArticleMap[i] = item.articles
+	}
+
+	return newTopics, newArticleMap
 }
 
 // --- Phase 1 URL decoding ---

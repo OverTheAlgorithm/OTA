@@ -276,8 +276,8 @@ func main() {
 		"provider", cfg.ImageProvider, "model", imageModel,
 		"throttle", cfg.ImageGenThrottle, "max_attempts", cfg.ImageGenMaxAttempts)
 
-	articleFetcher := collector.NewHTTPArticleFetcher()
-	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, articleFetcher, imageGen)
+	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, articleFetcher, imageGen).
+		WithMaxCollectedItems(cfg.MaxCollectedItems)
 	collectorService.WithCategoryRepo(categoryRepo)
 	collectorService.WithCheckpointRepo(checkpointRepo)
 	if fallbackAIClient != nil {

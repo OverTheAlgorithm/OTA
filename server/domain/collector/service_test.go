@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -473,3 +474,90 @@ func TestCollectFromSourcesIfNeeded_CanRun(t *testing.T) {
 		t.Errorf("expected 2 items, got %d", len(result.Items))
 	}
 }
+
+func TestCollectFromSources_LimitItems(t *testing.T) {
+	repo := &mockRepo{}
+
+	// Phase 1 response containing 4 topics with mixed priority/buzz
+	fourTopicsJSON := `{
+		"topics": [
+			{
+				"topic_hint": "Topic A - Low Buzz 90",
+				"category": "general",
+				"brain_category": "trend",
+				"priority": "low",
+				"buzz_score": 90,
+				"sources": ["https://example.com/news1"]
+			},
+			{
+				"topic_hint": "Topic B - High Buzz 50",
+				"category": "entertainment",
+				"brain_category": "fun",
+				"priority": "high",
+				"buzz_score": 50,
+				"sources": ["https://example.com/news2"]
+			},
+			{
+				"topic_hint": "Topic C - High Buzz 80",
+				"category": "business",
+				"brain_category": "trend",
+				"priority": "high",
+				"buzz_score": 80,
+				"sources": ["https://example.com/news3"]
+			},
+			{
+				"topic_hint": "Topic D - Medium Buzz 95",
+				"category": "technology",
+				"brain_category": "science",
+				"priority": "medium",
+				"buzz_score": 95,
+				"sources": ["https://example.com/news4"]
+			}
+		]
+	}`
+
+	// With maxCollectedItems = 2, we expect:
+	// 1. Topic C (High, 80)
+	// 2. Topic B (High, 50)
+	// (Topic D and Topic A are skipped due to lower priority)
+	aiClient := &mockAIClient{
+		responses: []AIResponse{
+			{OutputText: fourTopicsJSON, RawJSON: `{"phase1":"data"}`},
+			{OutputText: validPhase2JSON("Topic C - High Buzz 80 Detail"), RawJSON: `{"phase2":"topicC"}`},
+			{OutputText: validPhase2JSON("Topic B - High Buzz 50 Detail"), RawJSON: `{"phase2":"topicB"}`},
+		},
+	}
+	collector := &mockSourceCollector{name: "test_source", items: testTrendingItems}
+
+	svc := newTestService(aiClient, repo, collector)
+	svc.WithMaxCollectedItems(2)
+
+	result, err := svc.CollectFromSources(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Run.Status != RunStatusSuccess {
+		t.Errorf("expected status success, got %s", result.Run.Status)
+	}
+
+	if len(result.Items) != 2 {
+		t.Errorf("expected exactly 2 items, got %d", len(result.Items))
+	}
+
+	hasTopicC := false
+	hasTopicB := false
+	for _, item := range result.Items {
+		if strings.Contains(item.Topic, "Topic C") {
+			hasTopicC = true
+		}
+		if strings.Contains(item.Topic, "Topic B") {
+			hasTopicB = true
+		}
+	}
+
+	if !hasTopicC || !hasTopicB {
+		t.Errorf("expected items to be Topic C and Topic B, but got different set. Items: %+v", result.Items)
+	}
+}
+
