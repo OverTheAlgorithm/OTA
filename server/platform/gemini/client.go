@@ -51,6 +51,7 @@ func (c *Client) SearchAndAnalyze(ctx context.Context, prompt string) (collector
 			ThinkingConfig: &thinkingConfig{
 				ThinkingBudget: -1, // dynamic: model decides token budget per prompt
 			},
+			ResponseMimeType: "application/json",
 		},
 	}
 
@@ -147,7 +148,8 @@ type requestBody struct {
 }
 
 type generationConfig struct {
-	ThinkingConfig *thinkingConfig `json:"thinkingConfig,omitempty"`
+	ThinkingConfig   *thinkingConfig `json:"thinkingConfig,omitempty"`
+	ResponseMimeType string          `json:"responseMimeType,omitempty"`
 }
 
 type thinkingConfig struct {

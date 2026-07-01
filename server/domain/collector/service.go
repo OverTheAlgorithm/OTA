@@ -489,6 +489,7 @@ func parsePhase1Response(outputText string) ([]Phase1Topic, error) {
 
 	var payload phase1Payload
 	if err := json.Unmarshal([]byte(cleanJSON), &payload); err != nil {
+		slog.Error("failed to parse Phase 1 response, raw AI output", "output", outputText, "error", err)
 		return nil, fmt.Errorf("invalid json from Phase 1 AI: %w", err)
 	}
 
@@ -799,6 +800,7 @@ func parsePhase2Response(outputText string) (Phase2Result, error) {
 
 	var result Phase2Result
 	if err := json.Unmarshal([]byte(cleanJSON), &result); err != nil {
+		slog.Error("failed to parse Phase 2 response, raw AI output", "output", outputText, "error", err)
 		return Phase2Result{}, fmt.Errorf("invalid json from Phase 2 AI: %w", err)
 	}
 
