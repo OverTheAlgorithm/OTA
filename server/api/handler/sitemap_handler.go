@@ -32,11 +32,12 @@ type SitemapRepository interface {
 type SitemapHandler struct {
 	repo        SitemapRepository
 	frontendURL string
+	maxAgeDays  int
 }
 
 // NewSitemapHandler constructs a SitemapHandler.
-func NewSitemapHandler(repo SitemapRepository, frontendURL string) *SitemapHandler {
-	return &SitemapHandler{repo: repo, frontendURL: frontendURL}
+func NewSitemapHandler(repo SitemapRepository, frontendURL string, maxAgeDays int) *SitemapHandler {
+	return &SitemapHandler{repo: repo, frontendURL: frontendURL, maxAgeDays: maxAgeDays}
 }
 
 // RegisterRoutes registers GET /sitemap.xml on the given router group.
@@ -107,7 +108,15 @@ func (h *SitemapHandler) GetSitemap(c *gin.Context) {
 		})
 	}
 
+	var cutoff time.Time
+	if h.maxAgeDays > 0 {
+		cutoff = time.Now().UTC().AddDate(0, 0, -h.maxAgeDays)
+	}
+
 	for _, t := range topics {
+		if h.maxAgeDays > 0 && t.CreatedAt.UTC().Before(cutoff) {
+			continue
+		}
 		urls = append(urls, xmlURL{
 			Loc:        h.frontendURL + "/topic/" + t.ID,
 			LastMod:    t.CreatedAt.UTC().Format("2006-01-02"),

@@ -229,6 +229,7 @@ export interface TopicDetail {
   has_quiz: boolean;
   quiz: QuizForUser | null;
   poll: PollForUser | null;
+  no_index?: boolean;
 }
 
 export interface TopicEarnResult {

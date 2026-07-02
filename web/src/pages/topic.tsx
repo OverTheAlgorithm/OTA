@@ -505,6 +505,7 @@ export function TopicPage() {
           Middleware sets the same tags server-side for fresh loads + crawlers. */}
       <title>{`${topic.topic} - 위즈레터`}</title>
       <meta name="description" content={topic.detail} />
+      {topic.no_index && <meta name="robots" content="noindex, follow" />}
       <link rel="canonical" href={`https://wizletter.com/topic/${topic.id}`} />
       <meta property="og:title" content={topic.topic} />
       <meta property="og:description" content={topic.detail} />

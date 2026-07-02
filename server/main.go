@@ -276,6 +276,7 @@ func main() {
 		"provider", cfg.ImageProvider, "model", imageModel,
 		"throttle", cfg.ImageGenThrottle, "max_attempts", cfg.ImageGenMaxAttempts)
 
+	articleFetcher := collector.NewHTTPArticleFetcher()
 	collectorService := collector.NewService(aiClient, collectorRepo, aggregator, trendingRepo, brainCategoryRepo, googlenews.ReplaceArticleURLs, articleFetcher, imageGen).
 		WithMaxCollectedItems(cfg.MaxCollectedItems)
 	collectorService.WithCategoryRepo(categoryRepo)
@@ -435,7 +436,7 @@ func main() {
 
 	// Context history
 	historyRepo := storage.NewHistoryRepository(pool, cfg.MinReferences)
-	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager))
+	contextHistoryHandler := handler.NewContextHistoryHandler(historyRepo, api.AuthMiddleware(jwtManager)).WithMaxAgeDays(cfg.SitemapTopicMaxAgeDays)
 	contextHistoryHandler.WithCategoryRepo(categoryRepo, brainCategoryRepo)
 	contextHistoryHandler.WithQuizService(quizService, api.OptionalAuthMiddleware(jwtManager))
 	contextHistoryHandler.WithPollService(pollService)
@@ -519,7 +520,7 @@ func main() {
 
 	// Sitemap
 	sitemapRepo := storage.NewSitemapRepository(pool, cfg.MinReferences)
-	sitemapHandler := handler.NewSitemapHandler(&sitemapRepoAdapter{sitemapRepo}, cfg.FrontendURL)
+	sitemapHandler := handler.NewSitemapHandler(&sitemapRepoAdapter{sitemapRepo}, cfg.FrontendURL, cfg.SitemapTopicMaxAgeDays)
 
 	// Comments: repo + Redis-backed reaction store + flusher.
 	commentRepo := storage.NewCommentRepository(pool)

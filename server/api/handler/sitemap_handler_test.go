@@ -36,7 +36,7 @@ func (m *mockSitemapRepoForHandler) GetAllEditorPostEntries(_ context.Context) (
 func TestSitemapHandler_ContentType(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := handler.NewSitemapHandler(&mockSitemapRepoForHandler{}, "https://wizletter.com")
+	h := handler.NewSitemapHandler(&mockSitemapRepoForHandler{}, "https://wizletter.com", 0)
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -57,7 +57,7 @@ func TestSitemapHandler_ContentType(t *testing.T) {
 func TestSitemapHandler_StaticPages(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := handler.NewSitemapHandler(&mockSitemapRepoForHandler{}, "https://wizletter.com")
+	h := handler.NewSitemapHandler(&mockSitemapRepoForHandler{}, "https://wizletter.com", 0)
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -97,7 +97,7 @@ func TestSitemapHandler_TopicURLs(t *testing.T) {
 			{ID: "456", CreatedAt: fixedTime.Add(-24 * time.Hour)},
 		},
 	}
-	h := handler.NewSitemapHandler(repo, "https://wizletter.com")
+	h := handler.NewSitemapHandler(repo, "https://wizletter.com", 0)
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -128,7 +128,7 @@ func TestSitemapHandler_ValidXML(t *testing.T) {
 			{ID: "999", CreatedAt: fixedTime},
 		},
 	}
-	h := handler.NewSitemapHandler(repo, "https://wizletter.com")
+	h := handler.NewSitemapHandler(repo, "https://wizletter.com", 0)
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -170,7 +170,7 @@ func TestSitemapHandler_IncludesEditorPicks(t *testing.T) {
 			{ID: "ep-2", UpdatedAt: fixedTime.Add(-24 * time.Hour)},
 		},
 	}
-	h := handler.NewSitemapHandler(repo, "https://wizletter.com")
+	h := handler.NewSitemapHandler(repo, "https://wizletter.com", 0)
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -199,7 +199,7 @@ func TestSitemapHandler_RepoError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	repo := &mockSitemapRepoForHandler{err: context.DeadlineExceeded}
-	h := handler.NewSitemapHandler(repo, "https://wizletter.com")
+	h := handler.NewSitemapHandler(repo, "https://wizletter.com", 0)
 	r := gin.New()
 	group := r.Group("/api/v1")
 	h.RegisterRoutes(group)
@@ -210,5 +210,39 @@ func TestSitemapHandler_RepoError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 on repo error, got %d", w.Code)
+	}
+}
+
+func TestSitemapHandler_TopicAgeFiltering(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	repo := &mockSitemapRepoForHandler{
+		topics: []handler.TopicEntry{
+			{ID: "new-topic", CreatedAt: now.Add(-2 * 24 * time.Hour)}, // 2 days old (under 7)
+			{ID: "old-topic", CreatedAt: now.Add(-10 * 24 * time.Hour)}, // 10 days old (over 7)
+		},
+	}
+
+	// MaxAgeDays = 7
+	h := handler.NewSitemapHandler(repo, "https://wizletter.com", 7)
+	r := gin.New()
+	group := r.Group("/api/v1")
+	h.RegisterRoutes(group)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sitemap.xml", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "https://wizletter.com/topic/new-topic") {
+		t.Error("expected sitemap to contain https://wizletter.com/topic/new-topic")
+	}
+	if strings.Contains(body, "https://wizletter.com/topic/old-topic") {
+		t.Error("expected sitemap NOT to contain https://wizletter.com/topic/old-topic")
 	}
 }

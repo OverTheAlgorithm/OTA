@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -444,3 +445,77 @@ func TestSearchTopics_TrimsQuery(t *testing.T) {
 // Assert that storage.HistoryRepository implements collector.HistoryRepository
 // (compile-time check)
 var _ collector.HistoryRepository = (*storage.HistoryRepository)(nil)
+
+func TestGetTopicByID_NoIndexFlag(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	topicID := uuid.New()
+	now := time.Now().UTC()
+
+	tests := []struct {
+		name       string
+		createdAt  time.Time
+		maxAgeDays int
+		wantNoIdx  bool
+	}{
+		{
+			name:       "New topic under limit",
+			createdAt:  now.Add(-2 * 24 * time.Hour), // 2 days old
+			maxAgeDays: 7,
+			wantNoIdx:  false,
+		},
+		{
+			name:       "Old topic over limit",
+			createdAt:  now.Add(-10 * 24 * time.Hour), // 10 days old
+			maxAgeDays: 7,
+			wantNoIdx:  true,
+		},
+		{
+			name:       "Filter disabled (maxAgeDays=0)",
+			createdAt:  now.Add(-10 * 24 * time.Hour),
+			maxAgeDays: 0,
+			wantNoIdx:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockHistoryRepo{
+				topic: &collector.TopicDetail{
+					ID:        topicID,
+					Category:  "top",
+					Topic:     "테스트 주제",
+					CreatedAt: tt.createdAt,
+				},
+			}
+			r := gin.New()
+			h := handler.NewContextHistoryHandler(repo, func(c *gin.Context) { c.Next() })
+			if tt.maxAgeDays > 0 {
+				h.WithMaxAgeDays(tt.maxAgeDays)
+			}
+			h.RegisterRoutes(r.Group("/context"))
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", fmt.Sprintf("/context/topic/%s", topicID), nil)
+			r.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d", w.Code)
+			}
+
+			var resp map[string]interface{}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("failed to parse response: %v", err)
+			}
+			data, ok := resp["data"].(map[string]interface{})
+			if !ok {
+				t.Fatal("expected 'data' key in response")
+			}
+			
+			gotNoIdx, _ := data["no_index"].(bool)
+			if gotNoIdx != tt.wantNoIdx {
+				t.Errorf("expected no_index %v, got %v", tt.wantNoIdx, gotNoIdx)
+			}
+		})
+	}
+}

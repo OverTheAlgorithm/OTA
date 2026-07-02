@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"ota/domain/collector"
@@ -22,6 +23,7 @@ type ContextHistoryHandler struct {
 	pollSvc        *poll.Service
 	authMW         gin.HandlerFunc
 	optionalAuthMW gin.HandlerFunc
+	maxAgeDays     int
 }
 
 func NewContextHistoryHandler(repo collector.HistoryRepository, authMW gin.HandlerFunc) *ContextHistoryHandler {
@@ -42,6 +44,12 @@ func (h *ContextHistoryHandler) WithQuizService(quizSvc *quiz.Service, optionalA
 	return h
 }
 
+// WithMaxAgeDays sets the threshold in days for determining noindex status.
+func (h *ContextHistoryHandler) WithMaxAgeDays(days int) *ContextHistoryHandler {
+	h.maxAgeDays = days
+	return h
+}
+
 // WithPollService sets the poll service for bundling poll data with topic detail responses.
 func (h *ContextHistoryHandler) WithPollService(pollSvc *poll.Service) *ContextHistoryHandler {
 	h.pollSvc = pollSvc
@@ -54,6 +62,7 @@ type topicResponse struct {
 	HasQuiz bool              `json:"has_quiz"`
 	Quiz    *quiz.QuizForUser `json:"quiz"`
 	Poll    *poll.PollForUser `json:"poll"`
+	NoIndex bool              `json:"no_index"`
 }
 
 func (h *ContextHistoryHandler) GetHistory(c *gin.Context) {
@@ -90,10 +99,19 @@ func (h *ContextHistoryHandler) GetTopicByID(c *gin.Context) {
 		return
 	}
 
+	var noIndex bool
+	if h.maxAgeDays > 0 {
+		cutoff := time.Now().UTC().AddDate(0, 0, -h.maxAgeDays)
+		if topic.CreatedAt.UTC().Before(cutoff) {
+			noIndex = true
+		}
+	}
+
 	resp := topicResponse{
 		TopicDetail: *topic,
 		HasQuiz:     topic.HasQuiz,
 		Quiz:        nil,
+		NoIndex:     noIndex,
 	}
 
 	// Bundle quiz data for everyone (logged in OR not). The earn-gate is enforced

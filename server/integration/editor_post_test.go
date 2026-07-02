@@ -284,7 +284,7 @@ func TestSitemap_IncludesEditorPosts_E2E(t *testing.T) {
 	}
 	// Inline adapter to avoid importing main.
 	a := &editorSitemapAdapter{repo: sitemapRepo}
-	sitemapHandler := handler.NewSitemapHandler(a, "https://example.test")
+	sitemapHandler := handler.NewSitemapHandler(a, "https://example.test", 0)
 
 	r := gin.New()
 	sitemapHandler.RegisterRoutes(r.Group("/api/v1"))
