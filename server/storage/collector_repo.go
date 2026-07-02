@@ -81,6 +81,56 @@ func (r *CollectorRepository) SaveContextItems(ctx context.Context, items []coll
 	return nil
 }
 
+func (r *CollectorRepository) SaveItemsAndCompleteRun(ctx context.Context, items []collector.ContextItem, runID uuid.UUID, status collector.RunStatus, errMsg *string, rawResponse *string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin save and complete run transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// 1. Save items
+	itemQuery := `INSERT INTO context_items (id, collection_run_id, category, brain_category, rank, topic, summary, detail, details, buzz_score, sources, image_path, priority) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
+	for _, item := range items {
+		sourcesJSON, err := json.Marshal(item.Sources)
+		if err != nil {
+			return fmt.Errorf("marshaling sources for item %s: %w", item.Topic, err)
+		}
+
+		detailsJSON, err := json.Marshal(item.Details)
+		if err != nil {
+			return fmt.Errorf("marshaling details for item %s: %w", item.Topic, err)
+		}
+
+		var brainCat *string
+		if item.BrainCategory != "" {
+			brainCat = &item.BrainCategory
+		}
+
+		priority := item.Priority
+		if priority == "" {
+			priority = "none"
+		}
+
+		_, err = tx.Exec(ctx, itemQuery, item.ID, item.CollectionRunID, item.Category, brainCat, item.Rank, item.Topic, item.Summary, item.Detail, detailsJSON, item.BuzzScore, sourcesJSON, item.ImagePath, priority)
+		if err != nil {
+			return fmt.Errorf("inserting context item: %w", err)
+		}
+	}
+
+	// 2. Complete run
+	runQuery := `UPDATE collection_runs SET completed_at = NOW(), status = $2, error_message = $3, raw_response = $4 WHERE id = $1`
+	_, err = tx.Exec(ctx, runQuery, runID, string(status), errMsg, rawResponse)
+	if err != nil {
+		return fmt.Errorf("completing collection run: %w", err)
+	}
+
+	// 3. Commit
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit save and complete run transaction: %w", err)
+	}
+	return nil
+}
+
 func (r *CollectorRepository) UpdateItemImagePath(ctx context.Context, itemID uuid.UUID, imagePath string) error {
 	query := `UPDATE context_items SET image_path = $2 WHERE id = $1`
 	_, err := r.pool.Exec(ctx, query, itemID, imagePath)

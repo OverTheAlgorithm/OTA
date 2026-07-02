@@ -68,6 +68,17 @@ func (m *mockRepo) SaveContextItems(_ context.Context, items []ContextItem) erro
 	return m.saveItemsErr
 }
 
+func (m *mockRepo) SaveItemsAndCompleteRun(_ context.Context, items []ContextItem, _ uuid.UUID, status RunStatus, errMsg *string, rawResp *string) error {
+	m.savedItems = items
+	m.completedStatus = status
+	m.completedErrMsg = errMsg
+	m.completedRawResp = rawResp
+	if m.saveItemsErr != nil {
+		return m.saveItemsErr
+	}
+	return m.completeRunErr
+}
+
 func (m *mockRepo) UpdateItemImagePath(_ context.Context, _ uuid.UUID, _ string) error {
 	return nil
 }

@@ -419,12 +419,9 @@ func (s *Service) runPipelineTail(
 	// Build combined raw response for debugging (before save so it's available on failure).
 	combinedRaw := buildCombinedRawResponse(phase1RawJSON, phase2RawResponses)
 
-	// Stage 5: Save items + mark run as success.
-	if err := s.repo.SaveContextItems(ctx, items); err != nil {
-		return failRun(fmt.Errorf("saving context items: %w", err), &combinedRaw)
-	}
-	if err := s.repo.CompleteRun(ctx, run.ID, RunStatusSuccess, nil, &combinedRaw); err != nil {
-		return CollectionResult{}, fmt.Errorf("completing run: %w", err)
+	// Stage 5: Save items + mark run as success atomically.
+	if err := s.repo.SaveItemsAndCompleteRun(ctx, items, run.ID, RunStatusSuccess, nil, &combinedRaw); err != nil {
+		return CollectionResult{}, fmt.Errorf("saving context items and completing run: %w", err)
 	}
 	s.clearCheckpoint(ctx, run.ID)
 	slog.Info("collection run stage 5 done", "run_id", run.ID, "items_saved", len(items))
